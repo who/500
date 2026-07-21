@@ -1,0 +1,26 @@
+{
+  "name": "five-hundred",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Five Hundred — card game engine, bots, and web UI monorepo",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "packageManager": "pnpm@11.15.1",
+  "scripts": {
+    "dev": "concurrently -n server,client -c blue,green \"pnpm --filter @five-hundred/server dev\" \"pnpm --filter @five-hundred/client dev\"",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "start": "node apps/server/dist/index.js",
+    "lint": "eslint .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0",
+    "eslint": "^9.0.0",
+    "prettier": "^3.0.0",
+    "typescript": "^5.6.0",
+    "typescript-eslint": "^8.0.0"
+  }
+}

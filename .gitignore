@@ -33,6 +33,9 @@ logs/
 # Cache directories
 .cache/
 
+# TypeScript incremental build info
+*.tsbuildinfo
+
 # Python / Node / Go / Rust common build outputs
 __pycache__/
 *.py[cod]
