@@ -11,9 +11,11 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "test": "vitest run"
+    "test": "vitest run",
+    "parity": "tsx test/parity/cli.ts"
   },
   "devDependencies": {
+    "tsx": "^4.23.1",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0"
   }

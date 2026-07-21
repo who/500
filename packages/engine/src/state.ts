@@ -166,6 +166,43 @@ export function newGame(seed: number, dealer = 3): GameState {
   return enterAuction(seed >>> 0, 0, 0, ((dealer % 4) + 4) % 4, initGameScore());
 }
 
+/**
+ * Test-only: enter an auction directly from a recorded deal, bypassing the
+ * seed stream. The parity replayer uses this to reconstruct hands from
+ * Python oracle traces; `first` is the seat that opens the auction.
+ */
+export function initHandFromDeal(
+  hands: readonly (readonly Card[])[],
+  middle: readonly Card[],
+  first: number,
+): GameState {
+  if (hands.length !== 4 || hands.some((h) => h.length !== 10) || middle.length !== 5) {
+    throw new Error('a deal is 4 hands of 10 cards plus a 5-card middle');
+  }
+  if (!Number.isInteger(first) || first < 0 || first > 3) {
+    throw new Error(`first bidder must be a seat 0-3, got ${String(first)}`);
+  }
+  return {
+    seed: 0,
+    dealsDrawn: 0,
+    handNumber: 0,
+    dealer: (first + 3) % 4,
+    phase: 'auction',
+    hands: hands.map((h) => [...h]),
+    middle: [...middle],
+    discards: [],
+    auction: initAuction(first),
+    contract: null,
+    declarer: null,
+    slam: false,
+    activeSeats: [0, 1, 2, 3],
+    exchange: null,
+    play: null,
+    handResult: null,
+    game: initGameScore(),
+  };
+}
+
 function exchangeGamePhase(phase: ExchangePhase): Phase {
   switch (phase) {
     case 'SLAM_OFFER':
