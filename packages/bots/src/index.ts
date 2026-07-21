@@ -17,3 +17,4 @@ export function engineDependencyName(): string {
 export * from './policy.js';
 export * from './helpers.js';
 export * from './easy.js';
+export * from './medium.js';
