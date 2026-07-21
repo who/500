@@ -34,6 +34,7 @@ import type {
   ErrorCode,
   StateBearingEvent,
 } from '@five-hundred/protocol';
+import { BotDriver, type BotDriverOptions } from './botDriver.js';
 import type { Room, RoomClient } from './rooms.js';
 
 /** Game commands: everything ws.ts does not route to the room lifecycle. */
@@ -60,6 +61,10 @@ export interface GameSession {
   state: GameState;
   /** Human seats that have readied up for the next hand (PRD section 6.1). */
   readonly ready: Set<number>;
+  /** Bot turn driver, null when the session runs without one (test stubs). */
+  driver: BotDriver | null;
+  /** Cancel pending bot timers; rooms.ts calls this when deleting the room. */
+  dispose(): void;
 }
 
 export function isGameSession(game: unknown): game is GameSession {
@@ -70,16 +75,43 @@ export function isGameSession(game: unknown): game is GameSession {
   );
 }
 
+export interface GameSessionOptions {
+  /** Bot driver config; `null` runs without a driver (test stub mode). */
+  bots?: BotDriverOptions | null;
+}
+
 /**
- * RoomStore startGame hook: seed a fresh engine game and send every seated
- * client its opening view. The seq-stamped envelopes precede the started
- * roomState the store broadcasts right after; both orders rebuild the same
- * client state.
+ * RoomStore startGame hook: seed a fresh engine game, attach the bot turn
+ * driver, and send every seated client its opening view. The seq-stamped
+ * envelopes precede the started roomState the store broadcasts right after;
+ * both orders rebuild the same client state.
  */
-export function createGameSession(room: Room, seed: number = randomInt(0, 2 ** 32)): GameSession {
-  const session: GameSession = { kind: 'gameSession', seed, state: newGame(seed), ready: new Set() };
+export function createGameSession(
+  room: Room,
+  seed: number = randomInt(0, 2 ** 32),
+  opts: GameSessionOptions = {},
+): GameSession {
+  const session: GameSession = {
+    kind: 'gameSession',
+    seed,
+    state: newGame(seed),
+    ready: new Set(),
+    driver: null,
+    dispose(): void {
+      session.driver?.dispose();
+    },
+  };
+  if (opts.bots !== null) {
+    session.driver = new BotDriver(
+      room,
+      session,
+      (action) => applyGameAction(room, action),
+      opts.bots ?? {},
+    );
+  }
   broadcastGameViews(room, session.state);
   broadcastActionRequests(room, session.state);
+  session.driver?.onAdvance(); // the opening auction may start on a bot seat
   return session;
 }
 
@@ -152,6 +184,7 @@ export function applyGameAction(room: Room, action: Action): ApplyResult {
   if (prev.phase === 'handScored') session.ready.clear();
   room.lastActivity = Date.now();
   broadcastAdvance(room, prev, result.state);
+  session.driver?.onAdvance();
   return result;
 }
 

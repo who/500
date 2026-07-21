@@ -60,6 +60,21 @@ function emptySeat(): SeatState {
   return { kind: 'empty', difficulty: DEFAULT_DIFFICULTY };
 }
 
+/**
+ * Structural hook: a game object may expose dispose() to cancel pending
+ * timers (the bot driver's pacing delays) when its room is deleted. Kept
+ * duck-typed so this module stays game-agnostic.
+ */
+function disposeGame(game: unknown): void {
+  if (
+    typeof game === 'object' &&
+    game !== null &&
+    typeof (game as { dispose?: unknown }).dispose === 'function'
+  ) {
+    (game as { dispose: () => void }).dispose();
+  }
+}
+
 function seatView(seat: number, s: SeatState): RoomSeatView {
   if (s.kind === 'human') {
     return { seat, occupant: 'human', name: s.name, difficulty: null, connected: s.connected };
@@ -287,6 +302,7 @@ export class RoomStore {
     for (const room of this.rooms.values()) {
       if (now - room.lastActivity < IDLE_ROOM_MS) continue;
       this.rooms.delete(room.code);
+      disposeGame(room.game);
       for (const client of room.clients) {
         client.send({
           event: { t: 'error', code: 'badRoomCode', message: 'Room expired after 2h idle.' },

@@ -4,8 +4,8 @@
  * 7 Spades, slam declined, exchange, then tricks). Humans hold seats 0 (Ann)
  * and 2 (Bob) and act through real ws commands picked from their own
  * actionRequest payloads; bot seats 1 and 3 are driven through the exported
- * applyGameAction path with engine-derived stub actions (the bot-driver leaf
- * replaces this).
+ * applyGameAction path with engine-derived stub actions (kept deterministic
+ * on purpose; the real bot driver is covered by botDriver.spec.ts).
  */
 import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -37,10 +37,14 @@ export interface TestApp {
   port: number;
 }
 
-/** HTTP + ws app whose games always start from a fixed seed. */
+/**
+ * HTTP + ws app whose games always start from a fixed seed. Sessions run
+ * without the bot driver (bots: null) so the scripted stubs below keep full
+ * control of bot seats; botDriver.spec.ts exercises the driver itself.
+ */
 export async function startTestApp(seed: number = SEED): Promise<TestApp> {
   const server = createServer();
-  const store = new RoomStore({ startGame: (room) => createGameSession(room, seed) });
+  const store = new RoomStore({ startGame: (room) => createGameSession(room, seed, { bots: null }) });
   const app = attachWs(server, store);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return { server, app, port: (server.address() as AddressInfo).port };
