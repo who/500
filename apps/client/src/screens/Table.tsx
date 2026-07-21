@@ -8,7 +8,9 @@
  * hand is replaced by the discard picker while everyone else sees the
  * abstract pickup status (PRD 6.3 — the middle stays hidden information).
  * During the auction the bid panel replaces the trick area (PRD 6.1), legal
- * cells taken straight from the server's actionRequest.
+ * cells taken straight from the server's actionRequest, each seat's badge
+ * carries its ordered bid-history chips, and a dead auction raises the
+ * redeal toast (PRD 6.2) via the store's redeals-counter watch.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -23,6 +25,7 @@ import { ExchangePicker } from '../components/ExchangePicker.tsx';
 import { Hand } from '../components/Hand.tsx';
 import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
+import { RedealToast } from '../components/RedealToast.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
 import { TrickArea } from '../components/TrickArea.tsx';
 import { useGameClient } from './router.tsx';
@@ -47,6 +50,8 @@ export function Table(): ReactNode {
   const pendingActions = useStore(client.store, (s) => s.pendingActions);
   const readySeats = useStore(client.store, (s) => s.readySeats);
   const lastError = useStore(client.store, (s) => s.lastError);
+  const redealNotice = useStore(client.store, (s) => s.redealNotice);
+  const clearRedealNotice = useStore(client.store, (s) => s.clearRedealNotice);
   // The actionRequest a submission was made against; while it is still the
   // current one the hand stays locked (a gameView clears pendingActions, so
   // the reference changing is exactly "the next view arrived"). A fresh
@@ -65,6 +70,9 @@ export function Table(): ReactNode {
   const picking = exchanging && view.toAct === me;
   const bidding = view.phase === 'auction';
   const bids = bidLegality(view, pendingActions?.actions ?? null);
+  // The auction log stays on the view after the auction ends; chips show
+  // only while it runs (a redeal resets the log, clearing them).
+  const auctionLog = bidding ? (view.auction?.history ?? []) : [];
 
   function playCard(card: Card): void {
     if (pendingActions === null) return;
@@ -95,6 +103,7 @@ export function Table(): ReactNode {
         sittingOut={!view.activeSeats.includes(seat)}
         cardCount={view.handCounts[seat] ?? 0}
         showBacks={seat !== me}
+        bidHistory={auctionLog.filter((e) => e.seat === seat).map((e) => e.bid)}
       />
     );
   }
@@ -102,6 +111,13 @@ export function Table(): ReactNode {
   return (
     <main data-screen="table" className="screen table-screen">
       <Hud view={view} names={[0, 1, 2, 3].map((s) => seatName(room, s))} />
+      {redealNotice !== null && (
+        <RedealToast
+          dealerName={seatName(room, redealNotice.dealer)}
+          count={redealNotice.count}
+          onDismiss={clearRedealNotice}
+        />
+      )}
       <div className="game-table">
         {[1, 2, 3].map((offset) => {
           const seat = (me + offset) % 4;

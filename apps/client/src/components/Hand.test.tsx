@@ -65,6 +65,7 @@ function playView(overrides: Partial<RedactedView> = {}): RedactedView {
     phase: 'play',
     handNumber: 2,
     dealer: 1,
+    redeals: 0,
     toAct: 0,
     hand: [AH, JD, JOKER, KS, SIX_S, SEVEN_C],
     handCounts: [6, 7, 6, 6],

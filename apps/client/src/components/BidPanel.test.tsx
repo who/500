@@ -7,6 +7,7 @@ import {
   type AuctionState,
   type Bid,
   DNULLA,
+  IND,
   LADDER,
   NT,
   NULLA,
@@ -48,15 +49,17 @@ const ROOM = roomViewFixture({
 });
 
 /** Live auction with the ladder at `ladderPos` (-1 = no winning bid yet). */
-function auctionAt(ladderPos: number, turn: number): AuctionState {
+function auctionAt(ladderPos: number, turn: number, overrides: Partial<AuctionState> = {}): AuctionState {
   return {
     ladderPos,
     declarer: ladderPos >= 0 ? (turn + 1) % 4 : null,
     indications: [],
     indicated: [false, false, false, false],
+    history: [],
     consecutiveQuiet: 0,
     turn,
     done: false,
+    ...overrides,
   };
 }
 
@@ -114,8 +117,8 @@ function sentBids(client: TestClient): ClientCommand[] {
 describe('BidPanel', () => {
   it('enables exactly the server-sent legal bids, each with its avondale value (AC-1)', () => {
     // 8♥ has been bid; the viewer holds the turn. Legal: everything above
-    // 8H on the ladder, plus Pass. (The 5 IND actions the server also sends
-    // have no active cell in this leaf — the slot stays disabled.)
+    // 8H on the ladder, plus Pass — and no indications, since a winning bid
+    // exists (the engine stops offering IND, so the cells stay disabled).
     const at8H = ladderIndex(bid(NUM, 8, 3)) as number;
     const { app } = renderAuction(auctionAt(at8H, 0));
 
@@ -135,9 +138,10 @@ describe('BidPanel', () => {
     expect(cellFor(app, bid(NULLA)).textContent).toBe('Nulla250');
     expect(cellFor(app, bid(PASS)).textContent).toBe('Pass');
 
-    // The indication slot exists but is inert until the M6 leaf.
-    const ind = app.getByTestId('bid-panel').querySelector('[data-bid="IND"]');
-    expect((ind as HTMLButtonElement).disabled).toBe(true);
+    // Every indication cell renders but stays disabled post-winning-bid.
+    for (let s = 0; s < 5; s++) {
+      expect(cellFor(app, bid(IND, 6, s)).disabled).toBe(true);
+    }
 
     // The panel replaces the trick area during the auction.
     expect(app.queryByTestId('trick-area')).toBeNull();
@@ -188,6 +192,49 @@ describe('BidPanel', () => {
     );
     expect(app.getByTestId('bid-panel')).toBeDefined();
     expect(enabledKeys(app).size).toBe(0);
+  });
+
+  it('enables indication cells exactly while the server offers them, and submits one', () => {
+    // Fresh auction, no winning bid, viewer has not indicated: the engine's
+    // legal set carries all 5 IND bids, so every indication cell enables.
+    const { client, app } = renderAuction(auctionAt(-1, 0));
+    const expected = new Set([
+      ...LADDER.map(bidKey),
+      ...[0, 1, 2, 3, NT].map((s) => bidKey(bid(IND, 6, s))),
+      bidKey(bid(PASS)),
+    ]);
+    expect(enabledKeys(app)).toEqual(expected);
+
+    // Each indication cell carries the explanatory tooltip.
+    expect(cellFor(app, bid(IND, 6, 3)).title).toBe(
+      '6H (indication): Signal to partner — does not win the auction',
+    );
+
+    fireEvent.click(cellFor(app, bid(IND, 6, 3)));
+    expect(sentBids(client)).toEqual([{ t: 'bid', bid: bid(IND, 6, 3) }]);
+  });
+
+  it('disables indication once the seat has indicated (legal set drives it)', () => {
+    // Ladder untouched, but the viewer already indicated: the engine stops
+    // offering IND to them while every ladder bid stays available.
+    const { app } = renderAuction(auctionAt(-1, 0, { indicated: [true, false, false, false] }));
+    for (let s = 0; s < 5; s++) {
+      expect(cellFor(app, bid(IND, 6, s)).disabled).toBe(true);
+    }
+    expect(cellFor(app, bid(NUM, 7, 0)).disabled).toBe(false);
+    expect(cellFor(app, bid(PASS)).disabled).toBe(false);
+  });
+
+  it('tap-toggles the indication tooltip for touch devices', () => {
+    const { app } = renderAuction(auctionAt(-1, 0));
+    expect(app.queryByTestId('ind-tooltip')).toBeNull();
+    const info = app.getByLabelText('What is an indication?');
+    fireEvent.click(info);
+    expect(app.getByTestId('ind-tooltip').textContent).toBe(
+      'Signal to partner — does not win the auction',
+    );
+    fireEvent.click(info);
+    expect(app.queryByTestId('ind-tooltip')).toBeNull();
   });
 
   it('shows off-turn seats a fully disabled panel (AC-3)', () => {

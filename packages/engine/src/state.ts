@@ -495,6 +495,11 @@ export interface RedactedView {
   readonly phase: Phase;
   readonly handNumber: number;
   readonly dealer: number;
+  /**
+   * Total dead-auction redeals this game (monotonic; a redeal does not
+   * advance handNumber). Clients toast a redeal by watching it increment.
+   */
+  readonly redeals: number;
   readonly toAct: number | null;
   /** The viewer's own cards. */
   readonly hand: readonly Card[];
@@ -531,6 +536,9 @@ export function redactedView(state: GameState, seat: number): RedactedView {
     phase: state.phase,
     handNumber: state.handNumber,
     dealer: state.dealer,
+    // Each hand consumes one deal; anything beyond handNumber+1 was a redeal.
+    // (Test-only states from initHandFromDeal have dealsDrawn 0, hence max.)
+    redeals: Math.max(0, state.dealsDrawn - state.handNumber - 1),
     toAct: toActSeat(state),
     hand: [...(state.hands[seat] ?? [])],
     handCounts: state.hands.map((h) => h.length),

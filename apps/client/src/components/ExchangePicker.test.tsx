@@ -44,6 +44,7 @@ function exchangeView(overrides: Partial<RedactedView> = {}): RedactedView {
     phase: 'middleExchange',
     handNumber: 1,
     dealer: 3,
+    redeals: 0,
     toAct: 0,
     hand: HAND15,
     handCounts: [15, 10, 10, 10],

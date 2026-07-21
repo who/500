@@ -52,6 +52,7 @@ function midTrickView(overrides: Partial<RedactedView> = {}): RedactedView {
     phase: 'play',
     handNumber: 2,
     dealer: 1,
+    redeals: 0,
     toAct: 0,
     hand: [
       makeCard(3, 14), // AH

@@ -117,6 +117,12 @@ export interface ClientState {
   handResult: Pick<HandScoredEvent, 'result' | 'scores'> | null;
   /** Seats ready for the next hand (handReady events); reset on handScored. */
   readySeats: readonly number[];
+  /**
+   * Latest dead-auction redeal, detected when a gameView's `redeals` counter
+   * increments past the previous view's. `dealer` is the new hand's dealer;
+   * `count` keys the toast so back-to-back redeals replace, never queue.
+   */
+  redealNotice: { readonly dealer: number; readonly count: number } | null;
   gameOver: Pick<GameOverEvent, 'winner' | 'scores'> | null;
   lastError: Pick<ProtocolErrorEvent, 'code' | 'message'> | null;
   seat: number | null;
@@ -141,6 +147,8 @@ export interface ClientActions {
   setName(name: string): void;
   /** Dismiss the last error (screens call this before a fresh attempt). */
   clearError(): void;
+  /** Dismiss the redeal toast (auto-called by its timer). */
+  clearRedealNotice(): void;
   /** Forget the stored seat and return to the home flow. */
   leaveSession(): void;
 }
@@ -160,6 +168,7 @@ const HOME_RESET: Partial<ClientState> = {
   roomView: null,
   seatView: null,
   pendingActions: null,
+  redealNotice: null,
   rejoining: false,
   seatLost: false,
 };
@@ -208,13 +217,22 @@ export function createStore(deps: StoreDeps): ClientStore {
       if (event.t === 'gameView') {
         // Full per-seat view: always a fresh baseline (recovery replies and
         // reattach resends arrive stamped with the last-consumed seq).
-        set({
+        const patch: Partial<ClientState> = {
           seatView: event.view,
           seat: event.view.view.seat,
           pendingActions: null,
           lastSeq: seq,
           recovering: false,
-        });
+        };
+        // A redeals increment means the auction just died: raise the toast
+        // (replacing any still showing). Resends carry an equal count, and a
+        // rematch resets it, so neither re-triggers.
+        const prev = get().seatView?.view;
+        const next = event.view.view;
+        if (prev !== undefined && next.redeals > prev.redeals) {
+          patch.redealNotice = { dealer: next.dealer, count: next.redeals };
+        }
+        set(patch);
         return;
       }
       if (lastSeq !== null && seq > lastSeq + 1) {
@@ -259,6 +277,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       lastTrick: null,
       handResult: null,
       readySeats: [],
+      redealNotice: null,
       gameOver: null,
       lastError: null,
       seat: null,
@@ -304,6 +323,10 @@ export function createStore(deps: StoreDeps): ClientStore {
 
       clearError(): void {
         set({ lastError: null });
+      },
+
+      clearRedealNotice(): void {
+        set({ redealNotice: null });
       },
 
       leaveSession(): void {

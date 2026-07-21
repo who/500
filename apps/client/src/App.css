@@ -517,14 +517,118 @@ button.primary {
 }
 
 .bid-actions {
-  display: grid;
-  grid-template-columns: 2fr 3fr;
+  display: flex;
+  flex-direction: column;
   gap: 3px;
+}
+
+/* Indication row: "Indicate ?" label, then one 6-level cell per strain. */
+.bid-ind-group {
+  display: grid;
+  grid-template-columns: auto repeat(5, 1fr);
+  gap: 3px;
+  align-items: stretch;
+}
+
+.bid-ind-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0 0.3rem;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.bid-ind-info {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.1rem;
+  height: 1.1rem;
+  padding: 0;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 50%;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.bid-ind {
+  min-height: 1.9rem;
+}
+
+.bid-ind-tip {
+  margin: 0;
+  padding: 0.3rem 0.55rem;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.35);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 0.75rem;
 }
 
 .bid-pass {
   min-height: 2rem;
   font-weight: 600;
+}
+
+/* --- Auction history chips (on each seat badge) -------------------------- */
+
+.seat-bids {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.2rem;
+  max-width: 9.5rem;
+}
+
+.bid-chip {
+  padding: 0.05rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--code-bg);
+  color: var(--text-h);
+  font-size: 0.7rem;
+  white-space: nowrap;
+}
+
+.bid-chip-pass {
+  opacity: 0.55;
+}
+
+.bid-chip-ind {
+  border-style: dashed;
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+.bid-chip-latest {
+  border-color: var(--text-h);
+  font-weight: 700;
+}
+
+.bid-chip-more {
+  font: inherit;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+/* --- Redeal toast --------------------------------------------------------- */
+
+.redeal-toast {
+  position: fixed;
+  top: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 20;
+  padding: 0.5rem 1rem;
+  border-radius: 10px;
+  background: var(--text-h);
+  color: var(--bg);
+  font-weight: 600;
+  box-shadow: var(--shadow);
 }
 
 /* --- Your seat + hand ---------------------------------------------------- */

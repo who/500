@@ -173,6 +173,20 @@ describe('legalBids', () => {
   });
 });
 
+describe('auction history log', () => {
+  it('records every applied action in table order, indications and passes included', () => {
+    const state = play(initAuction(1), [IND, 6, 2], PASS_BID, [NUM, 7, 0], [NUM, 8, 4]);
+    expect(state.history).toEqual([
+      { seat: 1, bid: bid(IND, 6, 2) },
+      { seat: 2, bid: bid(PASS) },
+      { seat: 3, bid: bid(NUM, 7, 0) },
+      { seat: 0, bid: bid(NUM, 8, 4) },
+    ]);
+    // A fresh auction (redeal path) starts with an empty log.
+    expect(initAuction(2).history).toEqual([]);
+  });
+});
+
 describe('reducer mechanics', () => {
   it('does not mutate the input state', () => {
     const before = initAuction(0);

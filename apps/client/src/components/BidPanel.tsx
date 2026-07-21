@@ -8,17 +8,20 @@
  * the seat holding the bid turn can press anything.
  *
  * Legality is never recomputed client-side: a cell is enabled exactly when
- * the server's actionRequest carried that bid for this seat. The IND slot is
- * a disabled placeholder here — the M6 indication leaf activates it along
- * with tooltips and bid history.
+ * the server's actionRequest carried that bid for this seat. That covers the
+ * indication row too (PRD 6.2): the engine offers IND bids only while no
+ * winning bid exists and the seat has not yet indicated, so the cells enable
+ * themselves off the same legal set. The indication tooltip toggles on tap
+ * for touch devices, where `title` hover text never shows.
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   type Action,
   type Bid,
   type RedactedView,
   DNULLA,
+  IND,
   NT,
   NULLA,
   NUM,
@@ -55,9 +58,11 @@ export function bidLegality(view: RedactedView, actions: readonly Action[] | nul
   return legal.size > 0 ? { active: true, legal } : INERT;
 }
 
+export const IND_TOOLTIP = 'Signal to partner — does not win the auction';
+
 /** Short cell label, e.g. "8♥", "Nulla", "Pass". */
-function cellName(b: Bid): string {
-  if (b.kind === NUM) return `${b.level}${STRAIN_LABELS[b.strain]}`;
+export function cellName(b: Bid): string {
+  if (b.kind === NUM || b.kind === IND) return `${b.level}${STRAIN_LABELS[b.strain]}`;
   if (b.kind === NULLA) return 'Nulla';
   if (b.kind === DNULLA) return 'Double Nulla';
   return 'Pass';
@@ -74,6 +79,8 @@ export interface BidPanelProps {
 }
 
 export function BidPanel(props: BidPanelProps): ReactNode {
+  const [tipOpen, setTipOpen] = useState(false);
+
   function cell(b: Bid, className?: string): ReactNode {
     const key = bidKey(b);
     const enabled = props.active && !props.locked && props.legal.has(key);
@@ -85,7 +92,7 @@ export function BidPanel(props: BidPanelProps): ReactNode {
         className={['bid-cell', className].filter(Boolean).join(' ')}
         data-bid={key}
         disabled={!enabled}
-        title={bidName(b)}
+        title={b.kind === IND ? `${bidName(b)}: ${IND_TOOLTIP}` : bidName(b)}
         onClick={() => {
           if (enabled) props.onBid(b);
         }}
@@ -126,17 +133,31 @@ export function BidPanel(props: BidPanelProps): ReactNode {
         {cell(bid(NUM, 10, NT), 'bid-col-nt')}
       </div>
       <div className="bid-actions">
-        <button
-          type="button"
-          className="bid-cell bid-ind"
-          data-bid="IND"
-          disabled
-          title="Indication bids arrive in a later update"
-        >
-          Indicate
-        </button>
+        <div className="bid-ind-group" role="group" aria-label="Indications">
+          <span className="bid-ind-label">
+            Indicate
+            <button
+              type="button"
+              className="bid-ind-info"
+              aria-label="What is an indication?"
+              aria-expanded={tipOpen}
+              title={IND_TOOLTIP}
+              onClick={() => {
+                setTipOpen((open) => !open);
+              }}
+            >
+              ?
+            </button>
+          </span>
+          {strains.map((s) => cell(bid(IND, 6, s), 'bid-ind'))}
+        </div>
         {cell(bid(PASS), 'bid-pass')}
       </div>
+      {tipOpen && (
+        <p className="bid-ind-tip" role="note" data-testid="ind-tooltip">
+          {IND_TOOLTIP}
+        </p>
+      )}
     </div>
   );
 }

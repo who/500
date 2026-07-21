@@ -118,6 +118,7 @@ export function redactedViewFixture(seat: number, overrides: Partial<RedactedVie
     phase: 'auction',
     handNumber: 0,
     dealer: 3,
+    redeals: 0,
     toAct: 0,
     hand: [1, 2, 3],
     handCounts: [10, 10, 10, 10],

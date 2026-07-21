@@ -22,11 +22,19 @@ export interface Indication {
   readonly bid: Bid;
 }
 
+/** One applied auction action, in table order. Same shape as Indication. */
+export interface AuctionEntry {
+  readonly seat: number;
+  readonly bid: Bid;
+}
+
 export interface AuctionState {
   readonly ladderPos: number; // -1 until a winning bid is made
   readonly declarer: number | null;
   readonly indications: readonly Indication[];
   readonly indicated: readonly boolean[]; // one flag per seat
+  /** Every action applied so far, in order — the public auction log. */
+  readonly history: readonly AuctionEntry[];
   readonly consecutiveQuiet: number;
   readonly turn: number;
   readonly done: boolean;
@@ -44,6 +52,7 @@ export function initAuction(first: number): AuctionState {
     declarer: null,
     indications: [],
     indicated: [false, false, false, false],
+    history: [],
     consecutiveQuiet: 0,
     turn: first,
     done: false,
@@ -105,6 +114,7 @@ export function applyAuctionAction(state: AuctionState, seat: number, action: Bi
     declarer,
     indications,
     indicated,
+    history: [...state.history, { seat, bid: action }],
     consecutiveQuiet,
     turn: (seat + 1) % 4,
     done,
