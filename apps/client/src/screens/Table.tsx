@@ -17,6 +17,13 @@
  * the same picker for the partner (15 keep 10) once the declarer confirms
  * — detected as toAct moving to the declarer's partner during a DNULLA
  * middleExchange, with distinct wait copy on both sides.
+ *
+ * Slam flow (PRD 6.2, 3.3): during slamDecision the declarer gets the offer
+ * panel (confirm/decline two-step) above their inert 15; during partnerCard
+ * a human partner gets the give-card picker with the strongest card
+ * pre-suggested while everyone else sees abstract wait copy; after a slam
+ * the partner's badge shows sitting-out (slam) and the declarer's discard
+ * picker runs in 16-keep-10 mode.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -28,11 +35,13 @@ import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
 import { BidPanel, bidLegality } from '../components/BidPanel.tsx';
 import { ExchangePicker } from '../components/ExchangePicker.tsx';
+import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
 import { Hand } from '../components/Hand.tsx';
 import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
 import { RedealToast } from '../components/RedealToast.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
+import { SlamPanel } from '../components/SlamPanel.tsx';
 import { TrickArea } from '../components/TrickArea.tsx';
 import { useGameClient } from './router.tsx';
 
@@ -82,6 +91,9 @@ export function Table(): ReactNode {
     view.contract?.kind === DNULLA &&
     view.declarer !== null &&
     view.toAct === partnerOf(view.declarer);
+  // Slam sub-states (both precede the declarer's discard in the engine).
+  const slamOffer = view.phase === 'slamDecision' && view.declarer === me;
+  const givingCard = view.phase === 'partnerCard' && view.toAct === me;
   const bidding = view.phase === 'auction';
   const bids = bidLegality(view, pendingActions?.actions ?? null);
   // The auction log stays on the view after the auction ends; chips show
@@ -105,6 +117,18 @@ export function Table(): ReactNode {
   function confirmKeeps(keeps: readonly Card[]): void {
     if (pendingActions === null) return;
     client.send({ t: 'discardKeeps', keeps });
+    setLockedOn({ req: pendingActions, err: lastError });
+  }
+
+  function answerSlam(declare: boolean): void {
+    if (pendingActions === null) return;
+    client.send({ t: declare ? 'declareSlam' : 'declineSlam' });
+    setLockedOn({ req: pendingActions, err: lastError });
+  }
+
+  function giveCard(card: Card): void {
+    if (pendingActions === null) return;
+    client.send({ t: 'giveCard', card });
     setLockedOn({ req: pendingActions, err: lastError });
   }
 
@@ -167,6 +191,18 @@ export function Table(): ReactNode {
               : `${seatName(room, view.toAct)} picked up the middle and is discarding ${Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…`}
           </div>
         )}
+        {view.phase === 'slamDecision' && !slamOffer && (
+          <div className="exchange-status" role="status" data-testid="slam-status">
+            {seatName(room, view.declarer ?? 0)} is considering a slam…
+          </div>
+        )}
+        {view.phase === 'partnerCard' && !givingCard && view.declarer !== null && (
+          <div className="exchange-status" role="status" data-testid="slam-status">
+            {view.declarer === me
+              ? `Slam declared — waiting for ${seatName(room, partnerOf(view.declarer))} to give you their best card…`
+              : `${seatName(room, partnerOf(view.declarer))} is giving their best card to ${seatName(room, view.declarer)}…`}
+          </div>
+        )}
       </div>
       <div className="my-seat" data-seat={me}>
         {badge(me)}
@@ -180,12 +216,39 @@ export function Table(): ReactNode {
             {lastError.message}
           </div>
         )}
+        {(slamOffer || givingCard) && lastError !== null && (
+          <div className="exchange-error" role="alert" data-testid="slam-error">
+            {lastError.message}
+          </div>
+        )}
+        {slamOffer && view.contract !== null && (
+          <SlamPanel
+            contract={view.contract}
+            locked={locked || pendingActions === null}
+            onDeclare={() => answerSlam(true)}
+            onDecline={() => answerSlam(false)}
+          />
+        )}
         {picking ? (
           <ExchangePicker
             cards={hand}
-            intro={passThrough ? 'Your partner passed you 5 cards' : undefined}
+            maxKeep={10}
+            intro={
+              passThrough
+                ? 'Your partner passed you 5 cards'
+                : view.slam
+                  ? 'Slam — your partner gave you their best card'
+                  : undefined
+            }
             locked={locked || pendingActions === null}
             onConfirm={confirmKeeps}
+          />
+        ) : givingCard ? (
+          <GiveCardPicker
+            cards={hand}
+            trump={view.contract === null ? null : trumpOf(view.contract)}
+            locked={locked || pendingActions === null}
+            onGive={giveCard}
           />
         ) : (
           <Hand

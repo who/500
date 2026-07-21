@@ -849,6 +849,53 @@ button.primary {
   font-size: 0.9rem;
 }
 
+/* --- Slam offer + partner give-card -------------------------------------- */
+
+.slam-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 22rem;
+  margin: 0 auto 0.5rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+  text-align: center;
+}
+
+.slam-offer-text {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.slam-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+/* Finger-sized targets, matching the joker picker's touch budget. */
+.slam-actions button {
+  min-height: 44px;
+}
+
+/* The card marked to give lifts with an accent ring (vs. discard red). */
+.give-card-selected {
+  translate: 0 -12px;
+}
+
+.give-card-selected .card {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+
 /* --- Hand-end overlay --------------------------------------------------- */
 
 /* Translucent scrim: the final trick stays visible beneath (peekable). */
