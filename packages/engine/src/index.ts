@@ -12,3 +12,4 @@ export * from './rng.js';
 export * from './auction.js';
 export * from './deal.js';
 export * from './exchange.js';
+export * from './tricks.js';
