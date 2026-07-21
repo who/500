@@ -427,6 +427,21 @@ button.primary {
   border-radius: 8px;
 }
 
+/* Declared suit of a led joker (NT/nulla), chipped onto the card face. */
+.joker-declares {
+  position: absolute;
+  bottom: 4px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  background: rgba(20, 24, 33, 0.85);
+  color: #fff;
+  font-size: 0.65rem;
+  pointer-events: none;
+}
+
 /* --- Auction bid panel ---------------------------------------------------- */
 
 .bid-panel {
@@ -706,6 +721,62 @@ button.primary {
   .hand-card + .hand-card {
     margin-left: -44px;
   }
+}
+
+/* --- Joker suit picker ---------------------------------------------------- */
+
+/* Floats above the fan like the reason popover, but interactive. */
+.joker-picker {
+  position: absolute;
+  bottom: calc(100% - 0.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.75rem;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.joker-picker-title {
+  margin: 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-h);
+  text-align: center;
+}
+
+.joker-picker-suits {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+}
+
+/* Finger-sized suit targets for touch play. */
+.joker-picker-suit {
+  min-height: 44px;
+  min-width: 7rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  font-weight: 600;
+}
+
+.joker-picker-glyph {
+  font-size: 1.3rem;
+}
+
+.joker-picker-red .joker-picker-glyph {
+  color: #c0392b;
+}
+
+.joker-picker-cancel {
+  align-self: center;
 }
 
 /* --- Middle-exchange picker ---------------------------------------------- */

@@ -13,7 +13,7 @@ import {
   makeCard,
 } from '@five-hundred/engine';
 import type { ClientCommand } from '@five-hundred/protocol';
-import { JOKER_LEAD_REASON, playLegality } from '../lib/playLegality.ts';
+import { JOKER_SLUFF_REASON, playLegality } from '../lib/playLegality.ts';
 import { LONG_PRESS_MS } from './Hand.tsx';
 import {
   applyEvent,
@@ -257,9 +257,9 @@ describe('playLegality', () => {
     expect(playLegality(playView(), []).active).toBe(false);
   });
 
-  it('blocks a joker lead in no-trump with the picker placeholder reason', () => {
+  it('routes a joker lead in no-trump to the suit picker via needsSuit', () => {
     // Leading in 8NT holding the joker: the server expands the joker into
-    // four jokerSuit actions; without the M6 picker the card stays blocked.
+    // four jokerSuit actions, so the card is playable but must name a suit.
     const view = playView({
       contract: bid(NUM, 8, NT),
       trick: { leader: 0, ledSuit: null, plays: [] },
@@ -268,12 +268,41 @@ describe('playLegality', () => {
     const actions: Action[] = [
       playAction(AH),
       playAction(SEVEN_C),
-      ...[0, 1, 2, 3].map((s): Action => ({ type: 'playCard', seat: 0, card: JOKER, jokerSuit: s })),
+      ...[0, 1, 2, 3].map((s): Action => ({
+        type: 'playCard',
+        seat: 0,
+        card: JOKER,
+        jokerSuit: s,
+      })),
     ];
     const result = playLegality(view, actions);
     expect(result.active).toBe(true);
     expect([...result.legal].sort((a, b) => a - b)).toEqual([SEVEN_C, AH].sort((a, b) => a - b));
-    expect(result.reasons.get(JOKER)).toBe(JOKER_LEAD_REASON);
+    expect([...result.needsSuit]).toEqual([JOKER]);
+    expect(result.reasons.get(JOKER)).toBeUndefined();
+  });
+
+  it('explains a blocked sluff with the joker rule when the joker is the only follower', () => {
+    // NT, spades led, no natural spade in hand: only the joker follows, so
+    // every other card is dimmed by the joker-blocks-sluffing rule.
+    const view = playView({
+      contract: bid(NUM, 8, NT),
+      hand: [AH, JOKER, SEVEN_C],
+    });
+    const result = playLegality(view, [playAction(JOKER)]);
+    expect([...result.legal]).toEqual([JOKER]);
+    expect(result.needsSuit.size).toBe(0);
+    expect(result.reasons.get(AH)).toBe(JOKER_SLUFF_REASON);
+    expect(result.reasons.get(SEVEN_C)).toBe(JOKER_SLUFF_REASON);
+  });
+
+  it('keeps the plain follow reason when natural followers exist beside the joker', () => {
+    // NT, spades led, K♠/6♠ in hand: the sluff is blocked by ordinary
+    // follow-suit, not the joker, so the message stays the follow one.
+    const view = playView({ contract: bid(NUM, 8, NT) });
+    const result = playLegality(view, [playAction(KS), playAction(SIX_S), playAction(JOKER)]);
+    expect(result.reasons.get(AH)).toBe('You must follow spades (♠).');
+    expect(result.reasons.get(SEVEN_C)).toBe('You must follow spades (♠).');
   });
 
   it('falls back to the generic reason when no follow explanation applies', () => {

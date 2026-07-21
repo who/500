@@ -15,7 +15,7 @@
 
 import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { Bid, Card } from '@five-hundred/engine';
+import { type Bid, type Card, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
@@ -64,8 +64,7 @@ export function Table(): ReactNode {
   const me = view.seat;
   const hand = sortHand(view.hand, view.contract);
   const legality = playLegality(view, pendingActions?.actions ?? null);
-  const locked =
-    lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
+  const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
   const exchanging = view.phase === 'middleExchange';
   const picking = exchanging && view.toAct === me;
   const bidding = view.phase === 'auction';
@@ -74,9 +73,11 @@ export function Table(): ReactNode {
   // only while it runs (a redeal resets the log, clearing them).
   const auctionLog = bidding ? (view.auction?.history ?? []) : [];
 
-  function playCard(card: Card): void {
+  function playCard(card: Card, jokerSuit?: number): void {
     if (pendingActions === null) return;
-    client.send({ t: 'playCard', card });
+    client.send(
+      jokerSuit === undefined ? { t: 'playCard', card } : { t: 'playCard', card, jokerSuit },
+    );
     setLockedOn({ req: pendingActions, err: lastError });
   }
 
@@ -134,7 +135,12 @@ export function Table(): ReactNode {
         {bidding ? (
           <BidPanel active={bids.active} legal={bids.legal} locked={locked} onBid={submitBid} />
         ) : (
-          <TrickArea trick={view.trick} lastTrick={view.lastTrick} anchor={me} />
+          <TrickArea
+            trick={view.trick}
+            lastTrick={view.lastTrick}
+            anchor={me}
+            trump={view.contract === null ? null : trumpOf(view.contract)}
+          />
         )}
         {exchanging && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
@@ -166,6 +172,7 @@ export function Table(): ReactNode {
             cards={hand}
             active={legality.active}
             legal={legality.legal}
+            needsSuit={legality.needsSuit}
             reasons={legality.reasons}
             locked={locked}
             onPlay={playCard}

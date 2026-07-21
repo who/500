@@ -13,6 +13,8 @@ import {
   type Action,
   type Card,
   type RedactedView,
+  JOKER,
+  cardSuit,
   effectiveSuit,
   trumpOf,
 } from '@five-hundred/engine';
@@ -24,22 +26,33 @@ const SUIT_NOUNS = ['spades', 'clubs', 'diamonds', 'hearts'] as const;
 export const GENERIC_REASON = 'Not legal right now.';
 
 /**
- * Placeholder until the joker leaf ships its lead-suit picker: leading the
- * joker in a no-trump contract needs a named suit, which this UI cannot ask
- * for yet, so the card stays blocked with this explanation.
+ * The joker-blocks-sluffing house rule (PRD 6.2, rules doc joker section):
+ * in NT/nulla hands the joker follows every suit, so a hand otherwise void
+ * in the led suit still may not sluff while the joker is in it.
  */
-export const JOKER_LEAD_REASON = 'Leading the joker means naming a suit — that is not supported yet.';
+export const JOKER_SLUFF_REASON = 'You cannot sluff while holding the joker.';
 
 export interface PlayLegality {
   /** True when the viewer holds the play turn and the hand is interactive. */
   readonly active: boolean;
-  /** Cards a tap may play right now (empty when not active). */
+  /** Cards a tap may play directly right now (empty when not active). */
   readonly legal: ReadonlySet<Card>;
-  /** Reason text for every held card outside the legal set. */
+  /**
+   * Cards playable only with a named suit — the joker led under no trump,
+   * where the server expands it into four jokerSuit action variants. A tap
+   * opens the suit picker instead of submitting immediately.
+   */
+  readonly needsSuit: ReadonlySet<Card>;
+  /** Reason text for every held card outside the playable sets. */
   readonly reasons: ReadonlyMap<Card, string>;
 }
 
-const INERT: PlayLegality = { active: false, legal: new Set(), reasons: new Map() };
+const INERT: PlayLegality = {
+  active: false,
+  legal: new Set(),
+  needsSuit: new Set(),
+  reasons: new Map(),
+};
 
 /**
  * Fold the server's actionRequest into per-card legality for the viewer's
@@ -64,16 +77,23 @@ export function playLegality(view: RedactedView, actions: readonly Action[] | nu
 
   const trump = view.contract === null ? null : trumpOf(view.contract);
   const ledSuit = view.trick?.ledSuit ?? null;
+  // Sluff blocked by the joker: no trump, a suit led, no natural follower —
+  // only the joker (every suit while held) keeps this hand following.
+  const jokerBlocksSluff =
+    trump === null &&
+    ledSuit !== null &&
+    view.hand.includes(JOKER) &&
+    !view.hand.some((c) => c !== JOKER && cardSuit(c) === ledSuit);
   const reasons = new Map<Card, string>();
   for (const card of view.hand) {
-    if (legal.has(card)) continue;
-    if (needsSuit.has(card)) {
-      reasons.set(card, JOKER_LEAD_REASON);
+    if (legal.has(card) || needsSuit.has(card)) continue;
+    if (jokerBlocksSluff) {
+      reasons.set(card, JOKER_SLUFF_REASON);
     } else if (ledSuit !== null && effectiveSuit(card, trump, ledSuit) !== ledSuit) {
       reasons.set(card, `You must follow ${SUIT_NOUNS[ledSuit]} (${SUIT_GLYPHS[ledSuit]}).`);
     } else {
       reasons.set(card, GENERIC_REASON);
     }
   }
-  return { active: true, legal, reasons };
+  return { active: true, legal, needsSuit, reasons };
 }
