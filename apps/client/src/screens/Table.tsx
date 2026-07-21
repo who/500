@@ -7,16 +7,18 @@
  * resolved-trick winner highlight. During middleExchange the acting seat's
  * hand is replaced by the discard picker while everyone else sees the
  * abstract pickup status (PRD 6.3 — the middle stays hidden information).
- * Bidding lands in a sibling leaf that mounts inside this screen.
+ * During the auction the bid panel replaces the trick area (PRD 6.1), legal
+ * cells taken straight from the server's actionRequest.
  */
 
 import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { Card } from '@five-hundred/engine';
+import type { Bid, Card } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
+import { BidPanel, bidLegality } from '../components/BidPanel.tsx';
 import { ExchangePicker } from '../components/ExchangePicker.tsx';
 import { Hand } from '../components/Hand.tsx';
 import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
@@ -61,10 +63,18 @@ export function Table(): ReactNode {
     lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
   const exchanging = view.phase === 'middleExchange';
   const picking = exchanging && view.toAct === me;
+  const bidding = view.phase === 'auction';
+  const bids = bidLegality(view, pendingActions?.actions ?? null);
 
   function playCard(card: Card): void {
     if (pendingActions === null) return;
     client.send({ t: 'playCard', card });
+    setLockedOn({ req: pendingActions, err: lastError });
+  }
+
+  function submitBid(b: Bid): void {
+    if (pendingActions === null) return;
+    client.send({ t: 'bid', bid: b });
     setLockedOn({ req: pendingActions, err: lastError });
   }
 
@@ -105,7 +115,11 @@ export function Table(): ReactNode {
             </div>
           );
         })}
-        <TrickArea trick={view.trick} lastTrick={view.lastTrick} anchor={me} />
+        {bidding ? (
+          <BidPanel active={bids.active} legal={bids.legal} locked={locked} onBid={submitBid} />
+        ) : (
+          <TrickArea trick={view.trick} lastTrick={view.lastTrick} anchor={me} />
+        )}
         {exchanging && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
             {seatName(room, view.toAct)} picked up the middle and is discarding{' '}
@@ -117,6 +131,11 @@ export function Table(): ReactNode {
         {badge(me)}
         {picking && lastError !== null && (
           <div className="exchange-error" role="alert" data-testid="exchange-error">
+            {lastError.message}
+          </div>
+        )}
+        {bidding && bids.active && lastError !== null && (
+          <div className="exchange-error" role="alert" data-testid="bid-error">
             {lastError.message}
           </div>
         )}

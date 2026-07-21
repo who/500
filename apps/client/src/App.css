@@ -427,6 +427,106 @@ button.primary {
   border-radius: 8px;
 }
 
+/* --- Auction bid panel ---------------------------------------------------- */
+
+.bid-panel {
+  grid-area: trick;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  width: min(100%, 22rem);
+  padding: 0.5rem;
+  border-radius: 16px;
+  background: radial-gradient(circle at 45% 40%, #2f8f57, #1d6a3e);
+  box-shadow: var(--shadow);
+}
+
+.bid-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 3px;
+}
+
+.bid-col-head {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.bid-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  min-height: 2.2rem;
+  padding: 0.15rem 0.1rem;
+  border: 0;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.92);
+  color: #1c2430;
+  font: inherit;
+  font-size: 0.8rem;
+  line-height: 1.1;
+  cursor: pointer;
+}
+
+.bid-cell:hover:not(:disabled),
+.bid-cell:focus-visible:not(:disabled) {
+  background: #f5c33b;
+}
+
+/* Illegal cells dim in place — never removed, so the grid stays stable. */
+.bid-cell:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.bid-cell-name {
+  font-weight: 600;
+}
+
+.bid-cell-value {
+  font-size: 0.65rem;
+  opacity: 0.75;
+}
+
+/* Nulla sits between the 7s and 8s on the ladder: a full-width divider. */
+.bid-span-row {
+  grid-column: 1 / -1;
+  flex-direction: row;
+  gap: 0.35rem;
+  min-height: 1.7rem;
+}
+
+/* Double nulla beats 10D and loses to 10H: it takes the H/NT columns, with
+   10H and 10NT keeping their own columns on the row below. */
+.bid-dnulla {
+  grid-column: 4 / 6;
+  flex-direction: row;
+  gap: 0.35rem;
+}
+
+.bid-col-h {
+  grid-column: 4;
+}
+
+.bid-col-nt {
+  grid-column: 5;
+}
+
+.bid-actions {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: 3px;
+}
+
+.bid-pass {
+  min-height: 2rem;
+  font-weight: 600;
+}
+
 /* --- Your seat + hand ---------------------------------------------------- */
 
 .my-seat {
