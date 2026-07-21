@@ -18,3 +18,4 @@ export * from './policy.js';
 export * from './helpers.js';
 export * from './easy.js';
 export * from './medium.js';
+export * from './sim.js';

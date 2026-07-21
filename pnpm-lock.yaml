@@ -116,6 +116,9 @@ importers:
         specifier: workspace:*
         version: link:../engine
     devDependencies:
+      tsx:
+        specifier: ^4.23.1
+        version: 4.23.1
       typescript:
         specifier: ^5.6.0
         version: 5.9.3
