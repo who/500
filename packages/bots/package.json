@@ -12,6 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "sim": "tsx src/sim-cli.ts",
+    "sim:hard": "tsx src/sim-cli.ts --games 200 --policies HMHM",
     "test": "vitest run"
   },
   "dependencies": {

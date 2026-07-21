@@ -4,18 +4,23 @@
  *   pnpm --filter @five-hundred/bots sim -- --hands 5000
  *   pnpm --filter @five-hundred/bots sim -- --games 200 --policies MEME
  *   pnpm --filter @five-hundred/bots sim -- --hands 5000 --seed 7 --policies MMMM
+ *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 7
  *
- * --policies is one letter per seat (E = Easy, M = Medium); defaults are
- * MMMM for --hands and MEME (Medium side 0 vs Easy side 1) for --games.
+ * --policies is one letter per seat (E = Easy, M = Medium, H = Hard at the
+ * full default world budget); defaults are MMMM for --hands and MEME (Medium
+ * side 0 vs Easy side 1) for --games. sim:hard is the fh-7hw.5 strength-gate
+ * run: it front-loads --games 200 --policies HMHM, and later flags win, so
+ * appended --games/--seed/--policies override those defaults.
  */
 
 import { EasyPolicy } from './easy.js';
+import { HardPolicy } from './hard/policy.js';
 import { MediumPolicy } from './medium.js';
 import type { Policy } from './policy.js';
 import { printStats, simulateGames, simulateHands } from './sim.js';
 
 function intFlag(args: string[], name: string): number | undefined {
-  const i = args.indexOf(name);
+  const i = args.lastIndexOf(name);
   if (i === -1) return undefined;
   const raw = args[i + 1];
   const value = Number(raw);
@@ -26,17 +31,19 @@ function intFlag(args: string[], name: string): number | undefined {
 }
 
 function parsePolicies(spec: string): Policy[] {
-  if (!/^[EM]{4}$/.test(spec)) {
-    throw new Error(`--policies needs 4 letters from E/M, got ${spec}`);
+  if (!/^[EMH]{4}$/.test(spec)) {
+    throw new Error(`--policies needs 4 letters from E/M/H, got ${spec}`);
   }
-  return [...spec].map((ch) => (ch === 'E' ? new EasyPolicy() : new MediumPolicy()));
+  return [...spec].map((ch) =>
+    ch === 'E' ? new EasyPolicy() : ch === 'H' ? new HardPolicy() : new MediumPolicy(),
+  );
 }
 
 const args = process.argv.slice(2);
 const games = intFlag(args, '--games');
 const hands = intFlag(args, '--hands');
 const seed = intFlag(args, '--seed') ?? 0;
-const spec = args[args.indexOf('--policies') + 1];
+const spec = args[args.lastIndexOf('--policies') + 1];
 
 if (games !== undefined) {
   const policies = parsePolicies(args.includes('--policies') ? (spec ?? '') : 'MEME');
