@@ -9,4 +9,5 @@ export const ENGINE_NAME = '@five-hundred/engine';
 export * from './cards.js';
 export * from './bids.js';
 export * from './rng.js';
+export * from './auction.js';
 export * from './deal.js';
