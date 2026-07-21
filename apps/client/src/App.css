@@ -1,7 +1,23 @@
-/* Home + lobby screens: clean usable layout only — the responsive/theming
-   polish pass lands in M8. */
+/* Screen + component styles. Colors come from the tokens in index.css
+   (light-dark() per scheme); the M8 polish pass added the responsive fixes
+   at 375/768/1280 and the compact card face floor. */
+
+/* Manual scheme toggle (theme.ts), floated clear of every screen's content. */
+.theme-toggle {
+  position: fixed;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 30;
+  width: 2.2rem;
+  height: 2.2rem;
+  padding: 0;
+  border-radius: 50%;
+  line-height: 1;
+  font-size: 1rem;
+}
 
 .screen {
+  width: 100%;
   max-width: 640px;
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
@@ -24,10 +40,10 @@
 .error {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  border: 1px solid #c0392b;
+  border: 1px solid var(--danger);
   border-radius: 6px;
-  color: #c0392b;
-  background: rgba(192, 57, 43, 0.08);
+  color: var(--danger);
+  background: var(--danger-bg);
 }
 
 .field {
@@ -177,8 +193,8 @@ button.primary {
 }
 
 .tag.warn {
-  background: rgba(192, 57, 43, 0.1);
-  border-color: rgba(192, 57, 43, 0.5);
+  background: var(--danger-bg);
+  border-color: var(--danger);
 }
 
 .lobby-controls {
@@ -278,6 +294,15 @@ button.primary {
   font-size: 0.9rem;
 }
 
+/* Very long player names truncate (full name stays on the title tooltip). */
+.seat-name strong,
+.seat-title strong {
+  max-width: 9rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .dealer-chip {
   display: inline-flex;
   align-items: center;
@@ -336,19 +361,19 @@ button.primary {
 }
 
 .card-ground {
-  fill: #fdfdf8;
-  stroke: #b9b5ab;
+  fill: var(--card-ground);
+  stroke: var(--card-edge);
   stroke-width: 1.5;
 }
 
 .card-red text,
 .card-red .card-pip {
-  fill: #c0392b;
+  fill: var(--suit-red);
 }
 
 .card-black text,
 .card-black .card-pip {
-  fill: #1c1c1e;
+  fill: var(--suit-black);
 }
 
 .card-corner-rank {
@@ -363,19 +388,35 @@ button.primary {
   font-size: 34px;
 }
 
+/* Compact face (PRD 6.3): activates on the wide 15/16-card fans, where each
+   card's visible sliver is narrow — the corner rank/suit grow to a legibility
+   floor and the mirrored bottom corner goes (it hides under the overlap). */
+.card-compact .card-corner-rank {
+  font-size: 22px;
+}
+
+.card-compact .card-corner-suit {
+  font-size: 20px;
+  transform: translateY(4px);
+}
+
+.card-compact .card-corner-flip {
+  display: none;
+}
+
 .card-joker .card-joker-star {
   font-size: 26px;
-  fill: #8e44ad;
+  fill: var(--joker);
 }
 
 .card-joker .card-joker-word {
   font: 700 11px var(--sans);
   letter-spacing: 0.08em;
-  fill: #8e44ad;
+  fill: var(--joker);
 }
 
 .card-back .card-back-panel {
-  fill: #34558b;
+  fill: var(--card-back);
 }
 
 .card-back .card-back-weave {
@@ -660,6 +701,7 @@ button.primary {
   display: flex;
   justify-content: center;
   padding: 0.5rem 0 0.75rem;
+  max-width: 100%;
 }
 
 .hand-card {
@@ -708,6 +750,19 @@ button.primary {
   margin-left: -34px;
 }
 
+/* Phones: the side seats can't flank a full bid panel, so the trick/bid
+   area (and the exchange/slam statuses sharing its grid area) drops to its
+   own full-width row and the panel's min(100%, 22rem) resolves to fit. */
+@media (max-width: 600px) {
+  .game-table {
+    grid-template-areas:
+      '. top .'
+      'left . right'
+      'trick trick trick';
+    grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  }
+}
+
 @media (max-width: 480px) {
   .game-table {
     min-height: 240px;
@@ -720,6 +775,51 @@ button.primary {
 
   .hand-card + .hand-card {
     margin-left: -44px;
+  }
+
+  /* Typography floor: at phone card sizes the corner glyphs hold legible. */
+  .my-hand .card-corner-rank {
+    font-size: 20px;
+  }
+
+  .my-hand .card-corner-suit {
+    font-size: 18px;
+  }
+}
+
+/* The 15/16-card exchange fan wraps to two rows below 500px (PRD 6.3) —
+   overlap alone can't keep 15 cards tappable inside a phone width. */
+@media (max-width: 500px) {
+  .exchange-hand {
+    flex-wrap: wrap;
+    row-gap: 0.6rem;
+  }
+}
+
+/* Landscape phones (short viewport): the HUD collapses to one scrollable
+   line and the table grid gives its spare height back to the hand. */
+@media (max-height: 500px) and (orientation: landscape) {
+  .hud {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    white-space: nowrap;
+    justify-content: flex-start;
+    font-size: 0.8rem;
+  }
+
+  .game-table {
+    min-height: 200px;
+  }
+}
+
+/* Touch: bid cells rise toward the 44px target the pickers already meet. */
+@media (pointer: coarse) {
+  .bid-cell {
+    min-height: 2.6rem;
+  }
+
+  .bid-pass {
+    min-height: 2.75rem;
   }
 }
 
@@ -772,7 +872,7 @@ button.primary {
 }
 
 .joker-picker-red .joker-picker-glyph {
-  color: #c0392b;
+  color: var(--danger);
 }
 
 .joker-picker-cancel {
@@ -807,7 +907,7 @@ button.primary {
 .exchange-card-discard .card {
   opacity: 0.55;
   filter: saturate(0.6);
-  outline: 2px solid #c0392b;
+  outline: 2px solid var(--danger);
   outline-offset: 1px;
   border-radius: 8px;
 }
@@ -821,7 +921,7 @@ button.primary {
   height: 1.1rem;
   line-height: 1.1rem;
   border-radius: 50%;
-  background: #c0392b;
+  background: var(--danger);
   color: #fff;
   font-size: 0.7rem;
   text-align: center;
@@ -845,7 +945,7 @@ button.primary {
 }
 
 .exchange-error {
-  color: #c0392b;
+  color: var(--danger);
   font-size: 0.9rem;
 }
 
@@ -914,7 +1014,7 @@ button.primary {
   width: calc(100% - 2rem);
   padding: 1rem 1.25rem;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.96);
+  background: var(--overlay-panel);
   box-shadow: var(--shadow);
 }
 

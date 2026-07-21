@@ -1,15 +1,44 @@
+/* Design tokens (PRD 6.3). Every color resolves through light-dark(): the
+   default follows prefers-color-scheme, and the manual toggle pins a scheme
+   by setting data-theme on <html> (see theme.ts). Suit/danger reds are tuned
+   per scheme to hold WCAG AA contrast — theme.test.ts checks the ratios. */
+
+/* Padding counts inside every box — without this, .screen's side padding
+   pushes past 375px viewports (content-box + auto margins skip flex stretch). */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
+  --text: light-dark(#6b6375, #9ca3af);
+  --text-h: light-dark(#08060d, #f3f4f6);
+  --bg: light-dark(#fff, #16171d);
+  --border: light-dark(#e5e4e7, #2e303a);
+  --code-bg: light-dark(#f4f3ec, #1f2028);
+  --accent: light-dark(#aa3bff, #c084fc);
+  --accent-bg: light-dark(rgba(170, 59, 255, 0.1), rgba(192, 132, 252, 0.15));
+  --accent-border: light-dark(rgba(170, 59, 255, 0.5), rgba(192, 132, 252, 0.5));
   --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+    light-dark(rgba(0, 0, 0, 0.1), rgba(0, 0, 0, 0.4)) 0 10px 15px -3px,
+    light-dark(rgba(0, 0, 0, 0.05), rgba(0, 0, 0, 0.25)) 0 4px 6px -2px;
+
+  /* Errors / discard marks on the app background (lighter red on dark). */
+  --danger: light-dark(#c0392b, #e5766a);
+  --danger-bg: light-dark(rgba(192, 57, 43, 0.08), rgba(229, 118, 106, 0.12));
+
+  /* Card faces keep a near-white ground in both schemes (slightly dimmed in
+     dark to cut glare) so the suit colors stay high-contrast on the felt. */
+  --card-ground: light-dark(#fdfdf8, #f2f0e8);
+  --card-edge: light-dark(#b9b5ab, #55524b);
+  --suit-red: light-dark(#c0392b, #b02e21);
+  --suit-black: light-dark(#1c1c1e, #14141a);
+  --joker: light-dark(#8e44ad, #7d3c9a);
+  --card-back: light-dark(#34558b, #2b4674);
+
+  /* Translucent overlay panel (hand-end): dark-scheme gets a dark panel. */
+  --overlay-panel: light-dark(rgba(255, 255, 255, 0.96), rgba(31, 32, 40, 0.97));
 
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
@@ -30,24 +59,13 @@
   }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
+/* The manual toggle pins one scheme; light-dark() resolves through this. */
+:root[data-theme='light'] {
+  color-scheme: light;
+}
 
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
+:root[data-theme='dark'] {
+  color-scheme: dark;
 }
 
 #root {
@@ -64,6 +82,9 @@
 
 body {
   margin: 0;
+  /* Phone guarantee (PRD 6.3): rotated fans and overlays never introduce a
+     horizontal scrollbar. */
+  overflow-x: clip;
 }
 
 h1,
@@ -108,4 +129,16 @@ code {
   line-height: 135%;
   padding: 4px 8px;
   background: var(--code-bg);
+}
+
+/* No animations ship yet (M8 pacing leaf); this guard keeps any future
+   transition instant for reduced-motion users. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

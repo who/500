@@ -62,7 +62,8 @@ export function Lobby(): ReactNode {
         <div className="seat-title">
           {seat.occupant === 'human' && (
             <>
-              <strong>{seat.name}</strong>
+              {/* CSS truncates very long names; the title keeps the full text. */}
+              <strong title={seat.name ?? undefined}>{seat.name}</strong>
               {isYou && <span className="tag">You</span>}
               {room !== null && room.hostSeat === seat.seat && <span className="tag">Host</span>}
               {!seat.connected && <span className="tag warn">Disconnected</span>}

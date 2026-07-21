@@ -46,6 +46,8 @@ export function GiveCardPicker(props: GiveCardPickerProps): ReactNode {
 
   // Same fixed-arc fan as Hand so the cards stay legible at phone width.
   const fanStep = props.cards.length > 1 ? Math.min(6, 40 / (props.cards.length - 1)) : 0;
+  // Same compact-face rule as Hand/ExchangePicker (only oversized fans hit it).
+  const compact = props.cards.length > 10;
 
   return (
     <div
@@ -76,7 +78,7 @@ export function GiveCardPicker(props: GiveCardPickerProps): ReactNode {
                 if (!props.locked) setSelected(card);
               }}
             >
-              <CardFace card={card} />
+              <CardFace card={card} compact={compact} />
             </button>
           );
         })}

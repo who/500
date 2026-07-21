@@ -91,7 +91,8 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
       data-sitting-out={props.sittingOut || undefined}
     >
       <div className="seat-name">
-        <strong>{props.name}</strong>
+        {/* CSS truncates very long names; the title keeps the full text. */}
+        <strong title={props.name}>{props.name}</strong>
         {props.isYou && <span className="tag">You</span>}
         {props.isDealer && (
           <span className="dealer-chip" title="Dealer" aria-label="Dealer">

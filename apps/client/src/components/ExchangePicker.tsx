@@ -53,6 +53,8 @@ export function ExchangePicker(props: ExchangePickerProps): ReactNode {
 
   // Same fixed-arc fan as Hand so the 15/16 cards stay legible at phone width.
   const fanStep = props.cards.length > 1 ? Math.min(6, 40 / (props.cards.length - 1)) : 0;
+  // Oversized fans (the whole point of this picker) get the compact face.
+  const compact = props.cards.length > 10;
 
   return (
     <div
@@ -81,7 +83,7 @@ export function ExchangePicker(props: ExchangePickerProps): ReactNode {
               data-discard={marked || undefined}
               onClick={() => toggle(card)}
             >
-              <CardFace card={card} />
+              <CardFace card={card} compact={compact} />
               {marked && (
                 <span className="discard-mark" aria-hidden="true">
                   ✕

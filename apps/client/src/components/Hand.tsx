@@ -53,6 +53,8 @@ export function Hand(props: HandProps): ReactNode {
   }, [interactive]);
   // Spread the fan across a fixed arc so 15/16-card exchange hands stay legible.
   const fanStep = props.cards.length > 1 ? Math.min(6, 40 / (props.cards.length - 1)) : 0;
+  // Oversized fans (15/16-card exchange states) get the compact face variant.
+  const compact = props.cards.length > 10;
 
   function beginPress(card: CardId): void {
     if (pressTimer.current !== null) clearTimeout(pressTimer.current);
@@ -119,7 +121,7 @@ export function Hand(props: HandProps): ReactNode {
             onTouchMove={endPress}
             onTouchCancel={endPress}
           >
-            <CardFace card={card} />
+            <CardFace card={card} compact={compact} />
           </button>
         );
       })}

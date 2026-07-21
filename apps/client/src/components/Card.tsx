@@ -27,10 +27,20 @@ function isRed(suit: number): boolean {
   return suit === 2 || suit === 3;
 }
 
-/** One card face. The joker gets its own purple star design. */
-export function CardFace(props: { card: CardId; className?: string }): ReactNode {
+/**
+ * One card face. The joker gets its own purple star design. `compact` is the
+ * small-size variant (PRD 6.3): corner rank/suit grow to a legibility floor
+ * and the mirrored bottom corner is dropped — CSS keys off .card-compact.
+ */
+export function CardFace(props: {
+  card: CardId;
+  className?: string;
+  compact?: boolean;
+}): ReactNode {
   const { card } = props;
-  const classes = ['card', props.className].filter(Boolean).join(' ');
+  const classes = ['card', props.compact === true && 'card-compact', props.className]
+    .filter(Boolean)
+    .join(' ');
   if (card === JOKER) {
     return (
       <svg
@@ -71,7 +81,7 @@ export function CardFace(props: { card: CardId; className?: string }): ReactNode
       <text x="32" y="66" textAnchor="middle" className="card-pip">
         {glyph}
       </text>
-      <g transform="rotate(180 32 45)">
+      <g transform="rotate(180 32 45)" className="card-corner-flip">
         <text x="7" y="20" className="card-corner-rank">
           {rank}
         </text>

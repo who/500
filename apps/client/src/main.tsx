@@ -3,7 +3,9 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { createGameClient } from './store.ts'
+import { initTheme } from './theme.ts'
 
+initTheme()
 const client = createGameClient()
 
 createRoot(document.getElementById('root')!).render(
