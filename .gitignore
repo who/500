@@ -32,6 +32,7 @@ logs/
 
 # Cache directories
 .cache/
+.pnpm-store/
 
 # TypeScript incremental build info
 *.tsbuildinfo
