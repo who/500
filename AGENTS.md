@@ -1,84 +1,51 @@
-# Agent Instructions
+# AGENTS.md
 
-This project uses **bd** (beads) for issue tracking. Run `bd prime` for full workflow context.
+Session rules for AI agents working in this repo.
 
-## Quick Reference
+Project type: **python**. Issue prefix: **fh**.
+Bootstrapped by ortus 0.1.5.dev5+g89f5fcaa5.d20260719 on 2026-07-20.
 
-```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work atomically
-bd close <id>         # Complete work
-bd dolt push          # Push beads data to remote
-```
+## Issue tracking with bd
 
-## Non-Interactive Shell Commands
+All work goes through bd. Find ready work, claim it, do it, close it:
 
-**ALWAYS use non-interactive flags** with file operations to avoid hanging on confirmation prompts.
-
-Shell commands like `cp`, `mv`, and `rm` may be aliased to include `-i` (interactive) mode on some systems, causing the agent to hang indefinitely waiting for y/n input.
-
-**Use these forms instead:**
-```bash
-# Force overwrite without prompting
-cp -f source dest           # NOT: cp source dest
-mv -f source dest           # NOT: mv source dest
-rm -f file                  # NOT: rm file
-
-# For recursive operations
-rm -rf directory            # NOT: rm -r directory
-cp -rf source dest          # NOT: cp -r source dest
-```
-
-**Other commands that may prompt:**
-- `scp` - use `-o BatchMode=yes` for non-interactive
-- `ssh` - use `-o BatchMode=yes` to fail instead of prompting
-- `apt-get` - use `-y` flag
-- `brew` - use `HOMEBREW_NO_AUTO_UPDATE=1` env var
-
-<!-- BEGIN BEADS INTEGRATION v:1 profile:minimal hash:ca08a54f -->
-## Beads Issue Tracker
-
-This project uses **bd (beads)** for issue tracking. Run `bd prime` to see full workflow context and commands.
-
-### Quick Reference
 
 ```bash
-bd ready              # Find available work
-bd show <id>          # View issue details
-bd update <id> --claim  # Claim work
-bd close <id>         # Complete work
+bd ready                              # see what has no blockers
+bd update <id> --status=in_progress   # claim
+# ... do the work ...
+bd close <id> --reason "..."          # close
 ```
 
-### Rules
 
-- Use `bd` for ALL task tracking — do NOT use TodoWrite, TaskCreate, or markdown TODO lists
-- Run `bd prime` for detailed command reference and session close protocol
-- Use `bd remember` for persistent knowledge — do NOT use MEMORY.md files
+## Orchestrator (ortus grind)
 
-## Session Completion
+Drive the queue to zero via Ortus's subprocess-per-task loop. This project
+defaults to the **claude** backend. Each iteration spawns a fresh agent
+with a NARROW per-task condition ("close one issue"); the outer loop trusts
+only observable bd state to decide success, orphan-claim, or no-change retry.
 
-**When ending a work session**, you MUST complete ALL steps below. Work is NOT complete until `git push` succeeds.
+Claude workers use `claude -p "/goal ..."`. Codex workers use a plain
+`codex exec "..."` prompt; do not invoke `ortus grind`, `goal.sh`, or
+`ralph.sh` from inside a worker.
 
-**MANDATORY WORKFLOW:**
 
-1. **File issues for remaining work** - Create issues for anything that needs follow-up
-2. **Run quality gates** (if code changed) - Tests, linters, builds
-3. **Update issue status** - Close finished work, update in-progress items
-4. **PUSH TO REMOTE** - This is MANDATORY:
-   ```bash
-   git pull --rebase
-   bd dolt push
-   git push
-   git status  # MUST show "up to date with origin"
-   ```
-5. **Clean up** - Clear stashes, prune remote branches
-6. **Verify** - All changes committed AND pushed
-7. **Hand off** - Provide context for next session
+```bash
+ortus grind .                            # drain bd ready
+ortus grind . --tasks 1                  # exactly one task closed
+ortus grind . --orphan-policy revert     # revert claimed-but-unclosed
+ortus grind . --idle-sleep 0             # no idle backoff on no-change iters
+ortus grind . -c "<custom condition>"    # custom per-iteration task text
+```
 
-**CRITICAL RULES:**
-- Work is NOT complete until `git push` succeeds
-- NEVER stop before pushing - that leaves work stranded locally
-- NEVER say "ready to push when you are" - YOU must push
-- If push fails, resolve and retry until it succeeds
-<!-- END BEADS INTEGRATION -->
+
+## Session-close protocol
+
+Before saying "done", verify:
+
+1. `git status` — what changed
+2. `git add` the relevant files
+3. `git commit` with a clear message
+4. `git push` to the remote (if one is configured)
+
+Work is not done until pushed.
