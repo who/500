@@ -207,7 +207,7 @@ describe('rejections (AC-2)', () => {
     expect(await carol.nextError()).toBe('badCommand');
   });
 
-  it('rejects game commands until the game loop lands', async () => {
+  it('rejects game commands before the game starts', async () => {
     const { client: ann } = await createRoomAs('Ann');
     ann.send({ t: 'nextHand' });
     expect(await ann.nextError()).toBe('badCommand');

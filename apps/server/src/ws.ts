@@ -1,16 +1,15 @@
 /**
  * WebSocket plumbing: attaches a `ws` WebSocketServer to the HTTP server,
  * adapts each socket onto the transport-agnostic RoomClient interface, and
- * dispatches guarded room-lifecycle commands into the RoomStore. Envelope
- * shaping and per-room seq stamping live in RoomStore.broadcast.
- *
- * Game commands (bid, playCard, …) are validated here but rejected until the
- * game-loop leaf wires the engine in.
+ * dispatches guarded commands — room lifecycle into the RoomStore, game
+ * commands into the authoritative game loop (game.ts). Envelope shaping and
+ * per-room seq stamping live in RoomStore.broadcast and game.ts's waves.
  */
 
 import type { Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isCommand, type ClientCommand, type Envelope } from '@five-hundred/protocol';
+import { createGameSession, handleGameCommand } from './game.js';
 import { RoomStore, type RoomClient } from './rooms.js';
 
 function makeClient(socket: WebSocket): RoomClient {
@@ -44,15 +43,16 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
     case 'startGame':
       store.startGame(client);
       return;
-    default:
-      // Game commands land in the game-loop leaf.
-      client.send({
-        event: {
-          t: 'error',
-          code: 'badCommand',
-          message: `Command "${cmd.t}" is not supported yet.`,
-        },
-      });
+    case 'bid':
+    case 'discardKeeps':
+    case 'declareSlam':
+    case 'declineSlam':
+    case 'giveCard':
+    case 'playCard':
+    case 'nextHand':
+    case 'requestState':
+      handleGameCommand(client, cmd);
+      return;
   }
 }
 
@@ -63,7 +63,10 @@ export interface WsApp {
 }
 
 /** Attach the ws server + room store (with GC running) to an HTTP server. */
-export function attachWs(server: Server, store: RoomStore = new RoomStore()): WsApp {
+export function attachWs(
+  server: Server,
+  store: RoomStore = new RoomStore({ startGame: (room) => createGameSession(room) }),
+): WsApp {
   const wss = new WebSocketServer({ server });
   store.startGc();
 
