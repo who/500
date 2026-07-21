@@ -13,3 +13,5 @@ export * from './auction.js';
 export * from './deal.js';
 export * from './exchange.js';
 export * from './tricks.js';
+export * from './play.js';
+export * from './scoring.js';
