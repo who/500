@@ -137,6 +137,8 @@ export interface ClientActions {
   handleSocketOpen(): void;
   setConnection(status: ConnectionStatus): void;
   setName(name: string): void;
+  /** Dismiss the last error (screens call this before a fresh attempt). */
+  clearError(): void;
   /** Forget the stored seat and return to the home flow. */
   leaveSession(): void;
 }
@@ -291,6 +293,10 @@ export function createStore(deps: StoreDeps): ClientStore {
 
       setName(name: string): void {
         set({ name });
+      },
+
+      clearError(): void {
+        set({ lastError: null });
       },
 
       leaveSession(): void {
