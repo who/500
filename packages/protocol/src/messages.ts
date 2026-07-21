@@ -53,6 +53,16 @@ export interface StartGameCommand {
   readonly t: 'startGame';
 }
 
+/**
+ * Host only, mid-game: hand a disconnected human seat to a bot. Irreversible
+ * for the rest of the game — the seat's old token is invalidated.
+ */
+export interface ConvertSeatToBotCommand {
+  readonly t: 'convertSeatToBot';
+  readonly seat: number;
+  readonly difficulty: BotDifficulty;
+}
+
 export interface BidCommand {
   readonly t: 'bid';
   readonly bid: Bid;
@@ -100,6 +110,7 @@ export type ClientCommand =
   | SitCommand
   | ConfigureBotsCommand
   | StartGameCommand
+  | ConvertSeatToBotCommand
   | BidCommand
   | DiscardKeepsCommand
   | DeclareSlamCommand

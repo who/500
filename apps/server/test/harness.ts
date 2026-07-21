@@ -25,7 +25,13 @@ import type {
   RoomView,
   ServerEvent,
 } from '@five-hundred/protocol';
-import { applyGameAction, createGameSession, isGameSession, type GameSession } from '../src/game.js';
+import {
+  applyGameAction,
+  createGameSession,
+  isGameSession,
+  resumeView,
+  type GameSession,
+} from '../src/game.js';
 import { RoomStore, type Room } from '../src/rooms.js';
 import { attachWs, type WsApp } from '../src/ws.js';
 
@@ -44,7 +50,10 @@ export interface TestApp {
  */
 export async function startTestApp(seed: number = SEED): Promise<TestApp> {
   const server = createServer();
-  const store = new RoomStore({ startGame: (room) => createGameSession(room, seed, { bots: null }) });
+  const store = new RoomStore({
+    startGame: (room) => createGameSession(room, seed, { bots: null }),
+    resumeView,
+  });
   const app = attachWs(server, store);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   return { server, app, port: (server.address() as AddressInfo).port };
@@ -139,6 +148,9 @@ export interface GameFixture {
   room: Room;
   session: GameSession;
   roomCode: string;
+  /** Seat tokens from seatGranted, for reconnect tests. */
+  annToken: string;
+  bobToken: string;
   /** Latest per-client view/actionRequest, refreshed by the driver. */
   annView: RedactedView;
   bobView: RedactedView;
@@ -167,9 +179,9 @@ export async function setupGame(t: TestApp, opts: { spectator?: boolean } = {}):
   }
 
   ann.send({ t: 'sit', seat: 0 });
-  await ann.next('seatGranted');
+  const annToken = (await ann.next('seatGranted')).event.token;
   bob.send({ t: 'sit', seat: 2 });
-  await bob.next('seatGranted');
+  const bobToken = (await bob.next('seatGranted')).event.token;
   ann.send({ t: 'startGame' });
 
   const annView = (await ann.next('gameView')).event.view.view;
@@ -186,6 +198,8 @@ export async function setupGame(t: TestApp, opts: { spectator?: boolean } = {}):
     room,
     session: room.game,
     roomCode: created.roomCode,
+    annToken,
+    bobToken,
     annView,
     bobView,
     annReq,

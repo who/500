@@ -23,6 +23,7 @@ import {
   legalActions,
   newGame,
   redactedView,
+  toActSeat,
   type Action,
   type ApplyResult,
   type EngineErrorCode,
@@ -30,12 +31,13 @@ import {
 } from '@five-hundred/engine';
 import type {
   ClientCommand,
+  ConvertSeatToBotCommand,
   Envelope,
   ErrorCode,
   StateBearingEvent,
 } from '@five-hundred/protocol';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
-import type { Room, RoomClient } from './rooms.js';
+import { isPaused, roomView, type Room, type RoomClient } from './rooms.js';
 
 /** Game commands: everything ws.ts does not route to the room lifecycle. */
 export type GameCommand = Extract<
@@ -63,6 +65,8 @@ export interface GameSession {
   readonly ready: Set<number>;
   /** Bot turn driver, null when the session runs without one (test stubs). */
   driver: BotDriver | null;
+  /** Whose turn it is; rooms.ts duck-types this for the paused flag. */
+  actingSeat(): number | null;
   /** Cancel pending bot timers; rooms.ts calls this when deleting the room. */
   dispose(): void;
 }
@@ -97,6 +101,9 @@ export function createGameSession(
     state: newGame(seed),
     ready: new Set(),
     driver: null,
+    actingSeat(): number | null {
+      return toActSeat(session.state);
+    },
     dispose(): void {
       session.driver?.dispose();
     },
@@ -178,12 +185,18 @@ export function applyGameAction(room: Room, action: Action): ApplyResult {
     };
   }
   const prev = session.state;
+  const wasPaused = isPaused(room);
   const result = applyAction(prev, action);
   if (!result.ok) return result;
   session.state = result.state;
   if (prev.phase === 'handScored') session.ready.clear();
   room.lastActivity = Date.now();
   broadcastAdvance(room, prev, result.state);
+  // The turn may have landed on (or left) a disconnected human; keep every
+  // client's paused indicator current.
+  if (isPaused(room) !== wasPaused) {
+    broadcastAll(room, { t: 'roomState', room: roomView(room) });
+  }
   session.driver?.onAdvance();
   return result;
 }
@@ -229,6 +242,11 @@ function handleNextHand(room: Room, session: GameSession, seat: number, client: 
     return;
   }
   session.ready.add(seat);
+  advanceHandIfAllReady(room, session, seat);
+}
+
+/** Apply the engine's nextHand once every human seat has readied (any seat may apply it). */
+function advanceHandIfAllReady(room: Room, session: GameSession, seat: number): void {
   const humanSeats = [0, 1, 2, 3].filter((s) => room.seats[s]?.kind === 'human');
   if (humanSeats.every((s) => session.ready.has(s))) {
     applyGameAction(room, { type: 'nextHand', seat });
@@ -283,5 +301,68 @@ export function handleGameCommand(client: RoomClient, cmd: GameCommand): void {
         sendError(client, protocolErrorCode(result.error.code), result.error.message);
       }
     }
+  }
+}
+
+/**
+ * RoomStore resumeView hook: after a token reattach, resend the seat's full
+ * current view plus its actionRequest, both stamped with the last-consumed
+ * seq (a fresh seq spent on one socket would gap every other client). The
+ * actionRequest matters when the reattached seat holds the turn — without it
+ * the client would never relearn its legal actions and the game would stall.
+ */
+export function resumeView(room: Room, client: RoomClient): void {
+  const session = room.game;
+  const seat = client.seat;
+  if (!isGameSession(session) || seat === null) return;
+  const seq = Math.max(0, room.seq - 1);
+  client.send({
+    seq,
+    event: { t: 'gameView', view: { view: redactedView(session.state, seat) } },
+  });
+  client.send({ seq, event: { t: 'actionRequest', seat, actions: legalActions(session.state, seat) } });
+}
+
+/**
+ * Host command: hand a disconnected human seat to a bot mid-game
+ * (irreversible; the seat's token dies with it, so its old holder gets
+ * badToken on any later rejoin). The seat may hold the turn right now — the
+ * driver handoff schedules its first decision — or be the lone unready seat
+ * in handScored, where bots are auto-ready.
+ */
+export function handleConvertSeatToBot(client: RoomClient, cmd: ConvertSeatToBotCommand): void {
+  const room = client.room;
+  if (room === null) {
+    sendError(client, 'badCommand', 'Not in a room.');
+    return;
+  }
+  if (client !== room.host) {
+    sendError(client, 'notHost', 'Only the host can convert a seat to a bot.');
+    return;
+  }
+  const session = room.game;
+  if (!isGameSession(session)) {
+    sendError(client, 'badCommand', 'No game is running.');
+    return;
+  }
+  if (cmd.seat === client.seat) {
+    sendError(client, 'badCommand', 'The host seat cannot be converted.');
+    return;
+  }
+  const seatState = room.seats[cmd.seat];
+  if (seatState === undefined || seatState.kind !== 'human') {
+    sendError(client, 'badCommand', `Seat ${cmd.seat} is not held by a human.`);
+    return;
+  }
+  if (seatState.connected) {
+    sendError(client, 'badCommand', `Seat ${cmd.seat} is still connected.`);
+    return;
+  }
+  room.seats[cmd.seat] = { kind: 'bot', difficulty: cmd.difficulty };
+  room.lastActivity = Date.now();
+  broadcastAll(room, { t: 'roomState', room: roomView(room) });
+  session.driver?.addBot(cmd.seat, cmd.difficulty);
+  if (session.state.phase === 'handScored') {
+    advanceHandIfAllReady(room, session, cmd.seat);
   }
 }

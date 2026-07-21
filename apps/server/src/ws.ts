@@ -9,7 +9,7 @@
 import type { Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isCommand, type ClientCommand, type Envelope } from '@five-hundred/protocol';
-import { createGameSession, handleGameCommand } from './game.js';
+import { createGameSession, handleConvertSeatToBot, handleGameCommand, resumeView } from './game.js';
 import { RoomStore, type RoomClient } from './rooms.js';
 
 function makeClient(socket: WebSocket): RoomClient {
@@ -32,7 +32,7 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
       store.createRoom(client, cmd.name);
       return;
     case 'joinRoom':
-      store.joinRoom(client, cmd.roomCode, cmd.name);
+      store.joinRoom(client, cmd.roomCode, cmd.name, cmd.token);
       return;
     case 'sit':
       store.sit(client, cmd.seat);
@@ -42,6 +42,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
       return;
     case 'startGame':
       store.startGame(client);
+      return;
+    case 'convertSeatToBot':
+      handleConvertSeatToBot(client, cmd);
       return;
     case 'bid':
     case 'discardKeeps':
@@ -65,7 +68,7 @@ export interface WsApp {
 /** Attach the ws server + room store (with GC running) to an HTTP server. */
 export function attachWs(
   server: Server,
-  store: RoomStore = new RoomStore({ startGame: (room) => createGameSession(room) }),
+  store: RoomStore = new RoomStore({ startGame: (room) => createGameSession(room), resumeView }),
 ): WsApp {
   const wss = new WebSocketServer({ server });
   store.startGc();

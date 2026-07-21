@@ -75,6 +75,31 @@ function disposeGame(game: unknown): void {
   }
 }
 
+/**
+ * Structural hook like dispose(): a game object may expose actingSeat()
+ * (GameSession does) so the room can tell whose turn it is without this
+ * module knowing engine types.
+ */
+function gameActingSeat(game: unknown): number | null {
+  if (
+    typeof game === 'object' &&
+    game !== null &&
+    typeof (game as { actingSeat?: unknown }).actingSeat === 'function'
+  ) {
+    const seat = (game as { actingSeat: () => unknown }).actingSeat();
+    if (typeof seat === 'number') return seat;
+  }
+  return null;
+}
+
+/** Paused = the game is waiting on a disconnected human's turn (PRD section 5). */
+export function isPaused(room: Room): boolean {
+  const seat = gameActingSeat(room.game);
+  if (seat === null) return false;
+  const s = room.seats[seat];
+  return s !== undefined && s.kind === 'human' && !s.connected;
+}
+
 function seatView(seat: number, s: SeatState): RoomSeatView {
   if (s.kind === 'human') {
     return { seat, occupant: 'human', name: s.name, difficulty: null, connected: s.connected };
@@ -88,6 +113,7 @@ export function roomView(room: Room): RoomView {
     hostSeat: room.host?.seat ?? null,
     seats: room.seats.map((s, i) => seatView(i, s)),
     started: room.game !== null,
+    paused: isPaused(room),
   };
 }
 
@@ -100,6 +126,8 @@ export class RoomStore {
       random?: () => number;
       /** Game-loop leaf plugs in here; the default stubs the game object. */
       startGame?: (room: Room) => unknown;
+      /** Reconnect leaf: resend a reattached client its current game view. */
+      resumeView?: (room: Room, client: RoomClient) => void;
     } = {},
   ) {}
 
@@ -154,18 +182,22 @@ export class RoomStore {
     return room;
   }
 
-  joinRoom(client: RoomClient, roomCode: string, name: string): void {
+  joinRoom(client: RoomClient, roomCode: string, name: string, token?: string): void {
     if (client.room !== null) {
       this.sendError(client, 'badCommand', 'Already in a room.');
       return;
     }
     const room = this.rooms.get(roomCode.toUpperCase());
     if (room === undefined) {
+      // Covers rejoin after the GC swept the room: the token is moot.
       this.sendError(client, 'badRoomCode', `No room with code ${roomCode}.`);
       return;
     }
+    if (token !== undefined) {
+      this.reattach(client, room, token);
+      return;
+    }
     if (room.game !== null) {
-      // Token-based rejoin of a running game is the reconnect leaf.
       this.sendError(client, 'badCommand', 'Game already started.');
       return;
     }
@@ -178,6 +210,44 @@ export class RoomStore {
     client.name = name;
     this.touch(room);
     this.broadcastRoomState(room);
+  }
+
+  /**
+   * Token rejoin (PRD section 5 "Session/reconnect"): bind this socket to
+   * the seat holding the token and resend the full current state. Latest
+   * attach wins — a zombie tab still holding the seat is closed with a typed
+   * error. Host powers follow the token: if the seat was the host's, the new
+   * socket becomes the host.
+   */
+  private reattach(client: RoomClient, room: Room, token: string): void {
+    const seat = room.seats.findIndex((s) => s.kind === 'human' && s.token === token);
+    const state = room.seats[seat];
+    if (state === undefined || state.kind !== 'human') {
+      this.sendError(client, 'badToken', 'No seat matches this token.');
+      return;
+    }
+    // Whether disconnected (seat kept on the detached client) or a live
+    // zombie about to be kicked, the host is identified by this seat.
+    const wasHost = room.host !== null && room.host.seat === seat;
+    for (const other of room.clients) {
+      if (other.seat !== seat) continue;
+      room.clients.delete(other);
+      other.room = null;
+      other.seat = null;
+      this.sendError(other, 'seatTaken', 'Seat reclaimed by a newer connection.');
+      other.close();
+    }
+    room.clients.add(client);
+    client.room = room;
+    client.seat = seat;
+    client.name = state.name;
+    state.connected = true;
+    if (wasHost) room.host = client;
+    this.touch(room);
+    this.broadcastRoomState(room);
+    // Full current view resend (covers mid-auction/-exchange/-trick alike),
+    // stamped with the last-consumed seq so no other client sees a gap.
+    this.opts.resumeView?.(room, client);
   }
 
   sit(client: RoomClient, seat: number): void {
@@ -276,10 +346,12 @@ export class RoomStore {
       const s = room.seats[client.seat];
       if (room.game === null) {
         room.seats[client.seat] = emptySeat();
+        client.seat = null;
       } else if (s?.kind === 'human') {
-        s.connected = false; // game pauses for them (PRD); reconnect leaf resumes
+        // The detached client keeps its seat so a reattach can tell whether
+        // the token belongs to the (possibly disconnected) host's seat.
+        s.connected = false;
       }
-      client.seat = null;
     }
     if (room.host === client && room.game === null) {
       room.host = this.nextHost(room);

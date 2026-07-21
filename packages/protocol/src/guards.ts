@@ -97,7 +97,8 @@ function isRoomView(x: unknown): boolean {
     Array.isArray(x.seats) &&
     x.seats.length === 4 &&
     x.seats.every(isRoomSeatView) &&
-    typeof x.started === 'boolean'
+    typeof x.started === 'boolean' &&
+    typeof x.paused === 'boolean'
   );
 }
 
@@ -129,6 +130,7 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
     Array.isArray(m.bots) &&
     m.bots.every((b) => isRec(b) && isSeat(b.seat) && isDifficulty(b.difficulty)),
   startGame: () => true,
+  convertSeatToBot: (m) => isSeat(m.seat) && isDifficulty(m.difficulty),
   bid: (m) => isBid(m.bid),
   discardKeeps: (m) => isCardArray(m.keeps),
   declareSlam: () => true,

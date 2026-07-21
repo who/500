@@ -33,6 +33,12 @@ export interface RoomView {
   /** Always exactly 4 entries, indexed by seat. */
   readonly seats: readonly RoomSeatView[];
   readonly started: boolean;
+  /**
+   * True while the acting seat belongs to a disconnected human: the server
+   * makes no progress until they reconnect or the host converts the seat to
+   * a bot. Always false when no game is running or a bot holds the turn.
+   */
+  readonly paused: boolean;
 }
 
 /**

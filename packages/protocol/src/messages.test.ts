@@ -16,6 +16,7 @@ const validCommands: Record<string, unknown> = {
   },
   configureBotsEmpty: { t: 'configureBots', bots: [] },
   startGame: { t: 'startGame' },
+  convertSeatToBot: { t: 'convertSeatToBot', seat: 2, difficulty: 'easy' },
   bid: { t: 'bid', bid: { kind: 'NUM', level: 7, strain: 4 } },
   bidIndication: { t: 'bid', bid: { kind: 'IND', level: 6, strain: 0 } },
   bidPass: { t: 'bid', bid: { kind: 'PASS', level: 0, strain: -1 } },
@@ -43,6 +44,9 @@ const malformedCommands: Record<string, unknown> = {
   configureBotsNotArray: { t: 'configureBots', bots: { seat: 1, difficulty: 'easy' } },
   configureBotsBadDifficulty: { t: 'configureBots', bots: [{ seat: 1, difficulty: 'expert' }] },
   configureBotsBadSeat: { t: 'configureBots', bots: [{ seat: 9, difficulty: 'easy' }] },
+  convertSeatToBotBadSeat: { t: 'convertSeatToBot', seat: 4, difficulty: 'easy' },
+  convertSeatToBotBadDifficulty: { t: 'convertSeatToBot', seat: 2, difficulty: 'expert' },
+  convertSeatToBotMissingSeat: { t: 'convertSeatToBot', difficulty: 'easy' },
   bidMissing: { t: 'bid' },
   bidBadKind: { t: 'bid', bid: { kind: 'MISERE', level: 7, strain: 0 } },
   bidLevelString: { t: 'bid', bid: { kind: 'NUM', level: '7', strain: 0 } },
@@ -70,6 +74,7 @@ const validEvents: Record<string, unknown> = {
         { seat: 3, occupant: 'human', name: 'Sam', difficulty: null, connected: false },
       ],
       started: false,
+      paused: false,
     },
   },
   gameView: {
@@ -130,6 +135,7 @@ const malformedEvents: Record<string, unknown> = {
         { seat: 2, occupant: 'empty', name: null, difficulty: 'hard', connected: true },
       ],
       started: false,
+      paused: false,
     },
   },
   roomStateBadOccupant: {
@@ -139,6 +145,21 @@ const malformedEvents: Record<string, unknown> = {
       hostSeat: null,
       seats: [
         { seat: 0, occupant: 'ghost', name: null, difficulty: null, connected: true },
+        { seat: 1, occupant: 'bot', name: null, difficulty: 'easy', connected: true },
+        { seat: 2, occupant: 'empty', name: null, difficulty: 'hard', connected: true },
+        { seat: 3, occupant: 'empty', name: null, difficulty: 'hard', connected: true },
+      ],
+      started: false,
+      paused: false,
+    },
+  },
+  roomStateMissingPaused: {
+    t: 'roomState',
+    room: {
+      roomCode: 'ABCD',
+      hostSeat: null,
+      seats: [
+        { seat: 0, occupant: 'human', name: 'A', difficulty: null, connected: true },
         { seat: 1, occupant: 'bot', name: null, difficulty: 'easy', connected: true },
         { seat: 2, occupant: 'empty', name: null, difficulty: 'hard', connected: true },
         { seat: 3, occupant: 'empty', name: null, difficulty: 'hard', connected: true },

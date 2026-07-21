@@ -86,9 +86,9 @@ export class BotDriver {
   ) {
     this.delayMs = opts.delayMs ?? defaultBotDelayMs;
     this.onFatal = opts.onFatal ?? crashRoom;
-    // Seat difficulties are frozen at game start (empty seats have already
-    // been converted to bots); per-bot Rng is seeded from game seed + seat
-    // for reproducibility.
+    // Bot seats are fixed at game start (empty seats have already been
+    // converted); seat-to-bot conversion mid-game arrives through addBot.
+    // Per-bot Rng is seeded from game seed + seat for reproducibility.
     room.seats.forEach((s, seat) => {
       if (s.kind === 'bot') {
         this.bots.set(seat, {
@@ -115,6 +115,19 @@ export class BotDriver {
       this.timer = null;
       void this.act(seat, state);
     }, this.delayMs());
+  }
+
+  /**
+   * Seat-to-bot conversion (reconnect leaf): register a policy for a seat
+   * that started the game as a human, then check whether it already holds
+   * the turn — if so, onAdvance schedules its first decision.
+   */
+  addBot(seat: number, difficulty: BotDifficulty): void {
+    this.bots.set(seat, {
+      policy: policyFor(difficulty),
+      rng: makeRng((this.session.seed + seat) >>> 0),
+    });
+    this.onAdvance();
   }
 
   /** Cancel any pending decision; the room is going away. */

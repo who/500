@@ -14,6 +14,7 @@ const roomStateEvent: RoomStateEvent = {
       { seat: 3, occupant: 'bot', name: null, difficulty: 'hard', connected: true },
     ],
     started: true,
+    paused: false,
   },
 };
 
