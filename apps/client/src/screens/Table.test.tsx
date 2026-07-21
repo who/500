@@ -188,8 +188,9 @@ describe('Table', () => {
     expect(app.getByTestId('hud-stake').textContent).toBe('At stake: 250');
   });
 
-  it('fans an unnamed room with bot fallbacks and a 15-card exchange hand', () => {
-    // No roomState yet (token rejoin straight into a game): names fall back.
+  it('fans an unnamed room with bot fallbacks and a 15-card exchange pick', () => {
+    // No roomState yet (token rejoin straight into a game): names fall back,
+    // and the acting seat's hand mounts as the discard picker.
     const client = makeClient();
     const app = renderApp(client);
     const fifteen = Array.from({ length: 15 }, (_, i) => i);
@@ -207,7 +208,7 @@ describe('Table', () => {
         }),
       }),
     );
-    expect(app.getByTestId('my-hand').querySelectorAll('[data-card]')).toHaveLength(15);
+    expect(app.getByTestId('exchange-picker').querySelectorAll('[data-card]')).toHaveLength(15);
     expect(app.getByTestId('hud-contract').textContent).toBe('8H by Bot 1');
   });
 });

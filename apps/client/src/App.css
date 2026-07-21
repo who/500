@@ -504,6 +504,76 @@ button.primary {
   }
 }
 
+/* --- Middle-exchange picker ---------------------------------------------- */
+
+.exchange-picker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.exchange-count {
+  font-size: 0.9rem;
+  opacity: 0.85;
+  text-align: center;
+}
+
+.exchange-card {
+  position: relative;
+  cursor: pointer;
+}
+
+/* Marked discards lift and dim so the kept 10 read at a glance. */
+.exchange-card-discard {
+  translate: 0 -12px;
+}
+
+.exchange-card-discard .card {
+  opacity: 0.55;
+  filter: saturate(0.6);
+  outline: 2px solid #c0392b;
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+
+.discard-mark {
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1.1rem;
+  height: 1.1rem;
+  line-height: 1.1rem;
+  border-radius: 50%;
+  background: #c0392b;
+  color: #fff;
+  font-size: 0.7rem;
+  text-align: center;
+}
+
+[data-locked] .exchange-card {
+  cursor: default;
+}
+
+/* Abstract hidden-info status floated over the (empty) trick area. */
+.exchange-status {
+  grid-area: trick;
+  justify-self: center;
+  max-width: 16rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(20, 24, 33, 0.75);
+  color: #fff;
+  font-size: 0.9rem;
+  text-align: center;
+}
+
+.exchange-error {
+  color: #c0392b;
+  font-size: 0.9rem;
+}
+
 /* --- Hand-end overlay --------------------------------------------------- */
 
 /* Translucent scrim: the final trick stays visible beneath (peekable). */
