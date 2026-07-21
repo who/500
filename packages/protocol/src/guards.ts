@@ -151,6 +151,7 @@ const EVENT_CHECKS: Record<ServerEvent['t'], (m: Rec) => boolean> = {
     typeof m.code === 'string' &&
     (ERROR_CODES as readonly string[]).includes(m.code) &&
     typeof m.message === 'string',
+  seatGranted: (m) => isSeat(m.seat) && isNonEmptyString(m.token),
 };
 
 export function isCommand(x: unknown): x is ClientCommand {
@@ -167,10 +168,13 @@ export function isEvent(x: unknown): x is ServerEvent {
 
 /**
  * An envelope is a valid event plus the seq rule: state-bearing events must
- * carry a non-negative integer seq; error envelopes may omit it.
+ * carry a non-negative integer seq; private (single-socket) envelopes —
+ * errors and seatGranted — may omit it.
  */
 export function isEnvelope(x: unknown): x is Envelope {
   if (!isRec(x) || !isEvent(x.event)) return false;
-  if (x.event.t === 'error') return x.seq === undefined || isSeqNumber(x.seq);
+  if (x.event.t === 'error' || x.event.t === 'seatGranted') {
+    return x.seq === undefined || isSeqNumber(x.seq);
+  }
   return isSeqNumber(x.seq);
 }

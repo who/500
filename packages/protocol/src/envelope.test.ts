@@ -70,6 +70,14 @@ describe('isEnvelope', () => {
     expect(isEnvelope({ seq: -4, event: errorEvent })).toBe(false);
   });
 
+  it('treats seatGranted as private: seq optional, shape still checked', () => {
+    const seatGranted = { t: 'seatGranted', seat: 2, token: 'secret-token' };
+    expect(isEnvelope({ event: seatGranted })).toBe(true);
+    expect(isEnvelope({ seq: 3, event: seatGranted })).toBe(true);
+    expect(isEnvelope({ event: { t: 'seatGranted', seat: 5, token: 'x' } })).toBe(false);
+    expect(isEnvelope({ event: { t: 'seatGranted', seat: 2, token: '' } })).toBe(false);
+  });
+
   it('rejects envelopes whose event is missing or invalid', () => {
     expect(isEnvelope({ seq: 1 })).toBe(false);
     expect(isEnvelope({ seq: 1, event: { t: 'noSuchEvent' } })).toBe(false);

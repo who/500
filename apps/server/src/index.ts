@@ -1,9 +1,9 @@
 /**
- * @five-hundred/server — HTTP server placeholder.
+ * @five-hundred/server — HTTP + WebSocket server.
  *
  * Serves GET /healthz and, when a client build exists (apps/client/dist),
- * the built client as static files. Game/session endpoints land in later
- * issues.
+ * the built client as static files. WebSocket room lifecycle is attached in
+ * ws.ts; the authoritative game loop lands in a later issue.
  */
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { readFile } from 'node:fs/promises';
@@ -12,6 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { BOTS_NAME } from '@five-hundred/bots';
 import { ENGINE_NAME } from '@five-hundred/engine';
 import { PROTOCOL_VERSION } from '@five-hundred/protocol';
+import { attachWs } from './ws.js';
 
 export const APP_NAME = 'Five Hundred';
 export const DEFAULT_PORT = 8500;
@@ -78,6 +79,7 @@ export function handleRequest(req: IncomingMessage, res: ServerResponse): void {
 
 export function startServer(port: number = resolvePort()): ReturnType<typeof createServer> {
   const server = createServer(handleRequest);
+  attachWs(server);
   server.on('error', (err: NodeJS.ErrnoException) => {
     if (err.code === 'EADDRINUSE') {
       console.error(
@@ -90,7 +92,7 @@ export function startServer(port: number = resolvePort()): ReturnType<typeof cre
     throw err;
   });
   server.listen(port, () => {
-    console.log(`[${APP_NAME}] server listening on http://localhost:${port} (GET /healthz)`);
+    console.log(`[${APP_NAME}] server listening on http://localhost:${port} (GET /healthz, ws rooms)`);
   });
   return server;
 }

@@ -168,6 +168,18 @@ export interface ErrorEvent {
   readonly message: string;
 }
 
+/**
+ * Sent only to the socket that claimed a seat: its per-seat secret token for
+ * later reconnection. Private to one connection, so — like errors — it never
+ * consumes a room seq (a per-room seq spent on one socket would look like a
+ * gap to every other client).
+ */
+export interface SeatGrantedEvent {
+  readonly t: 'seatGranted';
+  readonly seat: number;
+  readonly token: string;
+}
+
 /** Every event that reflects room/game state and therefore consumes a seq. */
 export type StateBearingEvent =
   | RoomStateEvent
@@ -177,7 +189,10 @@ export type StateBearingEvent =
   | HandScoredEvent
   | GameOverEvent;
 
-export type ServerEvent = StateBearingEvent | ErrorEvent;
+/** Events addressed to a single socket; their envelopes may omit seq. */
+export type PrivateEvent = ErrorEvent | SeatGrantedEvent;
+
+export type ServerEvent = StateBearingEvent | PrivateEvent;
 
 export type EventType = ServerEvent['t'];
 
@@ -188,10 +203,11 @@ export type EventType = ServerEvent['t'];
 /**
  * Every server event travels inside an envelope. `seq` is per-room and
  * increments on every state-bearing event so clients can detect gaps and
- * send requestState; errors are turn-local, so their envelopes may omit it.
- * The union shape makes the seq requirement a compile error to violate.
- * Receivers must tolerate unknown extra fields on the envelope.
+ * send requestState; errors and other single-socket events are turn-local,
+ * so their envelopes may omit it. The union shape makes the seq requirement
+ * a compile error to violate. Receivers must tolerate unknown extra fields
+ * on the envelope.
  */
 export type Envelope =
   | { readonly seq: number; readonly event: StateBearingEvent }
-  | { readonly seq?: number; readonly event: ErrorEvent };
+  | { readonly seq?: number; readonly event: PrivateEvent };

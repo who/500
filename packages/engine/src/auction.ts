@@ -6,7 +6,7 @@
  */
 
 import {
-  Bid,
+  type Bid,
   DNULLA,
   IND,
   LADDER,

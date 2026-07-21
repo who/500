@@ -8,7 +8,7 @@
  * and double nulla (mirrors trump_of).
  */
 
-import { Card, JOKER, SAME_COLOR, cardRank, cardSuit } from './cards.js';
+import { type Card, JOKER, SAME_COLOR, cardRank, cardSuit } from './cards.js';
 
 /**
  * The suit a card counts as for following purposes.

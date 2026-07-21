@@ -12,10 +12,12 @@
   "dependencies": {
     "@five-hundred/bots": "workspace:*",
     "@five-hundred/engine": "workspace:*",
-    "@five-hundred/protocol": "workspace:*"
+    "@five-hundred/protocol": "workspace:*",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",
+    "@types/ws": "^8.18.1",
     "esbuild": "^0.25.0",
     "typescript": "^5.6.0",
     "vitest": "^3.0.0"
