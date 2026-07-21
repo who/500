@@ -14,7 +14,7 @@
  * (Easy) and heuristics (Medium) need to know which play is the partner's.
  */
 
-import type { Bid, Card, Rng, TrickPlay } from '@five-hundred/engine';
+import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import { cardPower, cardSuit, trumpOf } from '@five-hundred/engine';
 
 export interface Policy {
@@ -51,6 +51,29 @@ export interface Policy {
     contract: Bid,
     rng: Rng,
   ): Card;
+}
+
+/** A play decision that may name a suit (joker led with no trump). */
+export interface PlayChoice {
+  readonly card: Card;
+  readonly jokerSuit?: number;
+}
+
+/**
+ * A policy whose play decision needs the full (unredacted) GameState — trick
+ * history, hand counts, discards — rather than choosePlay's local view. The
+ * Hard bot's determinized rollouts are the one implementor: sampling hidden
+ * worlds requires everything the seat has observed, which the Policy
+ * choosePlay signature deliberately omits. Drivers that hold a full state
+ * (the sim harness, the server's worker pool) prefer this seam when present;
+ * state-blind callers still get the Policy contract via choosePlay.
+ */
+export interface StateAwarePolicy extends Policy {
+  choosePlayFromState(state: GameState, seat: number, rng: Rng): PlayChoice;
+}
+
+export function hasStatePlay(policy: Policy): policy is StateAwarePolicy {
+  return typeof (policy as Partial<StateAwarePolicy>).choosePlayFromState === 'function';
 }
 
 /**

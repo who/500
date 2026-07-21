@@ -30,6 +30,7 @@ import {
   toActSeat,
 } from '@five-hundred/engine';
 import type { Policy } from './policy.js';
+import { hasStatePlay } from './policy.js';
 
 /** Oracle play_one_hand max_redeals: fail loudly if an auction never lands. */
 export const MAX_REDEALS = 10_000;
@@ -45,7 +46,22 @@ export function botAction(state: GameState, policies: readonly Policy[], rng: Rn
   if (state.phase === 'handScored') return { type: 'nextHand', seat: 0 };
   const seat = toActSeat(state);
   if (seat === null) throw new Error(`no seat to act during ${state.phase}`);
-  const policy = policies[seat] as Policy;
+  return policyAction(state, seat, policies[seat] as Policy, rng);
+}
+
+/**
+ * One seat's decision as an engine action — the phase -> Policy-method map,
+ * shared by botAction above, the server bot driver's worker pool, and any
+ * other caller that resolves the acting seat itself. State-aware policies
+ * (the Hard bot) get the full state for their play decision through the
+ * StateAwarePolicy seam; everyone else gets the classic choosePlay view.
+ */
+export function policyAction(
+  state: GameState,
+  seat: number,
+  policy: Policy,
+  rng: Rng,
+): Action {
   const contract = state.contract as Bid;
   const hand = state.hands[seat] ?? [];
   switch (state.phase) {
@@ -70,6 +86,12 @@ export function botAction(state: GameState, policies: readonly Policy[], rng: Rn
     case 'play': {
       const play = state.play;
       if (play === null) throw new Error('play phase without play state');
+      if (hasStatePlay(policy)) {
+        const { card, jokerSuit } = policy.choosePlayFromState(state, seat, rng);
+        return jokerSuit === undefined
+          ? { type: 'playCard', seat, card }
+          : { type: 'playCard', seat, card, jokerSuit };
+      }
       const legal = legalPlaysFor(play, seat);
       const card = policy.choosePlay(
         seat,
