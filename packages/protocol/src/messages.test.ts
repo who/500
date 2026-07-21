@@ -27,6 +27,7 @@ const validCommands: Record<string, unknown> = {
   playCard: { t: 'playCard', card: 7 },
   playCardJokerLead: { t: 'playCard', card: 44, jokerSuit: 2 },
   nextHand: { t: 'nextHand' },
+  rematch: { t: 'rematch' },
   requestState: { t: 'requestState' },
 };
 
@@ -118,6 +119,8 @@ const validEvents: Record<string, unknown> = {
     },
     scores: [280, 20],
   },
+  handReady: { t: 'handReady', ready: [0, 1, 3] },
+  handReadyEmpty: { t: 'handReady', ready: [] },
   gameOver: { t: 'gameOver', winner: 0, scores: [520, 180] },
   error: { t: 'error', code: 'notYourTurn', message: 'it is seat 1 to act' },
 };
@@ -185,6 +188,8 @@ const malformedEvents: Record<string, unknown> = {
     result: { contract: { kind: 'NUM', level: 7, strain: 0 } },
     scores: [40],
   },
+  handReadyMissing: { t: 'handReady' },
+  handReadyBadSeat: { t: 'handReady', ready: [0, 4] },
   gameOverBadWinner: { t: 'gameOver', winner: 2, scores: [500, 100] },
   errorUnknownCode: { t: 'error', code: 'kaboom', message: 'x' },
   errorMissingMessage: { t: 'error', code: 'badToken' },

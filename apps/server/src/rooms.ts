@@ -92,6 +92,22 @@ function gameActingSeat(game: unknown): number | null {
   return null;
 }
 
+/**
+ * Structural hook like actingSeat(): a game object may expose isOver()
+ * (GameSession does) so rematch can require a finished game without this
+ * module knowing engine types.
+ */
+function gameIsOver(game: unknown): boolean {
+  if (
+    typeof game === 'object' &&
+    game !== null &&
+    typeof (game as { isOver?: unknown }).isOver === 'function'
+  ) {
+    return (game as { isOver: () => unknown }).isOver() === true;
+  }
+  return false;
+}
+
 /** Paused = the game is waiting on a disconnected human's turn (PRD section 5). */
 export function isPaused(room: Room): boolean {
   const seat = gameActingSeat(room.game);
@@ -331,6 +347,32 @@ export class RoomStore {
     room.seats.forEach((s, i) => {
       if (s.kind === 'empty') room.seats[i] = { kind: 'bot', difficulty: s.difficulty };
     });
+    room.game = this.opts.startGame?.(room) ?? { stub: true };
+    this.touch(room);
+    this.broadcastRoomState(room);
+  }
+
+  /**
+   * Host only, after gameOver (PRD 6.1): dispose the finished game and start
+   * a fresh one with the same seats and bots. Scores reset because the new
+   * session begins a new engine game; the seed is drawn fresh by the
+   * startGame hook.
+   */
+  rematch(client: RoomClient): void {
+    const room = client.room;
+    if (room === null) {
+      this.sendError(client, 'badCommand', 'Not in a room.');
+      return;
+    }
+    if (client !== room.host) {
+      this.sendError(client, 'notHost', 'Only the host can start a rematch.');
+      return;
+    }
+    if (room.game === null || !gameIsOver(room.game)) {
+      this.sendError(client, 'badCommand', 'No finished game to rematch.');
+      return;
+    }
+    disposeGame(room.game);
     room.game = this.opts.startGame?.(room) ?? { stub: true };
     this.touch(room);
     this.broadcastRoomState(room);

@@ -43,6 +43,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
     case 'startGame':
       store.startGame(client);
       return;
+    case 'rematch':
+      store.rematch(client);
+      return;
     case 'convertSeatToBot':
       handleConvertSeatToBot(client, cmd);
       return;

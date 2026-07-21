@@ -159,14 +159,21 @@ describe('hand transition (ready-up)', () => {
     expect(event.result.contract).toMatchObject({ kind: 'NUM', level: 7, strain: 0 });
     expect(event.scores).toHaveLength(2);
 
-    // One human readying is not enough: the state stays put.
+    // One human readying is not enough: the state stays put, but everyone
+    // learns the new ready set (readiness schema v1: bot seats always ready).
     fx.ann.send({ t: 'nextHand' });
-    await fx.ann.next('error').catch(() => undefined); // nothing arrives; ignore timeout
+    const ready = await fx.bob.next('handReady');
+    expect(ready.event.ready).toEqual([0, 1, 3]);
     expect(fx.session.state.phase).toBe('handScored');
     expect(fx.session.ready.has(0)).toBe(true);
 
-    // The second human readies: hand 1 deals and a fresh auction opens.
+    // A re-send is idempotent (no extra handReady broadcast); the second
+    // human readying completes the set: hand 1 deals and a fresh auction
+    // opens.
+    fx.ann.send({ t: 'nextHand' });
     fx.bob.send({ t: 'nextHand' });
+    const readyAll = await fx.bob.next('handReady');
+    expect(readyAll.event.ready).toEqual([0, 1, 2, 3]);
     const view = await fx.bob.next('gameView');
     expect(view.event.view.view.phase).toBe('auction');
     expect(view.event.view.view.handNumber).toBe(1);

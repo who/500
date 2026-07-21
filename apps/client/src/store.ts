@@ -115,6 +115,8 @@ export interface ClientState {
   pendingActions: ActionRequestEvent | null;
   lastTrick: TrickResolvedEvent['trick'] | null;
   handResult: Pick<HandScoredEvent, 'result' | 'scores'> | null;
+  /** Seats ready for the next hand (handReady events); reset on handScored. */
+  readySeats: readonly number[];
   gameOver: Pick<GameOverEvent, 'winner' | 'scores'> | null;
   lastError: Pick<ProtocolErrorEvent, 'code' | 'message'> | null;
   seat: number | null;
@@ -236,6 +238,10 @@ export function createStore(deps: StoreDeps): ClientStore {
           break;
         case 'handScored':
           patch.handResult = { result: event.result, scores: event.scores };
+          patch.readySeats = [];
+          break;
+        case 'handReady':
+          patch.readySeats = event.ready;
           break;
         case 'gameOver':
           patch.gameOver = { winner: event.winner, scores: event.scores };
@@ -252,6 +258,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       pendingActions: null,
       lastTrick: null,
       handResult: null,
+      readySeats: [],
       gameOver: null,
       lastError: null,
       seat: null,

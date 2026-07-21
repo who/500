@@ -16,6 +16,7 @@ import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
 import { Hand } from '../components/Hand.tsx';
+import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
 import { TrickArea } from '../components/TrickArea.tsx';
@@ -33,6 +34,7 @@ export function Table(): ReactNode {
   const seatView = useStore(client.store, (s) => s.seatView);
   const room = useStore(client.store, (s) => s.roomView);
   const pendingActions = useStore(client.store, (s) => s.pendingActions);
+  const readySeats = useStore(client.store, (s) => s.readySeats);
   // The actionRequest a play was submitted against; while it is still the
   // current one the hand stays locked (a gameView clears pendingActions, so
   // the reference changing is exactly "the next view arrived").
@@ -95,6 +97,17 @@ export function Table(): ReactNode {
           onPlay={playCard}
         />
       </div>
+      {view.phase === 'handScored' && view.handResult !== null && (
+        <HandEndOverlay
+          result={view.handResult}
+          scores={view.scores}
+          seat={me}
+          readySeats={readySeats}
+          room={room}
+          names={[0, 1, 2, 3].map((s) => seatName(room, s))}
+          onReady={() => client.send({ t: 'nextHand' })}
+        />
+      )}
     </main>
   );
 }

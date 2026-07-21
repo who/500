@@ -99,6 +99,15 @@ export interface NextHandCommand {
   readonly t: 'nextHand';
 }
 
+/**
+ * Host only, after gameOver: reset scores and start a fresh game in the same
+ * room with the same seats and bots (PRD 6.1 rematch). Validated like
+ * startGame; the new game draws a fresh seed.
+ */
+export interface RematchCommand {
+  readonly t: 'rematch';
+}
+
 /** Ask for a fresh full view after detecting a sequence-number gap. */
 export interface RequestStateCommand {
   readonly t: 'requestState';
@@ -118,6 +127,7 @@ export type ClientCommand =
   | GiveCardCommand
   | PlayCardCommand
   | NextHandCommand
+  | RematchCommand
   | RequestStateCommand;
 
 export type CommandType = ClientCommand['t'];
@@ -166,6 +176,16 @@ export interface HandScoredEvent {
   readonly scores: readonly [number, number];
 }
 
+/**
+ * Readiness schema v1: broadcast whenever the next-hand ready set changes
+ * during handScored. `ready` lists every seat counted as ready — humans that
+ * sent nextHand plus bot seats, which are always ready.
+ */
+export interface HandReadyEvent {
+  readonly t: 'handReady';
+  readonly ready: readonly number[];
+}
+
 export interface GameOverEvent {
   readonly t: 'gameOver';
   /** Winning side (0 or 1). */
@@ -198,6 +218,7 @@ export type StateBearingEvent =
   | ActionRequestEvent
   | TrickResolvedEvent
   | HandScoredEvent
+  | HandReadyEvent
   | GameOverEvent;
 
 /** Events addressed to a single socket; their envelopes may omit seq. */

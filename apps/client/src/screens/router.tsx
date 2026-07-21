@@ -9,6 +9,7 @@ import { createContext, useContext, useEffect, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import type { ClientCommand, RoomView, SeatGameView } from '@five-hundred/protocol';
 import type { ClientStore } from '../store.ts';
+import { GameEnd } from './GameEnd.tsx';
 import { Home } from './Home.tsx';
 import { Lobby } from './Lobby.tsx';
 import { Table } from './Table.tsx';
@@ -36,18 +37,21 @@ export function useGameClient(): GameClientHandle {
   return client;
 }
 
-export type Phase = 'home' | 'lobby' | 'table';
+export type Phase = 'home' | 'lobby' | 'table' | 'gameEnd';
 
 /**
  * A seat view wins over a room view so a token rejoin into a running game
  * (gameView resent on reattach) lands on the table without passing through
- * the lobby.
+ * the lobby. A view resting in gameOver shows the game-end screen; a rematch
+ * replaces it with a fresh auction view and the table returns.
  */
 export function derivePhase(state: {
   seatView: SeatGameView | null;
   roomView: RoomView | null;
 }): Phase {
-  if (state.seatView !== null) return 'table';
+  if (state.seatView !== null) {
+    return state.seatView.view.phase === 'gameOver' ? 'gameEnd' : 'table';
+  }
   if (state.roomView !== null) return 'lobby';
   return 'home';
 }
@@ -85,5 +89,7 @@ export function Router(): ReactNode {
       return <Lobby />;
     case 'table':
       return <Table />;
+    case 'gameEnd':
+      return <GameEnd />;
   }
 }

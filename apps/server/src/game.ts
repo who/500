@@ -67,6 +67,8 @@ export interface GameSession {
   driver: BotDriver | null;
   /** Whose turn it is; rooms.ts duck-types this for the paused flag. */
   actingSeat(): number | null;
+  /** True once the game reached gameOver; rooms.ts duck-types this for rematch. */
+  isOver(): boolean;
   /** Cancel pending bot timers; rooms.ts calls this when deleting the room. */
   dispose(): void;
 }
@@ -103,6 +105,9 @@ export function createGameSession(
     driver: null,
     actingSeat(): number | null {
       return toActSeat(session.state);
+    },
+    isOver(): boolean {
+      return session.state.phase === 'gameOver';
     },
     dispose(): void {
       session.driver?.dispose();
@@ -162,6 +167,11 @@ function broadcastAdvance(room: Room, prev: GameState, next: GameState): void {
   }
   if (next.phase === 'handScored' && prev.phase !== 'handScored' && next.handResult !== null) {
     broadcastAll(room, { t: 'handScored', result: next.handResult, scores: next.game.scores });
+    // A decided game leaves handScored immediately (applyGameAction applies
+    // the engine's nextHand itself — gameOver supersedes the ready-up), so
+    // skip this transient state's view/request wave: an actionRequest
+    // offering nextHand here would invite a doomed command.
+    if (next.game.winner !== null) return;
   }
   if (next.phase === 'gameOver' && prev.phase !== 'gameOver' && next.game.winner !== null) {
     broadcastAll(room, { t: 'gameOver', winner: next.game.winner, scores: next.game.scores });
@@ -198,6 +208,11 @@ export function applyGameAction(room: Room, action: Action): ApplyResult {
     broadcastAll(room, { t: 'roomState', room: roomView(room) });
   }
   session.driver?.onAdvance();
+  // A hand that decides the game needs no ready-up: gameOver supersedes it,
+  // so apply the engine's nextHand at once (handScored -> gameOver).
+  if (result.state.phase === 'handScored' && result.state.game.winner !== null) {
+    applyGameAction(room, { type: 'nextHand', seat: action.seat });
+  }
   return result;
 }
 
@@ -231,17 +246,34 @@ function toAction(cmd: Exclude<GameCommand, { t: 'nextHand' | 'requestState' }>,
 }
 
 /**
+ * Every seat currently counted as ready for the next hand: humans that sent
+ * nextHand plus bot seats, which are always ready (readiness schema v1).
+ */
+function readySeats(room: Room, session: GameSession): number[] {
+  return [0, 1, 2, 3].filter(
+    (s) => room.seats[s]?.kind !== 'human' || session.ready.has(s),
+  );
+}
+
+function broadcastHandReady(room: Room, session: GameSession): void {
+  broadcastAll(room, { t: 'handReady', ready: readySeats(room, session) });
+}
+
+/**
  * nextHand is a ready-up, not a direct engine action: every human seat must
  * send it before the hand advances (bot seats are auto-ready). Re-sends are
- * idempotent. The engine's nextHand applies once, on behalf of the last seat
- * to ready.
+ * idempotent and consume no seq. The engine's nextHand applies once, on
+ * behalf of the last seat to ready.
  */
 function handleNextHand(room: Room, session: GameSession, seat: number, client: RoomClient): void {
   if (session.state.phase !== 'handScored') {
     sendError(client, 'illegalAction', 'There is no finished hand to advance from.');
     return;
   }
-  session.ready.add(seat);
+  if (!session.ready.has(seat)) {
+    session.ready.add(seat);
+    broadcastHandReady(room, session);
+  }
   advanceHandIfAllReady(room, session, seat);
 }
 
@@ -363,6 +395,8 @@ export function handleConvertSeatToBot(client: RoomClient, cmd: ConvertSeatToBot
   broadcastAll(room, { t: 'roomState', room: roomView(room) });
   session.driver?.addBot(cmd.seat, cmd.difficulty);
   if (session.state.phase === 'handScored') {
+    // The converted seat is now a bot, hence auto-ready: tell everyone.
+    broadcastHandReady(room, session);
     advanceHandIfAllReady(room, session, cmd.seat);
   }
 }

@@ -138,6 +138,7 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   giveCard: (m) => isCard(m.card),
   playCard: (m) => isCard(m.card) && (m.jokerSuit === undefined || isSuit(m.jokerSuit)),
   nextHand: () => true,
+  rematch: () => true,
   requestState: () => true,
 };
 
@@ -148,6 +149,7 @@ const EVENT_CHECKS: Record<ServerEvent['t'], (m: Rec) => boolean> = {
     isSeat(m.seat) && Array.isArray(m.actions) && m.actions.every(isEngineAction),
   trickResolved: (m) => isTrick(m.trick),
   handScored: (m) => isRec(m.result) && isBid(m.result.contract) && isScores(m.scores),
+  handReady: (m) => Array.isArray(m.ready) && m.ready.every(isSeat),
   gameOver: (m) => (m.winner === 0 || m.winner === 1) && isScores(m.scores),
   error: (m) =>
     typeof m.code === 'string' &&
