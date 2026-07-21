@@ -1,20 +1,26 @@
 /**
  * One seat's nameplate on the table: name, dealer chip, turn highlight,
- * hidden-hand backs with a card count, and the sitting-out ribbon (nulla /
- * slam partner). The viewer's own seat uses it too, minus the backs — their
+ * hidden-hand backs with a card count, the delayed "thinking…" pulse for an
+ * acting bot (PRD 4.3), and the sitting-out ribbon (nulla / slam partner). The viewer's own seat uses it too, minus the backs — their
  * actual hand renders below it. During the auction the badge also carries
  * the seat's bid history as ordered chips (PRD 6.2): latest emphasized,
  * indications visually distinct, passes muted, capped on phone layouts with
  * a "+n" toggle that expands the full run.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { type Bid, IND, PASS, bidName } from '@five-hundred/engine';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
 import { CardBack } from './Card.tsx';
 
 /** Chips shown before the "+n" expander takes over (phone-width budget). */
 const VISIBLE_CHIPS = 3;
+
+/**
+ * An acting bot shows "thinking…" only after holding the turn this long
+ * (PRD 4.3): instant bot moves stay quiet; anything slower gets the pulse.
+ */
+export const THINKING_DELAY_MS = 400;
 
 export function BidChips(props: { bids: readonly Bid[] }): ReactNode {
   const [expanded, setExpanded] = useState(false);
@@ -66,7 +72,8 @@ export interface SeatBadgeProps {
   isDealer: boolean;
   /** This seat holds the turn (view.toAct). */
   isActing: boolean;
-  /** Acting seat is a bot: the turn highlight doubles as a thinking hint. */
+  /** Seat is a bot: while acting it grows a pulsing "thinking…" hint after
+   *  THINKING_DELAY_MS. Never set for human seats. */
   thinking?: boolean;
   /** Not in activeSeats: dimmed with a "Sitting out" ribbon. */
   sittingOut: boolean;
@@ -80,6 +87,17 @@ export interface SeatBadgeProps {
 }
 
 export function SeatBadge(props: SeatBadgeProps): ReactNode {
+  const pondering = props.isActing && props.thinking === true;
+  // Delayed reveal: the hint appears only once the bot has visibly paused.
+  const [revealed, setRevealed] = useState(false);
+  useEffect(() => {
+    if (!pondering) {
+      setRevealed(false);
+      return undefined;
+    }
+    const timer = setTimeout(() => setRevealed(true), THINKING_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [pondering]);
   const classes = ['seat-badge', props.isActing && 'acting', props.sittingOut && 'sitting-out']
     .filter(Boolean)
     .join(' ');
@@ -109,7 +127,7 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
       {props.bidHistory !== undefined && props.bidHistory.length > 0 && (
         <BidChips bids={props.bidHistory} />
       )}
-      {props.isActing && props.thinking === true && (
+      {pondering && revealed && (
         <span className="seat-thinking" data-testid="seat-thinking">
           thinking…
         </span>

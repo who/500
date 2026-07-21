@@ -18,6 +18,12 @@
  * — detected as toAct moving to the declarer's partner during a DNULLA
  * middleExchange, with distinct wait copy on both sides.
  *
+ * M8 polish (PRD 6.2 trick flow, 4.3): a resolved trick lingers via the
+ * store's lingerTrick freeze — views keep applying underneath so the
+ * viewer's own next play is never delayed, but the hand-end overlay waits
+ * the linger out — the last-trick peek pops the previous trick beside the
+ * trick area, and acting bot badges grow the delayed "thinking…" pulse.
+ *
  * Slam flow (PRD 6.2, 3.3): during slamDecision the declarer gets the offer
  * panel (confirm/decline two-step) above their inert 15; during partnerCard
  * a human partner gets the give-card picker with the strongest card
@@ -39,6 +45,7 @@ import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
 import { Hand } from '../components/Hand.tsx';
 import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
+import { LastTrickPeek } from '../components/LastTrickPeek.tsx';
 import { RedealToast } from '../components/RedealToast.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
 import { SlamPanel } from '../components/SlamPanel.tsx';
@@ -65,6 +72,7 @@ export function Table(): ReactNode {
   const pendingActions = useStore(client.store, (s) => s.pendingActions);
   const readySeats = useStore(client.store, (s) => s.readySeats);
   const lastError = useStore(client.store, (s) => s.lastError);
+  const lingerTrick = useStore(client.store, (s) => s.lingerTrick);
   const redealNotice = useStore(client.store, (s) => s.redealNotice);
   const clearRedealNotice = useStore(client.store, (s) => s.clearRedealNotice);
   // The actionRequest a submission was made against; while it is still the
@@ -77,6 +85,7 @@ export function Table(): ReactNode {
 
   const view = seatView.view;
   const me = view.seat;
+  const names = [0, 1, 2, 3].map((s) => seatName(room, s));
   const hand = sortHand(view.hand, view.contract);
   const legality = playLegality(view, pendingActions?.actions ?? null);
   const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
@@ -139,7 +148,7 @@ export function Table(): ReactNode {
         isYou={seat === me}
         isDealer={view.dealer === seat}
         isActing={view.toAct === seat}
-        thinking={seat !== me && room?.seats[seat]?.occupant !== 'human'}
+        thinking={room?.seats[seat]?.occupant === 'bot'}
         sittingOut={!view.activeSeats.includes(seat)}
         sittingOutReason={view.contract?.kind === NULLA ? 'nulla' : view.slam ? 'slam' : undefined}
         cardCount={view.handCounts[seat] ?? 0}
@@ -151,7 +160,7 @@ export function Table(): ReactNode {
 
   return (
     <main data-screen="table" className="screen table-screen">
-      <Hud view={view} names={[0, 1, 2, 3].map((s) => seatName(room, s))} />
+      <Hud view={view} names={names} />
       {redealNotice !== null && (
         <RedealToast
           dealerName={seatName(room, redealNotice.dealer)}
@@ -175,12 +184,16 @@ export function Table(): ReactNode {
         {bidding ? (
           <BidPanel active={bids.active} legal={bids.legal} locked={locked} onBid={submitBid} />
         ) : (
-          <TrickArea
-            trick={view.trick}
-            lastTrick={view.lastTrick}
-            anchor={me}
-            trump={view.contract === null ? null : trumpOf(view.contract)}
-          />
+          <>
+            <TrickArea
+              trick={view.trick}
+              lastTrick={view.lastTrick}
+              linger={lingerTrick}
+              anchor={me}
+              trump={view.contract === null ? null : trumpOf(view.contract)}
+            />
+            <LastTrickPeek trick={view.lastTrick} names={names} />
+          </>
         )}
         {exchanging && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
@@ -262,14 +275,15 @@ export function Table(): ReactNode {
           />
         )}
       </div>
-      {view.phase === 'handScored' && view.handResult !== null && (
+      {/* The overlay waits out a linger so a hand-ending trick gets its beat. */}
+      {view.phase === 'handScored' && view.handResult !== null && lingerTrick === null && (
         <HandEndOverlay
           result={view.handResult}
           scores={view.scores}
           seat={me}
           readySeats={readySeats}
           room={room}
-          names={[0, 1, 2, 3].map((s) => seatName(room, s))}
+          names={names}
           onReady={() => client.send({ t: 'nextHand' })}
         />
       )}

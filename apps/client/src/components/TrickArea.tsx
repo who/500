@@ -1,9 +1,10 @@
 /**
  * Center of the table: the trick in progress, each played card offset
  * toward the seat that played it (relative to the viewer at the bottom).
- * Between tricks — after trickResolved delivers the fresh view, before the
- * next lead — the just-completed trick stays up with its winner highlighted
- * (bare minimum display; linger timing and the last-trick peek are M8).
+ * Between tricks the just-completed trick stays up with its winner
+ * highlighted: the store's linger freeze (`linger`) holds it for a beat even
+ * when the next lead has already arrived underneath, and once the linger
+ * releases the resolved-trick fallback keeps it visible until the next lead.
  * A joker led under no trump carries its declared suit as a chip on the
  * card face (PRD 6.2) — the named suit is exactly the trick's ledSuit.
  */
@@ -19,19 +20,26 @@ export function TrickArea(props: {
   trick: CurrentTrickView | null;
   /** Last completed trick (view.lastTrick); shown while the next is unled. */
   lastTrick: Trick | null;
+  /** Store linger freeze: overrides the live trick while non-null. */
+  linger?: Trick | null;
   /** The viewer's seat, anchored at the bottom. */
   anchor: number;
   /** Trump suit of the contract; null for NT/nulla (joker chip contexts). */
   trump: number | null;
 }): ReactNode {
-  const inProgress = props.trick !== null && props.trick.plays.length > 0;
-  const resolved = !inProgress && props.lastTrick !== null ? props.lastTrick : null;
+  const linger = props.linger ?? null;
+  const inProgress = linger === null && props.trick !== null && props.trick.plays.length > 0;
+  const resolved = linger ?? (!inProgress && props.lastTrick !== null ? props.lastTrick : null);
   const plays = inProgress ? (props.trick?.plays ?? []) : (resolved?.plays ?? []);
   const winner = resolved?.winner ?? null;
   const leader = inProgress ? (props.trick?.leader ?? null) : (resolved?.leader ?? null);
   const ledSuit = inProgress ? (props.trick?.ledSuit ?? null) : (resolved?.ledSuit ?? null);
   return (
-    <div className="trick-area" data-testid="trick-area">
+    <div
+      className="trick-area"
+      data-testid="trick-area"
+      data-lingering={linger !== null || undefined}
+    >
       {plays.map((play) => {
         const won = play.seat === winner;
         // Only a LED joker under no trump named a suit; played to a led

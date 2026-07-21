@@ -333,6 +333,13 @@ button.primary {
   font-style: italic;
   color: var(--text);
   opacity: 0.75;
+  animation: thinking-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes thinking-pulse {
+  50% {
+    opacity: 0.3;
+  }
 }
 
 .sitting-out-ribbon {
@@ -441,6 +448,22 @@ button.primary {
   position: absolute;
   left: 50%;
   top: 50%;
+  /* Card movement kept subtle (PRD non-goals): each card slides in from the
+     seat that played it — the standalone translate composes with the
+     placement transform below. The global reduced-motion guard (index.css)
+     collapses it to instant. */
+  animation: trick-card-in 160ms ease-out;
+}
+
+@keyframes trick-card-in {
+  from {
+    translate: var(--fly-x, 0) var(--fly-y, 0);
+    opacity: 0.3;
+  }
+  to {
+    translate: 0 0;
+    opacity: 1;
+  }
 }
 
 .trick-card .card {
@@ -450,22 +473,35 @@ button.primary {
 
 .trick-bottom {
   transform: translate(-50%, -14%);
+  --fly-y: 70px;
 }
 .trick-top {
   transform: translate(-50%, -86%);
+  --fly-y: -70px;
 }
 .trick-left {
   transform: translate(-92%, -50%);
+  --fly-x: -70px;
 }
 .trick-right {
   transform: translate(-8%, -50%);
+  --fly-x: 70px;
 }
 
-/* Resolved trick: the winning card glows until the next lead. */
+/* Resolved trick: the winning card glows (and pops once) until the next
+   lead — held for the linger window even when the next lead already
+   arrived underneath. */
 .trick-winner .card {
   outline: 3px solid #f5c33b;
   outline-offset: 1px;
   border-radius: 8px;
+  animation: trick-winner-pop 240ms ease-out;
+}
+
+@keyframes trick-winner-pop {
+  50% {
+    scale: 1.08;
+  }
 }
 
 /* Declared suit of a led joker (NT/nulla), chipped onto the card face. */
@@ -481,6 +517,72 @@ button.primary {
   color: #fff;
   font-size: 0.65rem;
   pointer-events: none;
+}
+
+/* --- Last-trick peek ------------------------------------------------------ */
+
+.last-trick-peek {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.last-trick-toggle {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+}
+
+.last-trick-popover {
+  position: absolute;
+  top: calc(100% + 0.4rem);
+  right: 0;
+  z-index: 30;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+  box-shadow: var(--shadow);
+}
+
+.last-trick-popover ul {
+  display: flex;
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.last-trick-popover li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.last-trick-popover li .card {
+  width: 44px;
+  height: 62px;
+}
+
+.last-trick-popover li[data-winner] .card {
+  outline: 3px solid #f5c33b;
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+
+.peek-name {
+  max-width: 4.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  color: var(--text);
+}
+
+.peek-caption {
+  margin: 0.4rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-h);
 }
 
 /* --- Auction bid panel ---------------------------------------------------- */

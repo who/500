@@ -107,6 +107,9 @@ export function clearSession(storage: StorageLike | null): void {
 // Store
 // ---------------------------------------------------------------------------
 
+/** How long a resolved trick stays frozen on the table (PRD 6.2 trick flow). */
+export const TRICK_LINGER_MS = 1500;
+
 export interface ClientState {
   connection: ConnectionStatus;
   roomView: RoomView | null;
@@ -114,6 +117,13 @@ export interface ClientState {
   /** Latest actionRequest; cleared when a newer gameView supersedes it. */
   pendingActions: ActionRequestEvent | null;
   lastTrick: TrickResolvedEvent['trick'] | null;
+  /**
+   * Resolved trick held on display for TRICK_LINGER_MS with its winner
+   * highlighted before the table releases to the live view. Views keep
+   * applying underneath so the viewer's own next action is never delayed —
+   * only the trick display and the hand-end overlay wait on this.
+   */
+  lingerTrick: TrickResolvedEvent['trick'] | null;
   handResult: Pick<HandScoredEvent, 'result' | 'scores'> | null;
   /** Seats ready for the next hand (handReady events); reset on handScored. */
   readySeats: readonly number[];
@@ -168,6 +178,7 @@ const HOME_RESET: Partial<ClientState> = {
   roomView: null,
   seatView: null,
   pendingActions: null,
+  lingerTrick: null,
   redealNotice: null,
   rejoining: false,
   seatLost: false,
@@ -178,6 +189,24 @@ export function createStore(deps: StoreDeps): ClientStore {
   const session = loadSession(storage);
 
   return createVanillaStore<ClientState & ClientActions>((set, get) => {
+    // Trick-linger machinery: the timer handle and the queue of tricks that
+    // resolved while another was still frozen (test-mode botgames can finish
+    // a whole trick inside the window; each still gets its full linger).
+    let lingerTimer: ReturnType<typeof setTimeout> | null = null;
+    let lingerQueue: TrickResolvedEvent['trick'][] = [];
+
+    function advanceLinger(): void {
+      const next = lingerQueue.shift() ?? null;
+      lingerTimer = next === null ? null : setTimeout(advanceLinger, TRICK_LINGER_MS);
+      set({ lingerTrick: next });
+    }
+
+    function cancelLinger(): void {
+      if (lingerTimer !== null) clearTimeout(lingerTimer);
+      lingerTimer = null;
+      lingerQueue = [];
+    }
+
     function applyPrivate(event: ProtocolErrorEvent | { t: 'seatGranted'; seat: number; token: string }): void {
       if (event.t === 'seatGranted') {
         const state = get();
@@ -232,6 +261,12 @@ export function createStore(deps: StoreDeps): ClientStore {
         if (prev !== undefined && next.redeals > prev.redeals) {
           patch.redealNotice = { dealer: next.dealer, count: next.redeals };
         }
+        // A rebaseline (reconnect resend / gap recovery) wins immediately:
+        // whatever trick was frozen belongs to a timeline the viewer left.
+        if (lastSeq === null || recovering) {
+          cancelLinger();
+          patch.lingerTrick = null;
+        }
         set(patch);
         return;
       }
@@ -253,6 +288,14 @@ export function createStore(deps: StoreDeps): ClientStore {
           break;
         case 'trickResolved':
           patch.lastTrick = event.trick;
+          // Freeze the resolved trick (winner highlighted) for the linger
+          // window; tricks resolving inside it queue so none is skipped.
+          if (get().lingerTrick === null) {
+            patch.lingerTrick = event.trick;
+            lingerTimer = setTimeout(advanceLinger, TRICK_LINGER_MS);
+          } else {
+            lingerQueue.push(event.trick);
+          }
           break;
         case 'handScored':
           patch.handResult = { result: event.result, scores: event.scores };
@@ -275,6 +318,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       seatView: null,
       pendingActions: null,
       lastTrick: null,
+      lingerTrick: null,
       handResult: null,
       readySeats: [],
       redealNotice: null,
@@ -300,7 +344,9 @@ export function createStore(deps: StoreDeps): ClientStore {
       },
 
       handleSocketOpen(): void {
-        set({ connection: 'open', lastSeq: null, recovering: false });
+        // A reconnect abandons any linger: the resend's full view wins.
+        cancelLinger();
+        set({ connection: 'open', lastSeq: null, recovering: false, lingerTrick: null });
         const { session: stored, seatLost } = get();
         if (stored !== null && !seatLost) {
           set({ rejoining: true });
@@ -331,6 +377,7 @@ export function createStore(deps: StoreDeps): ClientStore {
 
       leaveSession(): void {
         clearSession(storage);
+        cancelLinger();
         set({ ...HOME_RESET, lastSeq: null, recovering: false });
       },
     };

@@ -131,8 +131,8 @@ code {
   background: var(--code-bg);
 }
 
-/* No animations ship yet (M8 pacing leaf); this guard keeps any future
-   transition instant for reduced-motion users. */
+/* The M8 pacing animations (trick fly-in, winner pop, thinking pulse) and
+   any future transition collapse to instant for reduced-motion users. */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

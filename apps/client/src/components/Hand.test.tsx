@@ -15,6 +15,7 @@ import {
 import type { ClientCommand } from '@five-hundred/protocol';
 import { JOKER_SLUFF_REASON, playLegality } from '../lib/playLegality.ts';
 import { LONG_PRESS_MS } from './Hand.tsx';
+import { THINKING_DELAY_MS } from './SeatBadge.tsx';
 import {
   applyEvent,
   botSeatView,
@@ -237,14 +238,22 @@ describe('Hand play interaction', () => {
     expect(trick.querySelectorAll('[data-winner]')).toHaveLength(1);
   });
 
-  it('marks an acting bot seat as thinking, but never a human', () => {
-    // Turn on the bot at seat 3.
+  it('marks an acting bot seat as thinking after the reveal delay, but never a human', () => {
+    vi.useFakeTimers();
+    // Turn on the bot at seat 3: quiet at first, revealed once it pauses.
     const { app } = renderPlayTurn(playView({ toAct: 3 }), []);
+    expect(app.queryByTestId('seat-thinking')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(THINKING_DELAY_MS);
+    });
     const bot = app.container.querySelector('[data-seat="3"] [data-testid="seat-thinking"]');
     expect(bot?.textContent).toBe('thinking…');
 
-    // A human acting seat (the viewer) shows no thinking hint.
+    // A human acting seat (the viewer) shows no thinking hint, ever.
     const human = renderPlayTurn();
+    act(() => {
+      vi.advanceTimersByTime(THINKING_DELAY_MS * 10);
+    });
     expect(human.app.container.querySelector('[data-testid="seat-thinking"]')).toBeNull();
   });
 });
