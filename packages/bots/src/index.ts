@@ -19,3 +19,4 @@ export * from './helpers.js';
 export * from './easy.js';
 export * from './medium.js';
 export * from './sim.js';
+export * from './hard/worlds.js';
