@@ -1,14 +1,7 @@
 // @vitest-environment jsdom
 
 import { beforeEach, describe, expect, it } from 'vitest';
-import {
-  type RedactedView,
-  JOKER,
-  NULLA,
-  NUM,
-  bid,
-  makeCard,
-} from '@five-hundred/engine';
+import { type RedactedView, DNULLA, JOKER, NULLA, NUM, bid, makeCard } from '@five-hundred/engine';
 import { cardLabel } from '../components/Card.tsx';
 import {
   applyEvent,
@@ -16,6 +9,7 @@ import {
   env,
   gameViewFixture,
   humanSeatView,
+  redactedViewFixture,
   installFakeLocalStorage,
   makeClient,
   renderApp,
@@ -88,7 +82,10 @@ function midTrickView(overrides: Partial<RedactedView> = {}): RedactedView {
   };
 }
 
-function renderTable(view: RedactedView): { client: TestClient; app: ReturnType<typeof renderApp> } {
+function renderTable(view: RedactedView): {
+  client: TestClient;
+  app: ReturnType<typeof renderApp>;
+} {
   const client = makeClient();
   const app = renderApp(client);
   applyEvent(client, env(0, { t: 'roomState', room: NAMES_ROOM }));
@@ -167,8 +164,9 @@ describe('Table', () => {
     expect(seatEl(second.app, 2).querySelector('[data-dealer]')).not.toBeNull();
   });
 
-  it('shows the declarer partner as sitting out on a nulla (AC-3)', () => {
+  it('shows the nulla partner sitting out with lose-all HUD framing (AC-3)', () => {
     // Ben (seat 1) declares nulla; his partner (seat 3) sits the hand out.
+    // The defenders have forced one trick onto the bidders (side 1).
     const { app } = renderTable(
       midTrickView({
         contract: bid(NULLA),
@@ -176,17 +174,106 @@ describe('Table', () => {
         activeSeats: [0, 1, 2],
         toAct: 1,
         trick: null,
-        sideTricks: [0, 0],
+        sideTricks: [2, 1],
       }),
     );
     const partner = seatEl(app, 3);
     expect(partner.querySelector('[data-sitting-out]')).not.toBeNull();
-    expect(partner.textContent).toContain('Sitting out');
+    expect(partner.textContent).toContain('Sitting out (nulla)');
     for (const active of [0, 1, 2]) {
       expect(seatEl(app, active).querySelector('[data-sitting-out]')).toBeNull();
     }
-    expect(app.getByTestId('hud-contract').textContent).toBe('NULLA by Ben');
+    expect(app.getByTestId('hud-contract').textContent).toBe(
+      'Nulla 250 by Ben — must lose every trick',
+    );
+    expect(app.getByTestId('hud-tricks').textContent).toBe(
+      'Tricks taken by bidders: 1 — they want 0',
+    );
     expect(app.getByTestId('hud-stake').textContent).toBe('At stake: 250');
+  });
+
+  it('mounts the dnulla partner picker only after the declarer confirms (AC-2)', () => {
+    // Cleo (seat 2) declares double nulla; the viewer (seat 0) is her partner.
+    const client = makeClient();
+    const app = renderApp(client);
+    applyEvent(client, env(0, { t: 'roomState', room: NAMES_ROOM }));
+    const declarerDiscarding = {
+      phase: 'middleExchange',
+      contract: bid(DNULLA),
+      declarer: 2,
+      toAct: 2,
+      hand: Array.from({ length: 10 }, (_, i) => 20 + i),
+      handCounts: [10, 10, 15, 10],
+      middleCount: 0,
+    } as const;
+    applyEvent(client, env(1, { t: 'gameView', view: gameViewFixture(0, declarerDiscarding) }));
+
+    // Before the declarer confirms: no picker, the ordinary abstract status,
+    // and — dnulla keeps all four seats active — nobody sitting out.
+    expect(app.queryByTestId('exchange-picker')).toBeNull();
+    expect(app.getByTestId('exchange-status').textContent).toBe(
+      'Cleo picked up the middle and is discarding 5…',
+    );
+    expect(app.getByTestId('hud-contract').textContent).toBe(
+      'Double Nulla 500 by Cleo — both must lose every trick',
+    );
+    for (const seat of [1, 2, 3]) {
+      expect(seatEl(app, seat).querySelector('[data-sitting-out]')).toBeNull();
+    }
+
+    // Cleo confirms: her 5 discards travel on, the viewer holds 15 and acts.
+    applyEvent(
+      client,
+      env(2, {
+        t: 'gameView',
+        view: gameViewFixture(0, {
+          ...declarerDiscarding,
+          toAct: 0,
+          hand: Array.from({ length: 15 }, (_, i) => i),
+          handCounts: [15, 10, 10, 10],
+        }),
+      }),
+    );
+    const picker = app.getByTestId('exchange-picker');
+    expect(picker.querySelectorAll('[data-card]')).toHaveLength(15);
+    expect(app.getByTestId('exchange-count').textContent).toContain(
+      'Your partner passed you 5 cards — tap 5 cards to discard',
+    );
+  });
+
+  it('shows both dnulla pass-through wait states while the partner discards', () => {
+    // Ana (seat 0) is discarding the passed cards; Cleo (seat 2) declared.
+    const passThroughView = {
+      phase: 'middleExchange',
+      contract: bid(DNULLA),
+      declarer: 2,
+      toAct: 0,
+      handCounts: [15, 10, 10, 10],
+      middleCount: 0,
+    } as const;
+
+    // The declarer sees an explicit "waiting for partner" state.
+    const declarer = renderTable(
+      redactedViewFixture(2, {
+        ...passThroughView,
+        hand: Array.from({ length: 10 }, (_, i) => 20 + i),
+      }),
+    );
+    expect(declarer.app.getByTestId('exchange-status').textContent).toBe(
+      'You passed 5 cards to Ana — waiting for their discards…',
+    );
+    declarer.app.unmount();
+
+    // Defenders see the abstract pass event only (no card identities).
+    const defender = renderTable(
+      redactedViewFixture(1, {
+        ...passThroughView,
+        hand: Array.from({ length: 10 }, (_, i) => 20 + i),
+      }),
+    );
+    expect(defender.app.getByTestId('exchange-status').textContent).toBe(
+      'Cleo passed 5 cards to Ana, who is discarding…',
+    );
   });
 
   it('fans an unnamed room with bot fallbacks and a 15-card exchange pick', () => {

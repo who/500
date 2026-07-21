@@ -11,11 +11,17 @@
  * cells taken straight from the server's actionRequest, each seat's badge
  * carries its ordered bid-history chips, and a dead auction raises the
  * redeal toast (PRD 6.2) via the store's redeals-counter watch.
+ *
+ * Lose-all contracts (PRD 6.2): the nulla partner's badge carries a
+ * "(nulla)" sitting-out reason, and the double-nulla pass-through mounts
+ * the same picker for the partner (15 keep 10) once the declarer confirms
+ * — detected as toAct moving to the declarer's partner during a DNULLA
+ * middleExchange, with distinct wait copy on both sides.
  */
 
 import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import { type Bid, type Card, trumpOf } from '@five-hundred/engine';
+import { type Bid, type Card, DNULLA, NULLA, partnerOf, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
@@ -67,6 +73,15 @@ export function Table(): ReactNode {
   const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
   const exchanging = view.phase === 'middleExchange';
   const picking = exchanging && view.toAct === me;
+  // The dnulla partner-discard step: the declarer has confirmed and their 5
+  // discards travelled on, so toAct is now the declarer's partner. The view
+  // states this directly (toAct + declarer + contract kind) — no card-count
+  // inference needed.
+  const passThrough =
+    exchanging &&
+    view.contract?.kind === DNULLA &&
+    view.declarer !== null &&
+    view.toAct === partnerOf(view.declarer);
   const bidding = view.phase === 'auction';
   const bids = bidLegality(view, pendingActions?.actions ?? null);
   // The auction log stays on the view after the auction ends; chips show
@@ -102,6 +117,7 @@ export function Table(): ReactNode {
         isActing={view.toAct === seat}
         thinking={seat !== me && room?.seats[seat]?.occupant !== 'human'}
         sittingOut={!view.activeSeats.includes(seat)}
+        sittingOutReason={view.contract?.kind === NULLA ? 'nulla' : view.slam ? 'slam' : undefined}
         cardCount={view.handCounts[seat] ?? 0}
         showBacks={seat !== me}
         bidHistory={auctionLog.filter((e) => e.seat === seat).map((e) => e.bid)}
@@ -144,8 +160,11 @@ export function Table(): ReactNode {
         )}
         {exchanging && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
-            {seatName(room, view.toAct)} picked up the middle and is discarding{' '}
-            {Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…
+            {passThrough
+              ? view.declarer === me
+                ? `You passed 5 cards to ${seatName(room, view.toAct)} — waiting for their discards…`
+                : `${seatName(room, view.declarer ?? 0)} passed 5 cards to ${seatName(room, view.toAct)}, who is discarding…`
+              : `${seatName(room, view.toAct)} picked up the middle and is discarding ${Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…`}
           </div>
         )}
       </div>
@@ -164,6 +183,7 @@ export function Table(): ReactNode {
         {picking ? (
           <ExchangePicker
             cards={hand}
+            intro={passThrough ? 'Your partner passed you 5 cards' : undefined}
             locked={locked || pendingActions === null}
             onConfirm={confirmKeeps}
           />

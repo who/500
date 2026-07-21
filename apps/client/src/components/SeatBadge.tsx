@@ -70,6 +70,8 @@ export interface SeatBadgeProps {
   thinking?: boolean;
   /** Not in activeSeats: dimmed with a "Sitting out" ribbon. */
   sittingOut: boolean;
+  /** Why the seat sits out ("nulla" / "slam"); appended to the ribbon. */
+  sittingOutReason?: string;
   /** Hidden-hand size; rendered as backs unless this is the viewer's seat. */
   cardCount: number;
   showBacks: boolean;
@@ -78,11 +80,7 @@ export interface SeatBadgeProps {
 }
 
 export function SeatBadge(props: SeatBadgeProps): ReactNode {
-  const classes = [
-    'seat-badge',
-    props.isActing && 'acting',
-    props.sittingOut && 'sitting-out',
-  ]
+  const classes = ['seat-badge', props.isActing && 'acting', props.sittingOut && 'sitting-out']
     .filter(Boolean)
     .join(' ');
   return (
@@ -115,7 +113,11 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
           thinking…
         </span>
       )}
-      {props.sittingOut && <span className="sitting-out-ribbon">Sitting out</span>}
+      {props.sittingOut && (
+        <span className="sitting-out-ribbon">
+          Sitting out{props.sittingOutReason !== undefined && ` (${props.sittingOutReason})`}
+        </span>
+      )}
     </div>
   );
 }

@@ -17,6 +17,13 @@ export interface ExchangePickerProps {
   cards: readonly CardId[];
   /** Cards to keep after the discard; defaults to the standard 10. */
   maxKeep?: number;
+  /**
+   * Lead-in for the status line; defaults to the declarer pickup copy. The
+   * dnulla pass-through mounts the same picker for the partner with "Your
+   * partner passed you 5 cards" (the 5 arrive unmarked — which cards they
+   * were is declarer signaling the rules doc forbids).
+   */
+  intro?: string;
   /** True between submitting the discard and the next gameView. */
   locked: boolean;
   onConfirm(keeps: readonly CardId[]): void;
@@ -54,7 +61,8 @@ export function ExchangePicker(props: ExchangePickerProps): ReactNode {
       data-locked={props.locked || undefined}
     >
       <div className="exchange-count" role="status" data-testid="exchange-count">
-        You picked up the middle — tap {target} cards to discard. {chosen.length}/{target} selected
+        {props.intro ?? 'You picked up the middle'} — tap {target} cards to discard. {chosen.length}
+        /{target} selected
       </div>
       <div className="my-hand exchange-hand" aria-label="Choose your discards">
         {props.cards.map((card, i) => {
