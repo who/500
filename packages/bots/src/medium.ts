@@ -59,11 +59,14 @@ const NT_ACE = 0.9;
 const NT_KING = 0.5;
 const NT_QUEEN = 0.2;
 
-// choose_bid thresholds (five_hundred.py 280-289)
+// choose_bid thresholds (five_hundred.py 280-289). The headroom and
+// indication thresholds are exported because the Hard bot reuses the Medium
+// indication rule verbatim and prunes rollout candidates by the same
+// max-level formula (fh-7hw.3 decision).
 const NULLA_LOWNESS = 8.6;
 const NULLA_MAX_RANK = 11; // nothing above a jack
-const BID_HEADROOM = 2.5; // max_level = min(10, int(est + 2.5))
-const INDICATE_EST = 4.5;
+export const BID_HEADROOM = 2.5; // max_level = min(10, int(est + 2.5))
+export const INDICATE_EST = 4.5;
 
 // consider_slam threshold (five_hundred.py 346)
 const SLAM_EST = 8.0;
