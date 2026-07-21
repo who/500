@@ -91,6 +91,11 @@ export class TestClient {
     this.ws.send(JSON.stringify(cmd));
   }
 
+  /** Ship a raw text frame, bypassing command typing (fuzz tests). */
+  sendRaw(text: string): void {
+    this.ws.send(text);
+  }
+
   /** Next unconsumed envelope whose event has type `t` (waits up to 2s). */
   async next<T extends ServerEvent['t']>(
     t: T,
