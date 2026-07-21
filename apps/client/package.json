@@ -11,6 +11,7 @@
     "test": "vitest run --config vitest.config.ts"
   },
   "dependencies": {
+    "@five-hundred/engine": "workspace:*",
     "@five-hundred/protocol": "workspace:*",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",

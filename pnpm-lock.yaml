@@ -26,6 +26,9 @@ importers:
 
   apps/client:
     dependencies:
+      '@five-hundred/engine':
+        specifier: workspace:*
+        version: link:../../packages/engine
       '@five-hundred/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol

@@ -206,7 +206,7 @@ describe('Lobby', () => {
       expect(seats[2]?.occupant).toBe('bot');
       expect(seats[3]?.occupant).toBe('bot');
     }
-    expect(within(hostView.container).getByText(/table screen/)).toBeTruthy();
-    expect(within(guestView.container).getByText(/table screen/)).toBeTruthy();
+    expect(hostView.container.querySelector('[data-screen="table"]')).not.toBeNull();
+    expect(guestView.container.querySelector('[data-screen="table"]')).not.toBeNull();
   });
 });

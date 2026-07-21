@@ -11,6 +11,7 @@ import type { ClientCommand, RoomView, SeatGameView } from '@five-hundred/protoc
 import type { ClientStore } from '../store.ts';
 import { Home } from './Home.tsx';
 import { Lobby } from './Lobby.tsx';
+import { Table } from './Table.tsx';
 
 /** The slice of GameClient the screens need (tests inject store + a spy). */
 export interface GameClientHandle {
@@ -68,21 +69,6 @@ function syncHash(roomCode: string | null): void {
   }
 }
 
-/** Placeholder until the table-screen leaf; proves the start transition. */
-function TablePlaceholder(): ReactNode {
-  const client = useGameClient();
-  const seatView = useStore(client.store, (s) => s.seatView);
-  return (
-    <main data-screen="table" className="screen">
-      <h1>Game on</h1>
-      <p>
-        You are seat {seatView?.view.seat ?? '?'} — the table screen arrives in the next
-        milestone leaf.
-      </p>
-    </main>
-  );
-}
-
 export function Router(): ReactNode {
   const client = useGameClient();
   const phase = useStore(client.store, derivePhase);
@@ -98,6 +84,6 @@ export function Router(): ReactNode {
     case 'lobby':
       return <Lobby />;
     case 'table':
-      return <TablePlaceholder />;
+      return <Table />;
   }
 }

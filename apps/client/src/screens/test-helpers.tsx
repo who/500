@@ -6,6 +6,7 @@
 
 import { act } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
+import type { RedactedView } from '@five-hundred/engine';
 import type {
   ClientCommand,
   Envelope,
@@ -110,7 +111,34 @@ export function roomViewFixture(overrides: Partial<RoomView> = {}): RoomView {
   };
 }
 
-/** Shallow RedactedView stand-in: only the fields the screens touch. */
-export function gameViewFixture(seat: number, phase = 'PLAY'): SeatGameView {
-  return { view: { seat, phase, hand: [1, 2, 3] } } as unknown as SeatGameView;
+/** A complete early-auction RedactedView; override fields per spec. */
+export function redactedViewFixture(seat: number, overrides: Partial<RedactedView> = {}): RedactedView {
+  return {
+    seat,
+    phase: 'auction',
+    handNumber: 0,
+    dealer: 3,
+    toAct: 0,
+    hand: [1, 2, 3],
+    handCounts: [10, 10, 10, 10],
+    middleCount: 5,
+    discardCount: 0,
+    contract: null,
+    declarer: null,
+    slam: false,
+    activeSeats: [0, 1, 2, 3],
+    auction: null,
+    trick: null,
+    lastTrick: null,
+    sideTricks: [0, 0],
+    tricksPlayed: 0,
+    scores: [0, 0],
+    winner: null,
+    handResult: null,
+    ...overrides,
+  };
+}
+
+export function gameViewFixture(seat: number, overrides: Partial<RedactedView> = {}): SeatGameView {
+  return { view: redactedViewFixture(seat, overrides) };
 }
