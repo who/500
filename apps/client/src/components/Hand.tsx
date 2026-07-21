@@ -104,6 +104,7 @@ export function Hand(props: HandProps): ReactNode {
             key={card}
             type="button"
             className={classes}
+            data-testid="hand-card"
             style={{ rotate: `${(i - (props.cards.length - 1) / 2) * fanStep}deg` }}
             title={reason ?? cardLabel(card)}
             aria-disabled={playable ? undefined : true}

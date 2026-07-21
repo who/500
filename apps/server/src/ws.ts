@@ -10,7 +10,29 @@ import type { Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isCommand, type ClientCommand, type Envelope } from '@five-hundred/protocol';
 import { createGameSession, handleConvertSeatToBot, handleGameCommand, resumeView } from './game.js';
-import { RoomStore, type RoomClient } from './rooms.js';
+import { RoomStore, type Room, type RoomClient } from './rooms.js';
+
+/**
+ * E2E test mode: when TEST_SEED is set, every game starts from that fixed
+ * seed with zero bot pacing, so a scripted browser run (e2e/smoke.test.ts)
+ * is deterministic and fast. Unset — production — leaves both untouched.
+ */
+export function testSeed(env: NodeJS.ProcessEnv = process.env): number | null {
+  const raw = env.TEST_SEED;
+  if (raw === undefined || raw === '') return null;
+  const seed = Number(raw);
+  if (!Number.isInteger(seed) || seed < 0 || seed > 0xffffffff) {
+    throw new Error(`Invalid TEST_SEED value "${raw}" — expected an integer in 0..2^32-1.`);
+  }
+  return seed;
+}
+
+function defaultStartGame(room: Room): unknown {
+  const seed = testSeed();
+  return seed === null
+    ? createGameSession(room)
+    : createGameSession(room, seed, { bots: { delayMs: () => 0 } });
+}
 
 function makeClient(socket: WebSocket): RoomClient {
   return {
@@ -71,7 +93,7 @@ export interface WsApp {
 /** Attach the ws server + room store (with GC running) to an HTTP server. */
 export function attachWs(
   server: Server,
-  store: RoomStore = new RoomStore({ startGame: (room) => createGameSession(room), resumeView }),
+  store: RoomStore = new RoomStore({ startGame: defaultStartGame, resumeView }),
 ): WsApp {
   const wss = new WebSocketServer({ server });
   store.startGc();

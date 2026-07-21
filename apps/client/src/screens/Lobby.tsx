@@ -74,6 +74,7 @@ export function Lobby(): ReactNode {
         {seat.occupant !== 'human' && (
           <select
             aria-label={`Seat ${seat.seat + 1} bot difficulty`}
+            data-testid={`difficulty-${seat.seat}`}
             value={seat.difficulty ?? 'medium'}
             disabled={!isHost}
             onChange={(e) => handleDifficulty(seat.seat, e.target.value as BotDifficulty)}
@@ -128,6 +129,7 @@ export function Lobby(): ReactNode {
           <button
             type="button"
             className="primary"
+            data-testid="start-game"
             onClick={() => client.send({ t: 'startGame' })}
           >
             Start game

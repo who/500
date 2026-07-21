@@ -86,6 +86,7 @@ export function Home(): ReactNode {
         Your name
         <input
           type="text"
+          data-testid="name-input"
           value={name}
           placeholder={DEFAULT_NAME}
           maxLength={24}
@@ -94,7 +95,13 @@ export function Home(): ReactNode {
       </label>
 
       <section className="home-actions">
-        <button type="button" className="primary" disabled={!ready} onClick={handleCreate}>
+        <button
+          type="button"
+          className="primary"
+          data-testid="create-room"
+          disabled={!ready}
+          onClick={handleCreate}
+        >
           Create room
         </button>
 

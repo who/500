@@ -13,10 +13,12 @@
     "test": "pnpm -r test",
     "build": "pnpm -r build",
     "start": "node apps/server/dist/index.js",
+    "e2e": "pnpm build && playwright test",
     "lint": "eslint .",
     "format": "prettier --write ."
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "concurrently": "^9.0.0",
     "eslint": "^9.0.0",
     "prettier": "^3.0.0",
