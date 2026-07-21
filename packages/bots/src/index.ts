@@ -1,7 +1,9 @@
 /**
  * @five-hundred/bots — bot bidding and play policies.
  *
- * Placeholder module: policies land in later issues.
+ * Policies are pure/synchronous strategy plug-ins over engine types; the
+ * server drives them against GameState, the sim harness runs them headless,
+ * and the Hard bot reuses them as rollout opponent models.
  */
 import { ENGINE_NAME } from '@five-hundred/engine';
 
@@ -11,3 +13,7 @@ export const BOTS_NAME = '@five-hundred/bots';
 export function engineDependencyName(): string {
   return ENGINE_NAME;
 }
+
+export * from './policy.js';
+export * from './helpers.js';
+export * from './easy.js';
