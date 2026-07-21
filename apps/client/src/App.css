@@ -303,6 +303,13 @@ button.primary {
   font-weight: 600;
 }
 
+.seat-thinking {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--text);
+  opacity: 0.75;
+}
+
 .sitting-out-ribbon {
   position: absolute;
   bottom: -0.6rem;
@@ -413,6 +420,13 @@ button.primary {
   transform: translate(-8%, -50%);
 }
 
+/* Resolved trick: the winning card glows until the next lead. */
+.trick-winner .card {
+  outline: 3px solid #f5c33b;
+  outline-offset: 1px;
+  border-radius: 8px;
+}
+
 /* --- Your seat + hand ---------------------------------------------------- */
 
 .my-seat {
@@ -423,6 +437,7 @@ button.primary {
 }
 
 .my-hand {
+  position: relative;
   display: flex;
   justify-content: center;
   padding: 0.5rem 0 0.75rem;
@@ -430,6 +445,43 @@ button.primary {
 
 .hand-card {
   transform-origin: 50% 120%;
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+}
+
+.hand-card-playable {
+  cursor: pointer;
+}
+
+.hand-card-playable:hover,
+.hand-card-playable:focus-visible {
+  translate: 0 -8px;
+}
+
+.hand-card-illegal {
+  opacity: 0.45;
+  filter: saturate(0.5);
+  cursor: not-allowed;
+}
+
+/* Long-press reason popover, floated above the fan. */
+.card-reason {
+  position: absolute;
+  bottom: calc(100% - 0.25rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2;
+  max-width: 18rem;
+  padding: 0.4rem 0.7rem;
+  border-radius: 8px;
+  background: rgba(20, 24, 33, 0.92);
+  color: #fff;
+  font-size: 0.85rem;
+  text-align: center;
+  box-shadow: var(--shadow);
+  pointer-events: none;
 }
 
 /* Overlap so wide (15/16-card exchange) hands still fit a phone width. */

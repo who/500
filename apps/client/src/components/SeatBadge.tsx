@@ -14,6 +14,8 @@ export interface SeatBadgeProps {
   isDealer: boolean;
   /** This seat holds the turn (view.toAct). */
   isActing: boolean;
+  /** Acting seat is a bot: the turn highlight doubles as a thinking hint. */
+  thinking?: boolean;
   /** Not in activeSeats: dimmed with a "Sitting out" ribbon. */
   sittingOut: boolean;
   /** Hidden-hand size; rendered as backs unless this is the viewer's seat. */
@@ -50,6 +52,11 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
           <CardBack className="card-mini" />
           <span className="seat-count">{props.cardCount}</span>
         </div>
+      )}
+      {props.isActing && props.thinking === true && (
+        <span className="seat-thinking" data-testid="seat-thinking">
+          thinking…
+        </span>
       )}
       {props.sittingOut && <span className="sitting-out-ribbon">Sitting out</span>}
     </div>
