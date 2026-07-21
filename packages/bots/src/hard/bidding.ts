@@ -79,7 +79,7 @@ export interface HardBidOptions {
 const ascending = (a: Card, b: Card): number => a - b;
 
 /** The rollout seat: worlds are always sampled from seat 0's point of view. */
-const ME = 0;
+export const ME = 0;
 
 /** Medium everywhere, with seat 0's slam answer scripted per variant. */
 class ScriptedSlamMedium extends MediumPolicy {
@@ -109,7 +109,8 @@ function unseenConstraints(myCards: readonly Card[]): ObservedConstraints {
   };
 }
 
-function mustApply(
+/** Apply an engine action that a rollout script knows must be legal. */
+export function mustApply(
   state: GameState,
   action: Parameters<typeof applyAction>[1],
 ): GameState {
@@ -121,7 +122,7 @@ function mustApply(
 }
 
 /** Point differential for side 0 (the rollout seat's side) of a scored hand. */
-function sideZeroDelta(state: GameState): number {
+export function sideZeroDelta(state: GameState): number {
   const res = state.handResult;
   if (res === null) throw new Error('rollout ended without a hand result');
   return res.declarer % 2 === 0
@@ -130,7 +131,7 @@ function sideZeroDelta(state: GameState): number {
 }
 
 /** Assemble a rollout deal: my cards at seat 0, the world's hands elsewhere. */
-function worldDeal(
+export function worldDeal(
   myTen: readonly Card[],
   world: SampledWorld,
   middle: readonly Card[],
@@ -145,7 +146,7 @@ function worldDeal(
 }
 
 /** Script the auction so seat 0 wins `winning` unopposed. */
-function scriptAuction(state: GameState, winning: Bid): GameState {
+export function scriptAuction(state: GameState, winning: Bid): GameState {
   state = mustApply(state, { type: 'bid', seat: ME, bid: winning });
   for (const seat of [1, 2, 3]) {
     state = mustApply(state, { type: 'bid', seat, bid: bid(PASS) });
