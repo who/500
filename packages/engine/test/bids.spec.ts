@@ -57,10 +57,7 @@ describe('bidValue', () => {
     }
   });
 
-  it('scores the oracle spot checks: 7S=140, 10NT=520', () => {
-    expect(bidValue(bid(NUM, 7, 0))).toBe(140);
-    expect(bidValue(bid(NUM, 10, NT))).toBe(520);
-  });
+  // The oracle _self_test spot checks (7S=140, 10NT=520) live in rules.spec.ts.
 
   it('scores NULLA 250, DNULLA 500, and IND/PASS 0', () => {
     expect(bidValue(bid(NULLA))).toBe(250);

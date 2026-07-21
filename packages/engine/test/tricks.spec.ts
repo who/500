@@ -15,13 +15,8 @@ const D = 2;
 const H = 3;
 
 describe('tricks', () => {
-  // AC-1: bower ordering with hearts trump, ported from the oracle _self_test.
-  it('orders joker > right bower > left bower > trump ace with hearts trump', () => {
-    expect(cardPower(JOKER, H, S)).toBeGreaterThan(cardPower(makeCard(H, 11), H, S));
-    expect(cardPower(makeCard(H, 11), H, S)).toBeGreaterThan(cardPower(makeCard(D, 11), H, S));
-    expect(cardPower(makeCard(D, 11), H, S)).toBeGreaterThan(cardPower(makeCard(H, 14), H, S));
-  });
-
+  // The _self_test bower-ordering asserts live in rules.spec.ts; this pins
+  // the exact constants that ordering falls out of.
   it('uses the exact oracle power constants', () => {
     expect(cardPower(JOKER, H, S)).toBe(3000);
     expect(cardPower(makeCard(H, 11), H, S)).toBe(2999); // right bower
