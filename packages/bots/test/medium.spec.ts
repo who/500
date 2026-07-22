@@ -24,6 +24,7 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import type { Action, Bid, BidKind, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import {
+  IND,
   JOKER,
   NULLA,
   NUM,
@@ -57,7 +58,13 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
       return {
         type: 'bid',
         seat,
-        bid: policy.chooseBid(hand, auction.ladderPos, mayIndicate, rng),
+        bid: policy.chooseBid(
+          hand,
+          auction.ladderPos,
+          mayIndicate,
+          { seat, indications: auction.indications },
+          rng,
+        ),
       };
     }
     case 'slamDecision':
@@ -156,6 +163,7 @@ const noRng: Rng = {
 
 const HEARTS10 = bid(NUM, 10, 3);
 const medium = new MediumPolicy();
+const NO_SIGNALS = { seat: 0, indications: [] } as const;
 
 // ---------------------------------------------------------------------------
 // AC-1: pinned oracle strength / lowness values on fixed hands
@@ -196,17 +204,62 @@ describe('AC-1: pinned suit strength and lowness', () => {
   it('derives the pinned bids: 7D on A, PASS on B, NULLA on C, PASS on D', () => {
     // A: best strain D at 5.45 (both red jacks are bowers for diamonds too,
     // and hearts' honors count for less than two side aces).
-    expect(medium.chooseBid(HAND_A, -1, true, noRng)).toEqual(bid(NUM, 7, 2));
-    expect(medium.chooseBid(HAND_B, -1, true, noRng)).toEqual(bid('PASS'));
-    expect(medium.chooseBid(HAND_C, -1, true, noRng)).toEqual(bid(NULLA));
+    expect(medium.chooseBid(HAND_A, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NUM, 7, 2));
+    expect(medium.chooseBid(HAND_B, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+    expect(medium.chooseBid(HAND_C, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
     // D is even lower on average but the joker vetoes nulla.
-    expect(medium.chooseBid(HAND_D, -1, true, noRng)).toEqual(bid('PASS'));
+    expect(medium.chooseBid(HAND_D, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
   });
 
   it('only bids nulla while the nulla rung is still above ladderPos', () => {
     const nullaIdx = 5; // LADDER: 7S..7NT then NULLA
-    expect(medium.chooseBid(HAND_C, nullaIdx - 1, false, noRng)).toEqual(bid(NULLA));
-    expect(medium.chooseBid(HAND_C, nullaIdx, false, noRng)).toEqual(bid('PASS'));
+    expect(medium.chooseBid(HAND_C, nullaIdx - 1, false, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
+    expect(medium.chooseBid(HAND_C, nullaIdx, false, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-zpg: a partner indication is a received signal, not just a sent one
+// ---------------------------------------------------------------------------
+
+describe('partner indication support (fh-zpg)', () => {
+  // Hearts support without an own opening: JH KH 6H 5H (est 2.95 in hearts),
+  // AS as the only side trick. Every strain sits below the 4.5 needed to
+  // open or indicate, so alone this hand passes.
+  const SUPPORT_HAND = [
+    makeCard(3, 11),
+    makeCard(3, 13),
+    makeCard(3, 6),
+    makeCard(3, 5),
+    makeCard(0, 14),
+    makeCard(0, 5),
+    makeCard(1, 6),
+    makeCard(1, 7),
+    makeCard(2, 4),
+    makeCard(2, 8),
+  ];
+  const partnerHearts = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }] };
+
+  it('passes the support hand when nobody has indicated', () => {
+    expect(medium.chooseBid(SUPPORT_HAND, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+  });
+
+  it('bids 7H on the same hand after partner indicates hearts', () => {
+    expect(medium.chooseBid(SUPPORT_HAND, -1, true, partnerHearts, noRng)).toEqual(
+      bid(NUM, 7, 3),
+    );
+  });
+
+  it('ignores the identical indication from an opponent', () => {
+    const opponentHearts = { seat: 0, indications: [{ seat: 1, bid: bid(IND, 6, 3) }] };
+    expect(medium.chooseBid(SUPPORT_HAND, -1, true, opponentHearts, noRng)).toEqual(bid('PASS'));
+  });
+
+  it('does not abandon a clearly stronger own suit for the signal', () => {
+    // HAND_A bids 7D on raw strength 5.45; partner's spade indication lifts
+    // spades only to 3.15 + 2.0 = 5.15, so the own diamond plan holds.
+    const partnerSpades = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 0) }] };
+    expect(medium.chooseBid(HAND_A, -1, true, partnerSpades, noRng)).toEqual(bid(NUM, 7, 2));
   });
 });
 
@@ -273,6 +326,7 @@ describe('AC-2: 100-context oracle decision parity', () => {
             rec.hand as Card[],
             rec.ladder_pos as number,
             rec.may_indicate as boolean,
+            NO_SIGNALS,
             noRng,
           );
           const want = rec.result as FixtureBid;

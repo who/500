@@ -17,7 +17,7 @@
 import type { Bid, Card, Rng, TrickPlay } from '@five-hundred/engine';
 import { IND, LADDER, PASS, bid, isLoseAll, partnerOf } from '@five-hundred/engine';
 import { bestPlaySoFar, losingPlays } from './helpers.js';
-import type { Policy } from './policy.js';
+import type { BidContext, Policy } from './policy.js';
 import { defaultChooseJokerSuit, defaultGiveBestCard } from './policy.js';
 
 export class EasyPolicy implements Policy {
@@ -26,7 +26,13 @@ export class EasyPolicy implements Policy {
     private readonly indicateProb = 0.05,
   ) {}
 
-  chooseBid(hand: readonly Card[], ladderPos: number, mayIndicate: boolean, rng: Rng): Bid {
+  chooseBid(
+    _hand: readonly Card[],
+    ladderPos: number,
+    mayIndicate: boolean,
+    _context: BidContext,
+    rng: Rng,
+  ): Bid {
     // Timid ladder step, but never onto a nulla rung: step over them so the
     // occasional raise still lands on the next NUM bid.
     let next = ladderPos + 1;

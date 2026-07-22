@@ -72,7 +72,13 @@ export function policyAction(
       return {
         type: 'bid',
         seat,
-        bid: policy.chooseBid(hand, auction.ladderPos, mayIndicate, rng),
+        bid: policy.chooseBid(
+          hand,
+          auction.ladderPos,
+          mayIndicate,
+          { seat, indications: auction.indications },
+          rng,
+        ),
       };
     }
     case 'slamDecision':

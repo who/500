@@ -22,7 +22,7 @@
 import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import { JOKER } from '@five-hundred/engine';
 import { MediumPolicy } from '../medium.js';
-import type { PlayChoice, StateAwarePolicy } from '../policy.js';
+import type { BidContext, PlayChoice, StateAwarePolicy } from '../policy.js';
 import { defaultGiveBestCard } from '../policy.js';
 import { chooseBidByRollout, considerSlamByRollout } from './bidding.js';
 import { chooseKeepsByRollout } from './keeps.js';
@@ -45,8 +45,14 @@ export class HardPolicy implements StateAwarePolicy {
 
   constructor(private readonly options: HardPolicyOptions = {}) {}
 
-  chooseBid(hand: readonly Card[], ladderPos: number, mayIndicate: boolean, rng: Rng): Bid {
-    return chooseBidByRollout(hand, ladderPos, mayIndicate, rng, {
+  chooseBid(
+    hand: readonly Card[],
+    ladderPos: number,
+    mayIndicate: boolean,
+    context: BidContext,
+    rng: Rng,
+  ): Bid {
+    return chooseBidByRollout(hand, ladderPos, mayIndicate, context, rng, {
       worlds: this.options.bidWorlds,
     });
   }

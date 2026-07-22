@@ -21,8 +21,10 @@
  *     opponent rollout); a dead auction counts as 0 points (redeal).
  *   - Safety margin: +25 expected points (BID_MARGIN); slam declares on a
  *     +25 EV edge of the slam variant over the non-slam variant (SLAM_MARGIN).
- *   - Auction worlds ignore prior bids as constraints (documented
- *     simplification per the leaf's non-goals).
+ *   - Auction worlds ignore prior NUM bids as constraints (documented
+ *     simplification per the leaf's non-goals), but a partner indication
+ *     conditions the sampled partner hand and its strain always stays a
+ *     candidate (fh-zpg) — see samplePartnerIndicationWorld.
  *
  * Everything is pure and synchronous: worlds come from the injected Rng and
  * the world count is a caller option — the 1s time budget and its adaptive
@@ -45,9 +47,10 @@ import {
   cardRank,
   initHandFromDeal,
   ladderIndex,
+  partnerOf,
 } from '@five-hundred/engine';
 import { BID_HEADROOM, INDICATE_EST, MediumPolicy } from '../medium.js';
-import type { Policy } from '../policy.js';
+import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
@@ -80,6 +83,40 @@ const ascending = (a: Card, b: Card): number => a - b;
 
 /** The rollout seat: worlds are always sampled from seat 0's point of view. */
 export const ME = 0;
+
+/** The rollout seat's partner in the remapped world (partnerOf(ME)). */
+export const ROLLOUT_PARTNER = 2;
+
+/**
+ * Rejection tries when conditioning worlds on a partner indication; after
+ * this many misses the strongest sampled partner hand is kept, so the bias
+ * survives even when the promise is unreachable given the visible cards.
+ */
+export const IND_WORLD_TRIES = 20;
+
+/**
+ * Sample a world whose partner hand honors an indication of `strain`: keep
+ * the first sample whose partner suitStrength meets the indication promise
+ * (INDICATE_EST), else the strongest of IND_WORLD_TRIES draws (fh-zpg).
+ */
+export function samplePartnerIndicationWorld(
+  constraints: ObservedConstraints,
+  strain: number,
+  rng: Rng,
+): SampledWorld {
+  let best: SampledWorld | null = null;
+  let bestEst = -Infinity;
+  for (let t = 0; t < IND_WORLD_TRIES; t++) {
+    const world = sampleWorld(constraints, rng);
+    const est = OPPONENT.suitStrength(world.hands[ROLLOUT_PARTNER] ?? [], strain);
+    if (est >= INDICATE_EST) return world;
+    if (est > bestEst) {
+      best = world;
+      bestEst = est;
+    }
+  }
+  return best as SampledWorld;
+}
 
 /** Medium everywhere, with seat 0's slam answer scripted per variant. */
 class ScriptedSlamMedium extends MediumPolicy {
@@ -189,7 +226,10 @@ function rolloutPass(myTen: readonly Card[], world: SampledWorld, rng: Rng): num
     const b: Bid =
       seat === ME
         ? bid(PASS)
-        : OPPONENT.chooseBid(st.hands[seat] ?? [], auction.ladderPos, mayIndicate);
+        : OPPONENT.chooseBid(st.hands[seat] ?? [], auction.ladderPos, mayIndicate, {
+            seat,
+            indications: auction.indications,
+          });
     if (b.kind === PASS && auction.declarer === null && auction.consecutiveQuiet === 3) {
       return 0; // fourth quiet action with no winner: redeal
     }
@@ -203,8 +243,14 @@ function rolloutPass(myTen: readonly Card[], world: SampledWorld, rng: Rng): num
  * Candidate contracts from the ladder position and hand shape: per strain
  * the minimum available level (plus one up when strong), NULLA / DNULLA when
  * the own hand passes the lowness gates. Every candidate is a legal raise.
+ * A partner-indicated strain is never pruned (fh-zpg): the rollout over
+ * indication-conditioned worlds, not the own-hand formula, judges it.
  */
-export function candidateBids(hand: readonly Card[], ladderPos: number): Bid[] {
+export function candidateBids(
+  hand: readonly Card[],
+  ladderPos: number,
+  indicatedStrain: number | null = null,
+): Bid[] {
   const sorted = [...hand].sort(ascending);
   const candidates: Bid[] = [];
   for (let s = 0; s < 5; s++) {
@@ -220,7 +266,7 @@ export function candidateBids(hand: readonly Card[], ladderPos: number): Bid[] {
     const maxLevel = Math.min(10, Math.trunc(OPPONENT.suitStrength(sorted, s) + BID_HEADROOM));
     // Prune strains the Medium formula puts more than one level out of
     // reach; the rollout gets to stretch exactly one level past Medium.
-    if (lowest.level > maxLevel + 1) continue;
+    if (s !== indicatedStrain && lowest.level > maxLevel + 1) continue;
     candidates.push(lowest);
     if (lowest.level < 10 && maxLevel >= lowest.level + 1) {
       candidates.push(bid(NUM, lowest.level + 1, s));
@@ -243,18 +289,23 @@ export function candidateBids(hand: readonly Card[], ladderPos: number): Bid[] {
  * Hard chooseBid: rollout EV per candidate over shared worlds, bid the best
  * candidate when it beats the pass baseline by the margin; otherwise fall
  * back to the Medium indication rule verbatim (est >= 4.5, suit strains
- * only, one per auction via mayIndicate) and pass.
+ * only, one per auction via mayIndicate) and pass. A partner indication in
+ * `context` conditions the sampled worlds (partner hands honor the promise)
+ * and keeps that strain in the candidate set (fh-zpg).
  */
 export function chooseBidByRollout(
   hand: readonly Card[],
   ladderPos: number,
   mayIndicate: boolean,
+  context: BidContext,
   rng: Rng,
   options: HardBidOptions = {},
 ): Bid {
   const worlds = Math.max(1, options.worlds ?? ROLLOUT_WORLDS);
   const margin = options.margin ?? BID_MARGIN;
   const sorted = [...hand].sort(ascending);
+  const partnerInd = context.indications.find((i) => i.seat === partnerOf(context.seat));
+  const partnerStrain = partnerInd !== undefined ? partnerInd.bid.strain : null;
 
   const indicationOrPass = (): Bid => {
     let bestStrain = 0;
@@ -270,12 +321,18 @@ export function chooseBidByRollout(
     return bid(PASS);
   };
 
-  const candidates = candidateBids(sorted, ladderPos);
+  const candidates = candidateBids(sorted, ladderPos, partnerStrain);
   if (candidates.length === 0) return indicationOrPass();
 
   const constraints = unseenConstraints(sorted);
   const sampled: SampledWorld[] = [];
-  for (let i = 0; i < worlds; i++) sampled.push(sampleWorld(constraints, rng));
+  for (let i = 0; i < worlds; i++) {
+    sampled.push(
+      partnerStrain === null
+        ? sampleWorld(constraints, rng)
+        : samplePartnerIndicationWorld(constraints, partnerStrain, rng),
+    );
+  }
 
   const passEV = rolloutPass(sorted, sampled[0] as SampledWorld, rng);
   let best: Bid | null = null;

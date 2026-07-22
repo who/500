@@ -14,16 +14,33 @@
  * (Easy) and heuristics (Medium) need to know which play is the partner's.
  */
 
-import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
+import type { Bid, Card, GameState, Indication, Rng, TrickPlay } from '@five-hundred/engine';
 import { cardPower, cardSuit, trumpOf } from '@five-hundred/engine';
+
+/**
+ * What a bidder knows about the auction beyond the ladder position: its own
+ * seat and every indication made so far (an indication is a signal to the
+ * partner, so policies need the seat to tell partner signals from opponents').
+ */
+export interface BidContext {
+  readonly seat: number;
+  readonly indications: readonly Indication[];
+}
 
 export interface Policy {
   /**
    * Bid decision. ladderPos is the auction's current LADDER index (-1 while
    * no winning bid exists); mayIndicate is whether a 6-level indication is
-   * still legal for this seat.
+   * still legal for this seat; context carries the auction's indications so
+   * a policy can answer its partner's signal.
    */
-  chooseBid(hand: readonly Card[], ladderPos: number, mayIndicate: boolean, rng: Rng): Bid;
+  chooseBid(
+    hand: readonly Card[],
+    ladderPos: number,
+    mayIndicate: boolean,
+    context: BidContext,
+    rng: Rng,
+  ): Bid;
 
   /** Return exactly 10 cards to keep from 15 (or 16 after a slam). */
   chooseKeeps(cards: readonly Card[], contract: Bid, rng: Rng): Card[];

@@ -24,7 +24,11 @@
  *
  * No tuning or strength improvements here — the strength gate lives in the
  * sim-harness leaf, and the Hard bot reuses this class verbatim as its
- * rollout opponent model, so any drift compounds.
+ * rollout opponent model, so any drift compounds. One recorded divergence
+ * (fh-zpg): the oracle's choose_bid never saw the auction, so a partner's
+ * indication adds a discounted support bonus here that has no Python
+ * counterpart; with no indications in play the decisions match the oracle
+ * fixture exactly.
  */
 
 import type { Bid, Card, TrickPlay } from '@five-hundred/engine';
@@ -43,9 +47,10 @@ import {
   cardSuit,
   isLoseAll,
   ladderIndex,
+  partnerOf,
   trumpOf,
 } from '@five-hundred/engine';
-import type { Policy } from './policy.js';
+import type { BidContext, Policy } from './policy.js';
 import { defaultGiveBestCard } from './policy.js';
 
 // _suit_strength weights (five_hundred.py 249-271)
@@ -67,6 +72,11 @@ const NULLA_LOWNESS = 8.6;
 const NULLA_MAX_RANK = 11; // nothing above a jack
 export const BID_HEADROOM = 2.5; // max_level = min(10, int(est + 2.5))
 export const INDICATE_EST = 4.5;
+// A partner indication promises est >= INDICATE_EST in that strain; the
+// receiver credits a discounted share of it (fh-zpg), not the full promise,
+// so a clearly stronger own-suit plan (raw edge > the bonus) still wins.
+// Deliberately beyond the oracle: choose_bid never saw the auction at all.
+export const PARTNER_INDICATION_BONUS = 2.0;
 
 // consider_slam threshold (five_hundred.py 346)
 const SLAM_EST = 8.0;
@@ -142,7 +152,12 @@ export class MediumPolicy implements Policy {
     return sum / hand.length;
   }
 
-  chooseBid(hand: readonly Card[], ladderPos: number, mayIndicate: boolean): Bid {
+  chooseBid(
+    hand: readonly Card[],
+    ladderPos: number,
+    mayIndicate: boolean,
+    context: BidContext,
+  ): Bid {
     const sorted = [...hand].sort(ascending);
     // Lose-all option: uniformly low hand, no joker, nothing above a jack.
     if (
@@ -154,18 +169,31 @@ export class MediumPolicy implements Policy {
       const nullaI = ladderIndex(bid(NULLA)) as number;
       if (nullaI > ladderPos) return bid(NULLA);
     }
+    const partnerInd = context.indications.find((i) => i.seat === partnerOf(context.seat));
     let bestStrain = 0;
-    let est = -Infinity;
+    let est = -Infinity; // partner-boosted, drives the bid
+    let ownBestStrain = 0;
+    let ownEst = -Infinity; // own hand only, drives our own indication
     for (let s = 0; s < 5; s++) {
-      const strength = this.suitStrength(sorted, s);
+      const own = this.suitStrength(sorted, s);
+      const strength =
+        partnerInd !== undefined && partnerInd.bid.strain === s
+          ? own + PARTNER_INDICATION_BONUS
+          : own;
       if (strength > est) {
         bestStrain = s;
         est = strength;
       }
+      if (own > ownEst) {
+        ownBestStrain = s;
+        ownEst = own;
+      }
     }
     const maxLevel = Math.min(10, Math.trunc(est + BID_HEADROOM));
     if (maxLevel < 7) {
-      if (mayIndicate && est >= INDICATE_EST && bestStrain < 4) return bid(IND, 6, bestStrain);
+      if (mayIndicate && ownEst >= INDICATE_EST && ownBestStrain < 4) {
+        return bid(IND, 6, ownBestStrain);
+      }
       return bid(PASS);
     }
     for (let i = ladderPos + 1; i < LADDER.length; i++) {

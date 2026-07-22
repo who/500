@@ -48,7 +48,13 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
       return {
         type: 'bid',
         seat,
-        bid: policy.chooseBid(hand, auction.ladderPos, mayIndicate, rng),
+        bid: policy.chooseBid(
+          hand,
+          auction.ladderPos,
+          mayIndicate,
+          { seat, indications: auction.indications },
+          rng,
+        ),
       };
     }
     case 'slamDecision':
@@ -134,6 +140,7 @@ function stubRng(randomValue: number): Rng {
 
 const HEARTS = bid(NUM, 8, 3); // hearts trump
 const NULLA_BID = bid(NULLA);
+const NO_SIGNALS = { seat: 0, indications: [] } as const;
 
 describe('AC-1: headless Easy table', () => {
   it('4 Easy bots complete 500 seeded hands with zero illegal actions', () => {
@@ -150,7 +157,7 @@ describe('AC-2: Easy never bids nulla, double nulla, or a slam', () => {
       // Cycle every ladder position (-1 .. top) so both nulla rungs are the
       // next step many times over.
       const ladderPos = (i % (LADDER.length + 1)) - 1;
-      const b = easy.chooseBid([], ladderPos, i % 2 === 0, rng);
+      const b = easy.chooseBid([], ladderPos, i % 2 === 0, NO_SIGNALS, rng);
       expect(b.kind).not.toBe(NULLA);
       expect(b.kind).not.toBe(DNULLA);
     }
@@ -161,13 +168,17 @@ describe('AC-2: Easy never bids nulla, double nulla, or a slam', () => {
     const always = stubRng(0); // random() = 0 < bidProb: always raises
     const nullaIdx = LADDER.findIndex((b) => b.kind === NULLA);
     const dnullaIdx = LADDER.findIndex((b) => b.kind === DNULLA);
-    expect(easy.chooseBid([], nullaIdx - 1, false, always)).toEqual(LADDER[nullaIdx + 1]);
-    expect(easy.chooseBid([], dnullaIdx - 1, false, always)).toEqual(LADDER[dnullaIdx + 1]);
+    expect(easy.chooseBid([], nullaIdx - 1, false, NO_SIGNALS, always)).toEqual(
+      LADDER[nullaIdx + 1],
+    );
+    expect(easy.chooseBid([], dnullaIdx - 1, false, NO_SIGNALS, always)).toEqual(
+      LADDER[dnullaIdx + 1],
+    );
   });
 
   it('passes at the top of the ladder instead of overflowing', () => {
     const easy = new EasyPolicy();
-    const b = easy.chooseBid([], LADDER.length - 1, false, stubRng(0));
+    const b = easy.chooseBid([], LADDER.length - 1, false, NO_SIGNALS, stubRng(0));
     expect(b.kind).toBe('PASS');
   });
 

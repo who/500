@@ -235,7 +235,17 @@ export class BotDriver {
         const auction = state.auction;
         if (auction === null) throw new Error('auction phase without auction state');
         const mayIndicate = auction.declarer === null && auction.indicated[seat] !== true;
-        return { type: 'bid', seat, bid: policy.chooseBid(hand, auction.ladderPos, mayIndicate, rng) };
+        return {
+          type: 'bid',
+          seat,
+          bid: policy.chooseBid(
+            hand,
+            auction.ladderPos,
+            mayIndicate,
+            { seat, indications: auction.indications },
+            rng,
+          ),
+        };
       }
       case 'slamDecision':
         return policy.considerSlam(hand, this.contractOf(state), rng)

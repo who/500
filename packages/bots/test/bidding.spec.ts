@@ -29,7 +29,15 @@ import {
   legalBids,
   makeRng,
 } from '@five-hundred/engine';
-import { candidateBids, chooseBidByRollout, considerSlamByRollout } from '../src/index.js';
+import type { ObservedConstraints } from '../src/index.js';
+import {
+  MediumPolicy,
+  candidateBids,
+  chooseBidByRollout,
+  considerSlamByRollout,
+  samplePartnerIndicationWorld,
+  sampleWorld,
+} from '../src/index.js';
 
 const S = (r: number): Card => r - 4;
 const C = (r: number): Card => 11 + r - 4;
@@ -103,9 +111,11 @@ function isLegalAt(b: Bid, ladderPos: number, mayIndicate: boolean): boolean {
   return legalBids(auctionAt(ladderPos, mayIndicate), 0).some((l) => bidKey(l) === key);
 }
 
+const NO_SIGNALS = { seat: 0, indications: [] } as const;
+
 describe('AC-1 fixture hands', () => {
   it('bids hearts on the strong hearts hand', () => {
-    const b = chooseBidByRollout(STRONG_HEARTS, -1, true, makeRng(1));
+    const b = chooseBidByRollout(STRONG_HEARTS, -1, true, NO_SIGNALS, makeRng(1));
     expect(b.kind).toBe(NUM);
     expect(b.strain).toBe(3);
   });
@@ -114,13 +124,13 @@ describe('AC-1 fixture hands', () => {
     // No candidate survives pruning and est is far below the indication
     // threshold, so this is deterministic without any rollout.
     for (const ladderPos of [-1, 4, 10, LADDER.length - 1]) {
-      const b = chooseBidByRollout(GARBAGE, ladderPos, ladderPos < 0, makeRng(2));
+      const b = chooseBidByRollout(GARBAGE, ladderPos, ladderPos < 0, NO_SIGNALS, makeRng(2));
       expect(b.kind).toBe(PASS);
     }
   });
 
   it('finds nulla on the uniformly-low no-joker hand', () => {
-    const b = chooseBidByRollout(LOW_NULLA, -1, true, makeRng(3));
+    const b = chooseBidByRollout(LOW_NULLA, -1, true, NO_SIGNALS, makeRng(3));
     expect(b.kind).toBe(NULLA);
   });
 
@@ -144,7 +154,7 @@ describe('AC-2 legality over 1000 seeded auction contexts', () => {
       const hand = pool.slice(0, 10);
       const ladderPos = rng.int(LADDER.length + 1) - 1; // -1 .. ladder top
       const mayIndicate = ladderPos < 0 && rng.random() < 0.5;
-      const b = chooseBidByRollout(hand, ladderPos, mayIndicate, decide, { worlds: 2 });
+      const b = chooseBidByRollout(hand, ladderPos, mayIndicate, NO_SIGNALS, decide, { worlds: 2 });
       expect(
         isLegalAt(b, ladderPos, mayIndicate),
         `context ${i}: ${bidKey(b)} illegal at ladderPos ${ladderPos}`,
@@ -190,10 +200,10 @@ describe('AC-3 determinism under a fixed seed', () => {
     const first = makeRng(48);
     const second = makeRng(48);
     for (const [hand, ladderPos, mayIndicate] of contexts) {
-      const a = chooseBidByRollout(hand, ladderPos, mayIndicate && ladderPos < 0, first, {
+      const a = chooseBidByRollout(hand, ladderPos, mayIndicate && ladderPos < 0, NO_SIGNALS, first, {
         worlds: 4,
       });
-      const b = chooseBidByRollout(hand, ladderPos, mayIndicate && ladderPos < 0, second, {
+      const b = chooseBidByRollout(hand, ladderPos, mayIndicate && ladderPos < 0, NO_SIGNALS, second, {
         worlds: 4,
       });
       expect(bidKey(a)).toBe(bidKey(b));
@@ -209,19 +219,19 @@ describe('AC-3 determinism under a fixed seed', () => {
 
 describe('edge cases', () => {
   it('returns pass at the ladder top where nothing can be raised', () => {
-    const b = chooseBidByRollout(STRONG_HEARTS, LADDER.length - 1, false, makeRng(50));
+    const b = chooseBidByRollout(STRONG_HEARTS, LADDER.length - 1, false, NO_SIGNALS, makeRng(50));
     expect(b.kind).toBe(PASS);
   });
 
   it('indicates the best suit on the pass path per the Medium rule', () => {
     // An unreachable margin forces the pass path even on a strong hand; the
     // indication rule (est >= 4.5, suit strains only) then takes over.
-    const withIndication = chooseBidByRollout(STRONG_HEARTS, -1, true, makeRng(51), {
+    const withIndication = chooseBidByRollout(STRONG_HEARTS, -1, true, NO_SIGNALS, makeRng(51), {
       margin: 1e9,
     });
     expect(withIndication.kind).toBe(IND);
     expect(withIndication.strain).toBe(3);
-    const without = chooseBidByRollout(STRONG_HEARTS, -1, false, makeRng(51), { margin: 1e9 });
+    const without = chooseBidByRollout(STRONG_HEARTS, -1, false, NO_SIGNALS, makeRng(51), { margin: 1e9 });
     expect(without.kind).toBe(PASS);
   });
 
@@ -231,5 +241,57 @@ describe('edge cases', () => {
     const queenHigh = [S(4), S(5), S(12), C(4), C(5), C(6), D(4), D(5), H(4), H(5)];
     const kinds = candidateBids(queenHigh, -1).map((c) => c.kind);
     expect(kinds).not.toContain('DNULLA');
+  });
+});
+
+describe('partner indication signal (fh-zpg)', () => {
+  // Auction-time constraints as seen from GARBAGE: nothing known beyond the
+  // own ten cards, three hidden seats of ten.
+  const constraints: ObservedConstraints = {
+    viewer: 0,
+    trump: null,
+    unseen: DECK.filter((c) => !GARBAGE.includes(c)),
+    seats: [1, 2, 3].map((seat) => ({ seat, count: 10, voidSuits: [] })),
+    restricted: [],
+  };
+  const medium = new MediumPolicy();
+
+  it('conditioned sampling deals materially stronger partner hands in the strain', () => {
+    const plain = makeRng(60);
+    const conditioned = makeRng(60);
+    const samples = 30;
+    let plainSum = 0;
+    let condSum = 0;
+    for (let i = 0; i < samples; i++) {
+      plainSum += medium.suitStrength(sampleWorld(constraints, plain).hands[2] ?? [], 3);
+      condSum += medium.suitStrength(
+        samplePartnerIndicationWorld(constraints, 3, conditioned).hands[2] ?? [],
+        3,
+      );
+    }
+    const plainMean = plainSum / samples;
+    const condMean = condSum / samples;
+    expect(condMean).toBeGreaterThan(plainMean + 0.75);
+    // The conditioned mean should sit near the indication promise (est 4.5).
+    expect(condMean).toBeGreaterThan(3.5);
+  });
+
+  it('keeps the partner-indicated strain in the candidate set', () => {
+    // Garbage prunes every strain on own strength alone (AC-1 above); the
+    // partner's hearts signal keeps 7H in for the rollout to judge.
+    expect(candidateBids(GARBAGE, -1).some((b) => b.kind === NUM && b.strain === 3)).toBe(false);
+    const withSignal = candidateBids(GARBAGE, -1, 3);
+    expect(withSignal.some((b) => b.kind === NUM && b.strain === 3)).toBe(true);
+    // Forced candidates are still legal raises only.
+    for (const c of withSignal) expect((ladderIndex(c) as number) > -1).toBe(true);
+    expect(candidateBids(GARBAGE, LADDER.length - 1, 3)).toEqual([]);
+  });
+
+  it('chooseBid stays legal and deterministic under a partner indication', () => {
+    const ctx = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }] };
+    const a = chooseBidByRollout(GARBAGE, -1, true, ctx, makeRng(61), { worlds: 4 });
+    const b = chooseBidByRollout(GARBAGE, -1, true, ctx, makeRng(61), { worlds: 4 });
+    expect(bidKey(a)).toBe(bidKey(b));
+    expect(isLegalAt(a, -1, true)).toBe(true);
   });
 });
