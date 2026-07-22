@@ -101,8 +101,11 @@ describe('turn handoff keeps the badge box invariant (AC-1/AC-2)', () => {
     const { app } = renderBadge({ bidHistory: [] });
     const strip = app.getByTestId('bid-history');
     expect(strip.querySelector('.bid-chip')).toBeNull();
+    // jsdom drops math functions like min() from computed styles, so the
+    // fixed-width reserve is asserted against the declared rule instead.
+    const stripRule = /\.seat-bids \{[^}]*\}/.exec(CSS)?.[0];
+    expect(stripRule).toMatch(/width: min\(5\.5rem, 20vw\);/);
     const stripStyle = getComputedStyle(strip);
-    expect(stripStyle.width).toBe('9.5rem');
     expect(stripStyle.minHeight).toBe('1.15rem');
 
     // A one-row chip run exactly fills the reserve: each chip's border box

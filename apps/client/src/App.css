@@ -817,8 +817,12 @@ button.primary {
   /* Fixed reserve (fh-8sw): the strip renders empty from the auction's first
      deal at a constant width and one chip-row height, so chips landing (or a
      seat's first bid) never resize the badge and reflow the table. Only the
-     explicit "+n" expansion may wrap past one row. */
-  width: 9.5rem;
+     explicit "+n" expansion may wrap past one row. The single-round auction
+     (fh-8i7) gives each seat exactly one call, so the reserve is one chip
+     wide — 5.5rem fits the widest chip ("Double Nulla"); the vw cap keeps
+     three side-by-side badges inside a 375px phone (fh-8xx), where the
+     rare over-wide chip centers into the badge padding instead. */
+  width: min(5.5rem, 20vw);
   max-width: 100%;
   min-height: 1.15rem;
 }
