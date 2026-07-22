@@ -280,11 +280,23 @@ button.primary {
   border: 2px solid var(--border);
   border-radius: 8px;
   background: var(--bg);
+  /* Turn handoff reads as motion, not a jump (fh-8sw). The border stays a
+     constant 2px; .acting only recolors it and adds a shadow ring, so the
+     highlight itself never moves layout. */
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
 }
 
 .seat-badge.acting {
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-bg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seat-badge {
+    transition: none;
+  }
 }
 
 .seat-badge.sitting-out {
@@ -334,6 +346,13 @@ button.primary {
 }
 
 .seat-thinking {
+  /* Out of flow (fh-8sw): floats under the badge like the sitting-out
+     ribbon, so its delayed arrival can't resize the badge mid-turn. */
+  position: absolute;
+  top: calc(100% + 0.2rem);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
   font-size: 0.75rem;
   font-style: italic;
   color: var(--text);
@@ -791,10 +810,20 @@ button.primary {
   flex-wrap: wrap;
   justify-content: center;
   gap: 0.2rem;
-  max-width: 9.5rem;
+  /* Fixed reserve (fh-8sw): the strip renders empty from the auction's first
+     deal at a constant width and one chip-row height, so chips landing (or a
+     seat's first bid) never resize the badge and reflow the table. Only the
+     explicit "+n" expansion may wrap past one row. */
+  width: 9.5rem;
+  max-width: 100%;
+  min-height: 1.15rem;
 }
 
 .bid-chip {
+  /* Pinned to the strip's reserved row height (fh-8sw). */
+  display: inline-flex;
+  align-items: center;
+  height: 1.15rem;
   padding: 0.05rem 0.4rem;
   border: 1px solid var(--border);
   border-radius: 999px;

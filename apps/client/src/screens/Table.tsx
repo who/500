@@ -105,9 +105,10 @@ export function Table(): ReactNode {
   const givingCard = view.phase === 'partnerCard' && view.toAct === me;
   const bidding = view.phase === 'auction';
   const bids = bidLegality(view, pendingActions?.actions ?? null);
-  // The auction log stays on the view after the auction ends; chips show
-  // only while it runs (a redeal resets the log, clearing them).
-  const auctionLog = bidding ? (view.auction?.history ?? []) : [];
+  // The auction log stays on the view after the auction ends; the chips strip
+  // (and the badge space it reserves, fh-8sw) exists only while it runs — a
+  // redeal resets the log, clearing them.
+  const auctionLog = bidding ? (view.auction?.history ?? []) : null;
 
   function playCard(card: Card, jokerSuit?: number): void {
     if (pendingActions === null) return;
@@ -153,7 +154,7 @@ export function Table(): ReactNode {
         sittingOutReason={view.contract?.kind === NULLA ? 'nulla' : view.slam ? 'slam' : undefined}
         cardCount={view.handCounts[seat] ?? 0}
         showBacks={seat !== me}
-        bidHistory={auctionLog.filter((e) => e.seat === seat).map((e) => e.bid)}
+        bidHistory={auctionLog?.filter((e) => e.seat === seat).map((e) => e.bid)}
       />
     );
   }

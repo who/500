@@ -82,7 +82,9 @@ export interface SeatBadgeProps {
   /** Hidden-hand size; rendered as backs unless this is the viewer's seat. */
   cardCount: number;
   showBacks: boolean;
-  /** This seat's auction actions in order; chips render when non-empty. */
+  /** This seat's auction actions in order. When defined the chips strip
+   *  renders even while empty — a fixed-size reserve (fh-8sw) so the first
+   *  chip landing can't resize the badge and reflow the table. */
   bidHistory?: readonly Bid[];
 }
 
@@ -124,9 +126,7 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
           <span className="seat-count">{props.cardCount}</span>
         </div>
       )}
-      {props.bidHistory !== undefined && props.bidHistory.length > 0 && (
-        <BidChips bids={props.bidHistory} />
-      )}
+      {props.bidHistory !== undefined && <BidChips bids={props.bidHistory} />}
       {pondering && revealed && (
         <span className="seat-thinking" data-testid="seat-thinking">
           thinking…

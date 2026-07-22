@@ -190,7 +190,7 @@ describe('auction UX', () => {
     // Mid-auction with visible history…
     const before = runAuction(0, [bid(IND, 6, 0), bid(PASS)]);
     const { client, app } = renderAuction(before);
-    expect(chipsFor(app, 0)).not.toBeNull();
+    expect(chipTexts(chipsFor(app, 0))).not.toEqual([]);
     expect(app.queryByTestId('redeal-toast')).toBeNull();
 
     // …then the auction dies server-side: a fresh view arrives with the
@@ -212,7 +212,9 @@ describe('auction UX', () => {
     );
     const toast = app.getByTestId('redeal-toast');
     expect(toast.textContent).toBe('No winning bid — redealing. Ana deals.');
-    for (let seat = 0; seat < 4; seat++) expect(chipsFor(app, seat)).toBeNull();
+    // The fixed-size strips stay mounted (badge-size reserve, fh-8sw) but
+    // every seat's chips are gone.
+    for (let seat = 0; seat < 4; seat++) expect(chipTexts(chipsFor(app, seat))).toEqual([]);
 
     // A second redeal replaces the toast (never queues a stack)…
     applyEvent(
