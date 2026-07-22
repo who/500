@@ -347,23 +347,30 @@ describe('endgame game-value mapping (fh-e52)', () => {
 });
 
 describe('endgame bidding aggression (fh-e52)', () => {
-  // Best strain diamonds at est 1.90 (bower JH plus low fill, KC on the
-  // side): with the fh-c6i tuned headroom every strain still prunes at level
-  // scores (est < 2.0 across the board), so the pass is deterministic; the
-  // endgame stretch puts the 7-level back in candidate range for the rollout
-  // to judge. The KC keeps the top rank above a queen so the nulla candidate
-  // gate stays shut.
+  // A five-card spade suit (K-Q-10-7-5) with a side ace and king: every
+  // strain still prunes at level scores (the safety margin over passEV holds),
+  // so the pass is deterministic; the endgame stretch reopens the 8-level for
+  // the rollout, which judges the spade game a better shot than conceding.
+  //
+  // The old fixture (H J-Q + low fill) no longer flips: fh-61z made Medium
+  // partner-aware in the trick, so the rollout's own defenders stopped
+  // sabotaging their partner — with competent defense, passing that weak hand
+  // is the higher-EV line even at [0,490] (passEV -438 vs a hopeless contract
+  // at -500). The old NUM was propped up entirely by the bot's bad defense
+  // making passing look catastrophic. This hand still genuinely flips under
+  // the corrected play, preserving the test's intent. The A/K top rank keeps
+  // the nulla candidate gate shut.
   const STRETCH_HAND: Card[] = [
-    H(11),
-    H(12),
-    S(4),
     S(5),
     S(7),
-    C(13),
-    C(6),
-    C(8),
+    S(10),
+    S(12),
+    S(13),
+    C(10),
+    C(12),
     D(4),
-    D(6),
+    D(14),
+    H(13),
   ];
 
   it('passes the stretch hand at level scores', () => {

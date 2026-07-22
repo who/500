@@ -24,7 +24,7 @@
  * fixture records sorted contexts. Strains tie-break low (S,C,D,H,NT).
  *
  * The Hard bot reuses this class verbatim as its rollout opponent model, so
- * any drift compounds; divergences from the oracle are recorded here. Four
+ * any drift compounds; divergences from the oracle are recorded here. Five
  * recorded divergences:
  * (fh-zpg) the oracle's choose_bid never saw the auction, so a partner's
  * indication adds a discounted support bonus here that has no Python
@@ -34,8 +34,13 @@
  * decisions match the oracle fixture exactly. A third (fh-n2n): the oracle's
  * choose_play never saw the play history, so its declarer led its lowest
  * side card into ruffs; here a declarer-side lead in a trump contract draws
- * trump first, then cashes established side winners. Defender play (the
- * fixture context) is untouched. A fourth (fh-c6i): the oracle's bid
+ * trump first, then cashes established side winners (draw gate retuned to
+ * expected OPPONENT trumps by fh-61z, which supersedes fh-n2n's raw unseen
+ * count). A fifth (fh-61z): the oracle's cheapest-winner follow was
+ * partner-blind — it ruffed and overtook its own partner's winners — so a
+ * partner-guardrail now ducks those tricks; every parity-fixture context
+ * still replays exactly (none offers both a winner and a loser behind a
+ * winning partner). A fourth (fh-c6i): the oracle's bid
  * headroom passed out ~91% of deals; live play uses the tuned BID_HEADROOM
  * below, and the parity fixture replays choose_bid at ORACLE_BID_HEADROOM.
  */
@@ -61,6 +66,7 @@ import {
   partnerOf,
   trumpOf,
 } from '@five-hundred/engine';
+import { bestPlaySoFar } from './helpers.js';
 import type { BidContext, PlayContext, Policy } from './policy.js';
 import { defaultGiveBestCard } from './policy.js';
 
@@ -380,11 +386,10 @@ export class MediumPolicy implements Policy {
         cardPower(c, trump, ledSuit !== null ? ledSuit : cardSuit(c)),
       );
     }
-    // Declarer-side lead in a trump contract (fh-n2n): draw trump while any
-    // may still be live, then cash established side winners. The unseen set
-    // is everything outside this hand and the played tricks, so it includes
-    // the partner's trumps and any buried in the discards — the bot draws a
-    // touch longer than a card-perfect reader would, never shorter.
+    // Declarer-side lead in a trump contract (fh-n2n): draw trump while the
+    // opponents may still hold any, then cash established side winners. The
+    // unseen set is everything outside this hand and the played tricks, so
+    // it includes the partner's trumps and any buried in the discards.
     if (
       trump !== null &&
       ledSuit === null &&
@@ -400,9 +405,16 @@ export class MediumPolicy implements Policy {
         const top = firstMaxBy(ownTrumps, (c) => cardPower(c, trump, null));
         const topPower = cardPower(top, trump, null);
         const boss = outTrumps.every((c) => cardPower(c, trump, null) < topPower);
-        // Lead the boss trump, or from surplus length; never bleed the last
-        // trumps into a war this hand cannot win.
-        if (boss || (ownTrumps.length >= 2 && ownTrumps.length > outTrumps.length)) {
+        // Comparing own length against ALL unseen trumps almost never fired
+        // (fh-61z defect A): the partner's trumps and the buried middle are
+        // not opposition. Scale unseen trumps by each opponent hand's share
+        // of the unseen cards instead — on lead every seat has played
+        // context.tricks.length cards, so an opponent holds hand.length of
+        // the unseen ones. Lead the boss trump, or out-length the expected
+        // opponent holding; still never bleed a lone trump into a war this
+        // hand cannot win.
+        const perOppTrumps = (outTrumps.length * hand.length) / unseen.length;
+        if (boss || (ownTrumps.length >= 2 && ownTrumps.length > perOppTrumps)) {
           return top;
         }
       }
@@ -425,6 +437,41 @@ export class MediumPolicy implements Policy {
       }
     }
     const winners = sorted.filter((c) => cardPower(c, trump, ledSuit) > currentMax);
+    // Partner guardrail (fh-61z defect B, Easy's guardrail (a) ported up):
+    // when the partner already holds the trick and a losing card exists,
+    // never ruff their side-suit winner, and only overtake when a seat
+    // still to act could hold a card that beats the partner's card but not
+    // ours — an overtake buys nothing against a card (a ruff, the joker)
+    // that beats us too. The oracle parity fixture is unaffected: none of
+    // its partner-winning contexts offer both a winner and a loser.
+    const best = bestPlaySoFar(trickPlays, trump, ledSuit);
+    if (winners.length > 0 && best !== null && best.seat === partnerOf(seat)) {
+      const losers = sorted.filter((c) => cardPower(c, trump, ledSuit) < currentMax);
+      if (losers.length > 0) {
+        const duck = firstMinBy(losers, (c) => cardPower(c, trump, ledSuit));
+        const ruffsPartner =
+          trump !== null &&
+          !isTrumpCard(best.card, trump) &&
+          winners.every((c) => isTrumpCard(c, trump));
+        if (ruffsPartner) return duck;
+        const seatsToAct = 3 - trickPlays.length;
+        if (seatsToAct <= 0) return duck;
+        const seen = new Set<Card>(hand);
+        for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+        for (const p of trickPlays) seen.add(p.card);
+        const topWinPower = cardPower(
+          firstMaxBy(winners, (c) => cardPower(c, trump, ledSuit)),
+          trump,
+          ledSuit,
+        );
+        const liveThreat = DECK.some((c) => {
+          if (seen.has(c)) return false;
+          const power = cardPower(c, trump, ledSuit);
+          return power > currentMax && power < topWinPower;
+        });
+        if (!liveThreat) return duck;
+      }
+    }
     if (winners.length > 0) return firstMinBy(winners, (c) => cardPower(c, trump, ledSuit));
     return firstMinBy(sorted, (c) => cardPower(c, trump, ledSuit));
   }

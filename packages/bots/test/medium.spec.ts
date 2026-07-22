@@ -700,6 +700,25 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
     ).toBe(makeCard(3, 6));
   });
 
+  it('draws trump from a strong holding without the joker (fh-61z gate retune)', () => {
+    // Right bower + three low trumps, joker unseen. The fh-n2n gate refused
+    // here: the right bower is not boss over ALL unseen trumps (the joker is
+    // out there somewhere), and 4 own trumps never exceeded the 9 unseen —
+    // even though most of those 9 sit with the partner or in the middle.
+    const hand = [
+      RIGHT_BOWER,
+      makeCard(3, 4),
+      makeCard(3, 5),
+      makeCard(3, 6),
+      ACE_SPADES,
+      KING_SPADES,
+      FIVE_CLUBS,
+    ];
+    expect(
+      medium.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(RIGHT_BOWER);
+  });
+
   it('does not bleed a lone low trump into a war it cannot win', () => {
     const hand = [makeCard(3, 4), ACE_SPADES, FIVE_CLUBS];
     expect(
@@ -711,6 +730,124 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
     expect(
       medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(KING_SPADES);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-61z defect B: partner guardrail in the follow logic
+// ---------------------------------------------------------------------------
+
+describe('partner guardrail (fh-61z)', () => {
+  // Hearts trump throughout; the bot sits at seat 0, partner at seat 2.
+  const HEARTS = 3;
+  const ACE_SPADES = makeCard(0, 14);
+  const KING_SPADES = makeCard(0, 13);
+  const QUEEN_SPADES = makeCard(0, 12);
+  const LED_SPADES = 0;
+  /** A completed trick; only the played cards matter to the card counting. */
+  const trick = (cards: readonly Card[]) => ({
+    leader: 1,
+    ledSuit: LED_SPADES,
+    plays: cards.map((card, i) => ({ seat: (1 + i) % 4, card })),
+    winner: 1,
+  });
+
+  it('void behind the partner winning ace: sluffs, never ruffs', () => {
+    // Partner led the ace of spades, seat 3 followed low; the bot is void
+    // with a trump in hand and seat 1 still to act.
+    const plays = [
+      { seat: 2, card: ACE_SPADES },
+      { seat: 3, card: makeCard(0, 5) },
+    ];
+    const hand = [makeCard(3, 5), makeCard(1, 4), makeCard(1, 6)];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        hand,
+        plays,
+        HEARTS,
+        LED_SPADES,
+        HEARTS10,
+        { declarer: 1, tricks: [] },
+        noRng,
+      ),
+    ).toBe(makeCard(1, 4));
+  });
+
+  it('following behind the partner boss honor: plays low', () => {
+    // The ace of spades is down, the bot holds the king, so the partner's
+    // queen is boss over anything the last seat could hold. The old logic
+    // overtook with the king anyway.
+    const gone = trick([ACE_SPADES, makeCard(0, 4), makeCard(0, 6), makeCard(0, 7)]);
+    const plays = [
+      { seat: 2, card: QUEEN_SPADES },
+      { seat: 3, card: makeCard(0, 8) },
+    ];
+    const hand = [KING_SPADES, makeCard(0, 5), makeCard(1, 6)];
+    const legal = [KING_SPADES, makeCard(0, 5)];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        legal,
+        plays,
+        HEARTS,
+        LED_SPADES,
+        HEARTS10,
+        { declarer: 1, tricks: [gone] },
+        noRng,
+      ),
+    ).toBe(makeCard(0, 5));
+  });
+
+  it('partner winning with a non-boss card: overtaking with the boss is still allowed', () => {
+    // Same trick, but the unseen king can beat the partner's queen and the
+    // bot's ace beats the king — third-hand-high still applies.
+    const plays = [
+      { seat: 2, card: QUEEN_SPADES },
+      { seat: 3, card: makeCard(0, 8) },
+    ];
+    const hand = [ACE_SPADES, makeCard(0, 5), makeCard(1, 6)];
+    const legal = [ACE_SPADES, makeCard(0, 5)];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        legal,
+        plays,
+        HEARTS,
+        LED_SPADES,
+        HEARTS10,
+        { declarer: 1, tricks: [] },
+        noRng,
+      ),
+    ).toBe(ACE_SPADES);
+  });
+
+  it('last to act behind a winning partner: always ducks', () => {
+    // Nobody plays after the bot, so the partner's queen keeps the trick no
+    // matter what is unseen.
+    const plays = [
+      { seat: 1, card: makeCard(0, 4) },
+      { seat: 2, card: QUEEN_SPADES },
+      { seat: 3, card: makeCard(0, 8) },
+    ];
+    const hand = [ACE_SPADES, makeCard(0, 5), makeCard(1, 6)];
+    const legal = [ACE_SPADES, makeCard(0, 5)];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        legal,
+        plays,
+        HEARTS,
+        LED_SPADES,
+        HEARTS10,
+        { declarer: 1, tricks: [] },
+        noRng,
+      ),
+    ).toBe(makeCard(0, 5));
   });
 });
 

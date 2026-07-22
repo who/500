@@ -4,18 +4,26 @@
  * least 60% of 200 seeded headless games, measured for both side
  * assignments (AC-1, AC-3).
  *
- * In-suite world budget: bidWorlds 8, keepWorlds 10, play.worlds 8 — reduced
- * from the shipped defaults (16 / 30 / 20) purely for suite runtime (~11s per
- * side vs ~25s), as the packet's resolved decision allows because the gate
- * passes at it. No tuning of the shipped constants was needed; the sweep at
- * seed 7, 200 games per side:
+ * In-suite world budget: the shipped defaults (bidWorlds 16, keepWorlds 30,
+ * play.worlds 20). This suite used to run a reduced 8/10/8 budget for speed,
+ * "as the packet's resolved decision allows because the gate passes at it" —
+ * but fh-61z made Medium partner-aware in the trick (it no longer ruffs or
+ * overtakes its own partner's winners), which turns Medium into a materially
+ * stronger opponent AND a sharper rollout model on both sides. Against that
+ * Medium the reduced budget no longer clears the gate, so the suite now runs
+ * at the real shipping budget, where it clears comfortably. The sweep at
+ * seed 7, 200 games per side, with the fh-61z Medium:
  *
  *   budget (bid/keep/play)   Hard as side 0   Hard as side 1
- *   16/30/20 (defaults)           97.5%            97.0%
- *    8/10/8  (this suite)         96.0%            94.5%
- *    4/5/4                        92.5%            89.0%
+ *   16/30/20 (this suite)         68.0%            65.5%
+ *   14/24/16                      65.0%            59.0%
+ *   12/20/12                      60.0%            62.5%
+ *   10/14/10                      63.0%            61.5%
+ *    8/10/8  (old suite)          62.5%            58.0%
  *
- * The full-budget row is reproducible via the CLI (AC-2):
+ * Win rate is noisy and non-monotonic in the budget at this sample size, so
+ * the defaults (the only row that clears 60% on both sides with margin) are
+ * the robust choice. The gate is reproducible via the CLI (AC-2):
  *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 7
  */
 
@@ -30,24 +38,24 @@ const GAMES = 200;
 const SEED = 7;
 const GATE = 0.6;
 
-/** Reduced-but-documented in-suite budget (see the sweep table above). */
+/** In-suite budget: the shipped defaults (see the sweep table above). */
 const SUITE_BUDGET = {
-  bidWorlds: 8,
-  keepWorlds: 10,
-  play: { worlds: 8 },
+  bidWorlds: 16,
+  keepWorlds: 30,
+  play: { worlds: 20 },
 } as const;
 
 const hard = (): HardPolicy => new HardPolicy(SUITE_BUDGET);
 
 describe('Hard-beats-Medium strength gate', () => {
-  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, async () => {
+  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
     const policies = [hard(), new MediumPolicy(), hard(), new MediumPolicy()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[0] / GAMES).toBeGreaterThanOrEqual(GATE);
   });
 
-  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, async () => {
+  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
     const policies = [new MediumPolicy(), hard(), new MediumPolicy(), hard()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
