@@ -75,9 +75,10 @@ export const ROLLOUT_WORLDS = 16;
  * EV edge over the pass baseline required to bid. Originally +25, which with
  * noisy small-world rollouts suppressed close-but-positive bids and passed
  * out 6.5% of 4-Hard auctions (fh-c6i). At +10 the measured 4-Hard numbers
- * (sim-cli --hands 500 --seed 0 --policies HHHH) are redeal rate 4.4%,
- * 7+ contract rate 95.0% of deals, set rate 35.4%, and the Hard-beats-Medium
- * strength gate stays green (both sides >= 60% at the suite budget).
+ * (sim-cli --hands 500 --seed 0 --policies HHHH, re-baselined under the
+ * one-pass auction, fh-8i7) are redeal rate 4.4%, 7+ contract rate 95.0% of
+ * deals, set rate 32.0%, and the Hard-beats-Medium strength gate stays
+ * green (both sides >= 60% at the suite budget).
  */
 export const BID_MARGIN = 10;
 /** EV edge of the slam variant over non-slam required to declare. */
@@ -270,7 +271,7 @@ function rolloutContract(
  * Pass baseline in one world: this seat always passes while the other three
  * bid with Medium; a dead auction is a redeal, worth 0. The auction is
  * driven manually (not via driveHand) because the engine's auto-redeal on
- * the fourth quiet action would deal fresh cards unrelated to the world.
+ * a dead fourth call would deal fresh cards unrelated to the world.
  */
 function rolloutPass(
   myTen: readonly Card[],
@@ -297,8 +298,12 @@ function rolloutPass(
             indications: auction.indications,
             scores,
           });
-    if (b.kind === PASS && auction.declarer === null && auction.consecutiveQuiet === 3) {
-      // Fourth quiet action with no winner: redeal at the same scores, so
+    if (
+      auction.declarer === null &&
+      auction.history.length === 3 &&
+      (b.kind === PASS || b.kind === IND)
+    ) {
+      // Fourth call cannot produce a winner: redeal at the same scores, so
       // the value is the unchanged (clamped) differential.
       const diff = scores[0] - scores[1];
       return Math.max(-GAME_WIN_VALUE, Math.min(GAME_WIN_VALUE, diff));

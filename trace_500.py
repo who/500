@@ -147,9 +147,8 @@ def traced_auction(hands, policies, first: int, rng, em: Emitter, attempt: int):
     declarer = None
     indications: list[tuple[int, Bid]] = []
     indicated = [False] * 4
-    consecutive_quiet = 0
-    p = first
-    while True:
+    for i in range(4):
+        p = (first + i) % 4
         may_indicate = declarer is None and not indicated[p]
         action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng)
         em.emit("auction_action", attempt=attempt, seat=p,
@@ -159,27 +158,20 @@ def traced_auction(hands, policies, first: int, rng, em: Emitter, attempt: int):
             idx = LADDER_INDEX.get(action)
             if idx is not None and idx > ladder_pos:
                 ladder_pos, declarer = idx, p
-                consecutive_quiet = 0
-            else:
-                consecutive_quiet += 1     # illegal/low bid treated as a pass
+            # else: illegal/low bid treated as a pass
         elif action.kind == IND and may_indicate:
             indicated[p] = True
             indications.append((p, action))
-            consecutive_quiet = 0          # an indication keeps the auction alive
-        else:
-            consecutive_quiet += 1
-        if declarer is not None and consecutive_quiet >= 3:
-            em.emit("auction_result", attempt=attempt, redeal=False,
-                    contract=contract_json(LADDER[ladder_pos]),
-                    declarer=declarer,
-                    indications=[[s, bid_json(b)] for s, b in indications])
-            return LADDER[ladder_pos], declarer
-        if declarer is None and consecutive_quiet >= 4:
-            em.emit("auction_result", attempt=attempt, redeal=True,
-                    contract=None, declarer=None,
-                    indications=[[s, bid_json(b)] for s, b in indications])
-            return None, None              # redeal
-        p = (p + 1) % 4
+    if declarer is None:
+        em.emit("auction_result", attempt=attempt, redeal=True,
+                contract=None, declarer=None,
+                indications=[[s, bid_json(b)] for s, b in indications])
+        return None, None                  # redeal
+    em.emit("auction_result", attempt=attempt, redeal=False,
+            contract=contract_json(LADDER[ladder_pos]),
+            declarer=declarer,
+            indications=[[s, bid_json(b)] for s, b in indications])
+    return LADDER[ladder_pos], declarer
 
 
 def traced_exchange(hands, middle, contract, declarer, policies, rng,

@@ -56,7 +56,6 @@ function auctionAt(ladderPos: number, turn: number, overrides: Partial<AuctionSt
     indications: [],
     indicated: [false, false, false, false],
     history: [],
-    consecutiveQuiet: 0,
     turn,
     done: false,
     ...overrides,
@@ -235,6 +234,29 @@ describe('BidPanel', () => {
     );
     fireEvent.click(info);
     expect(app.queryByTestId('ind-tooltip')).toBeNull();
+  });
+
+  it("labels the dealer's pass 'Redeal' while no winning bid exists (fh-8i7 AC-4)", () => {
+    // The fixture's dealer is seat 3. Three passes in, no winning bid, the
+    // dealer holds the last call: their pass IS the throw-in choice.
+    const deadAtDealer = auctionAt(-1, 3, {
+      history: [0, 1, 2].map((s) => ({ seat: s, bid: bid(PASS) })),
+    });
+    const { client, app } = renderAuction(deadAtDealer, 3);
+    const passCell = cellFor(app, bid(PASS));
+    expect(passCell.textContent).toBe('Redeal');
+    expect(passCell.title).toBe('No winning bid — passing throws the hand in for a redeal');
+    fireEvent.click(passCell);
+    expect(sentBids(client)).toEqual([{ t: 'bid', bid: bid(PASS) }]);
+  });
+
+  it("keeps the dealer's pass an ordinary 'Pass' once a winning bid exists", () => {
+    const contested = auctionAt(ladderIndex(bid(NUM, 7, 0)) as number, 3);
+    expect(cellFor(renderAuction(contested, 3).app, bid(PASS)).textContent).toBe('Pass');
+  });
+
+  it("never shows a non-dealer seat the redeal label, even with no bid yet", () => {
+    expect(cellFor(renderAuction(auctionAt(-1, 0), 0).app, bid(PASS)).textContent).toBe('Pass');
   });
 
   it('shows off-turn seats a fully disabled panel (AC-3)', () => {

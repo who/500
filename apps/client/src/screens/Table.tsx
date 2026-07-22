@@ -183,7 +183,13 @@ export function Table(): ReactNode {
           );
         })}
         {bidding ? (
-          <BidPanel active={bids.active} legal={bids.legal} locked={locked} onBid={submitBid} />
+          <BidPanel
+            active={bids.active}
+            legal={bids.legal}
+            locked={locked}
+            redealPass={view.dealer === me && (view.auction?.declarer ?? null) === null}
+            onBid={submitBid}
+          />
         ) : (
           <>
             <TrickArea

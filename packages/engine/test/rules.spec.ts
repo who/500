@@ -210,7 +210,7 @@ describe('§7.1 joker silent suit assumption', () => {
   });
 });
 
-describe('§7.1 auction quiet-count endings', () => {
+describe('§7.1 auction endings (single round of four calls)', () => {
   it('a winning bid followed by three passes ends the auction with that declarer', () => {
     const state = auctionSteps(newGame(1), [bid(NUM, 7, S), pass, pass, pass]);
     expect(state.phase).toBe('slamDecision'); // NUM contract: exchange opens on the slam offer
@@ -218,20 +218,20 @@ describe('§7.1 auction quiet-count endings', () => {
     expect(state.contract).toEqual(bid(NUM, 7, S));
   });
 
-  it('two passes after a winning bid leave the auction open', () => {
+  it('three calls leave the auction open for the dealer, the last caller', () => {
     const state = auctionSteps(newGame(1), [bid(NUM, 7, S), pass, pass]);
     expect(state.phase).toBe('auction');
     expect(state.auction?.done).toBe(false);
     expect(toActSeat(state)).toBe(3);
   });
 
-  it('an indication resets the quiet count and keeps a dead auction alive', () => {
-    let state = auctionSteps(newGame(5), [pass, pass, pass, bid(IND, 6, D)]);
-    expect(state.phase).toBe('auction'); // 3 passes + indication: still alive
-    expect(state.auction?.indications).toHaveLength(1);
-    state = auctionSteps(state, [pass, pass, pass]);
-    expect(state.phase).toBe('auction'); // quiet count restarted at the indication
-    expect(state.dealsDrawn).toBe(1); // same hand, no redeal yet
+  it("a dealer's fourth-call indication ends a winnerless auction as a redeal", () => {
+    const start = newGame(5);
+    const state = auctionSteps(start, [pass, pass, pass, bid(IND, 6, D)]);
+    expect(state.phase).toBe('auction'); // auto-redealt into a fresh auction
+    expect(state.dealsDrawn).toBe(2); // a second deal was consumed
+    expect(state.auction?.indications).toHaveLength(0); // fresh log
+    expect(state.dealer).toBe((start.dealer + 1) % 4);
   });
 });
 

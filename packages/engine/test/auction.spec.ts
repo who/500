@@ -25,7 +25,7 @@ function play(state: AuctionState, ...actions: Parameters<typeof bid>[]): Auctio
 
 const PASS_BID = [PASS] as Parameters<typeof bid>;
 
-describe('auction termination', () => {
+describe('auction termination (single round of four calls)', () => {
   it('yields the contract after a bid and three passes (AC-1)', () => {
     const state = play(initAuction(0), [NUM, 7, 0], PASS_BID, PASS_BID, PASS_BID);
     expect(state.done).toBe(true);
@@ -36,16 +36,33 @@ describe('auction termination', () => {
     });
   });
 
-  it('yields a redeal after four passes from the start (AC-1)', () => {
+  it('yields a redeal after four passes (AC-1)', () => {
     const state = play(initAuction(1), PASS_BID, PASS_BID, PASS_BID, PASS_BID);
     expect(state.done).toBe(true);
     expect(auctionResult(state)).toEqual({ contract: null, declarer: null, indications: [] });
   });
 
-  it('does not end on only two passes after a winning bid', () => {
+  it('is not done before the fourth call, even after a winning bid', () => {
     const state = play(initAuction(0), [NUM, 7, 0], PASS_BID, PASS_BID);
     expect(state.done).toBe(false);
     expect(auctionResult(state)).toBeNull();
+  });
+
+  it('ends after exactly four calls even when the last is a winning bid', () => {
+    // The dealer (last caller) may still take the contract with call four.
+    const state = play(initAuction(0), PASS_BID, PASS_BID, PASS_BID, [NUM, 7, 4]);
+    expect(state.done).toBe(true);
+    expect(auctionResult(state)).toEqual({
+      contract: bid(NUM, 7, 4),
+      declarer: 3,
+      indications: [],
+    });
+  });
+
+  it('rejects a fifth call (AC-1)', () => {
+    const state = play(initAuction(0), [NUM, 7, 0], PASS_BID, PASS_BID, PASS_BID);
+    expect(state.done).toBe(true);
+    expect(() => applyAuctionAction(state, state.turn, bid(PASS))).toThrow(/over/);
   });
 
   it('lets a later higher bid overtake the declarer', () => {
@@ -53,7 +70,6 @@ describe('auction termination', () => {
       initAuction(0),
       [NUM, 7, 0], // seat 0 bids 7S
       [NUM, 8, 2], // seat 1 overtakes with 8D
-      PASS_BID,
       PASS_BID,
       PASS_BID,
     );
@@ -65,7 +81,7 @@ describe('auction termination', () => {
   });
 
   it('ranks NULLA and DNULLA on the ladder like the oracle', () => {
-    const state = play(initAuction(0), [NULLA], [DNULLA], PASS_BID, PASS_BID, PASS_BID);
+    const state = play(initAuction(0), [NULLA], [DNULLA], PASS_BID, PASS_BID);
     expect(auctionResult(state)).toEqual({
       contract: bid(DNULLA),
       declarer: 1,
@@ -75,11 +91,10 @@ describe('auction termination', () => {
 });
 
 describe('indications', () => {
-  it('yields a redeal from an indications-only auction (AC-2)', () => {
+  it('yields a redeal from an indications-only auction (AC-1)', () => {
     let state = initAuction(0);
     for (let s = 0; s < 4; s++) state = play(state, [IND, 6, s]);
-    expect(state.done).toBe(false); // each indication reset the quiet count
-    state = play(state, PASS_BID, PASS_BID, PASS_BID, PASS_BID);
+    expect(state.done).toBe(true);
     expect(auctionResult(state)).toEqual({
       contract: null,
       declarer: null,
@@ -87,20 +102,13 @@ describe('indications', () => {
     });
   });
 
-  it('keeps the auction alive when an indication follows three passes', () => {
+  it("treats the dealer's fourth-call indication as the redeal choice", () => {
     const state = play(initAuction(0), PASS_BID, PASS_BID, PASS_BID, [IND, 6, 4]);
-    expect(state.done).toBe(false);
-    expect(state.consecutiveQuiet).toBe(0);
-  });
-
-  it('counts a second indication by the same player as a pass (AC-2)', () => {
-    let state = play(initAuction(0), [IND, 6, 0], PASS_BID, PASS_BID, PASS_BID);
-    expect(state.done).toBe(false); // 3 quiet, no declarer
-    state = play(state, [IND, 6, 1]); // seat 0 again: counts as the 4th pass
+    expect(state.done).toBe(true);
     expect(auctionResult(state)).toEqual({
       contract: null,
       declarer: null,
-      indications: [{ seat: 0, bid: bid(IND, 6, 0) }],
+      indications: [{ seat: 3, bid: bid(IND, 6, 4) }],
     });
   });
 
@@ -113,28 +121,24 @@ describe('indications', () => {
     });
   });
 
-  it('lets a player indicate and later win the auction', () => {
+  it('lets a later seat bid over an earlier indication', () => {
     const state = play(
       initAuction(0),
       [IND, 6, 3], // seat 0 indicates hearts
       PASS_BID,
-      PASS_BID,
-      PASS_BID,
-      [NUM, 8, 3], // seat 0 then bids 8H
-      PASS_BID,
-      PASS_BID,
+      [NUM, 8, 3], // seat 2 carries the signal to a contract
       PASS_BID,
     );
     expect(auctionResult(state)).toEqual({
       contract: bid(NUM, 8, 3),
-      declarer: 0,
+      declarer: 2,
       indications: [{ seat: 0, bid: bid(IND, 6, 3) }],
     });
   });
 });
 
 describe('legalBids', () => {
-  it('offers only strictly-higher ladder bids (AC-3)', () => {
+  it('offers only strictly-higher ladder bids (AC-1)', () => {
     const state = play(initAuction(0), [NUM, 8, 2]); // 8D
     const legal = legalBids(state, 1);
     const floor = ladderIndex(bid(NUM, 8, 2)) as number;
@@ -143,13 +147,9 @@ describe('legalBids', () => {
     for (const b of ladderBids) expect(ladderIndex(b)).toBeGreaterThan(floor);
   });
 
-  it('offers IND only while no declarer exists and the seat has not indicated (AC-3)', () => {
+  it('offers IND only while no declarer exists', () => {
     const fresh = initAuction(0);
     expect(legalBids(fresh, 0).filter((b) => b.kind === IND)).toHaveLength(5);
-
-    const afterOwnInd = play(fresh, [IND, 6, 0], PASS_BID, PASS_BID, PASS_BID);
-    expect(afterOwnInd.turn).toBe(0);
-    expect(legalBids(afterOwnInd, 0).some((b) => b.kind === IND)).toBe(false);
 
     const afterBid = play(initAuction(0), [NUM, 7, 0]);
     expect(legalBids(afterBid, 1).some((b) => b.kind === IND)).toBe(false);
@@ -174,7 +174,7 @@ describe('legalBids', () => {
 });
 
 describe('auction history log', () => {
-  it('records every applied action in table order, indications and passes included', () => {
+  it('records every applied call in table order, indications and passes included', () => {
     const state = play(initAuction(1), [IND, 6, 2], PASS_BID, [NUM, 7, 0], [NUM, 8, 4]);
     expect(state.history).toEqual([
       { seat: 1, bid: bid(IND, 6, 2) },
@@ -182,6 +182,7 @@ describe('auction history log', () => {
       { seat: 3, bid: bid(NUM, 7, 0) },
       { seat: 0, bid: bid(NUM, 8, 4) },
     ]);
+    expect(state.done).toBe(true);
     // A fresh auction (redeal path) starts with an empty log.
     expect(initAuction(2).history).toEqual([]);
   });

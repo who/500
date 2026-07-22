@@ -382,33 +382,29 @@ class AuctionResult:
 
 
 def run_auction(hands, policies, first: int, rng) -> AuctionResult:
+    """Single round of exactly four calls (500-house-rules.md, Bidding):
+    one call per player starting at `first` (left of the dealer), the dealer
+    calling last. No winning bid after the fourth call means a redeal — the
+    dealer's pass in that spot IS the throw-in choice."""
     ladder_pos = -1
     declarer = None
     indications: list[tuple[int, Bid]] = []
     indicated = [False] * 4
-    consecutive_quiet = 0
-    p = first
-    while True:
+    for i in range(4):
+        p = (first + i) % 4
         may_indicate = declarer is None and not indicated[p]
         action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng)
         if action.kind == NUM or action.kind in (NULLA, DNULLA):
             idx = LADDER_INDEX.get(action)
             if idx is not None and idx > ladder_pos:
                 ladder_pos, declarer = idx, p
-                consecutive_quiet = 0
-            else:
-                consecutive_quiet += 1     # illegal/low bid treated as a pass
+            # else: illegal/low bid treated as a pass
         elif action.kind == IND and may_indicate:
             indicated[p] = True
             indications.append((p, action))
-            consecutive_quiet = 0          # an indication keeps the auction alive
-        else:
-            consecutive_quiet += 1
-        if declarer is not None and consecutive_quiet >= 3:
-            return AuctionResult(LADDER[ladder_pos], declarer, indications)
-        if declarer is None and consecutive_quiet >= 4:
-            return AuctionResult(None, None, indications)   # redeal
-        p = (p + 1) % 4
+    if declarer is None:
+        return AuctionResult(None, None, indications)        # redeal
+    return AuctionResult(LADDER[ladder_pos], declarer, indications)
 
 
 # --------------------------------------------------------------------------

@@ -7,7 +7,6 @@
  * legality and history match what the server would actually send.
  */
 
-import { fireEvent } from '@testing-library/react';
 import { act } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
@@ -102,7 +101,7 @@ function chipTexts(el: HTMLElement | null): string[] {
 }
 
 describe('auction UX', () => {
-  it('enables indication exactly when legal, once per player, only pre-winning-bid (AC-1)', () => {
+  it('enables indication exactly when legal, only pre-winning-bid (AC-1)', () => {
     // Fresh auction: the viewer may indicate — all 5 cells enabled, tooltip on.
     // (Each render mounts its own tree, so queries scope to that container.)
     const fresh = renderAuction(runAuction(0, []));
@@ -113,19 +112,11 @@ describe('auction UX', () => {
     for (let s = 0; s < 5; s++) expect(cell(fresh.app, s).disabled).toBe(false);
     expect(cell(fresh.app, 0).title).toContain('Signal to partner — does not win the auction');
 
-    // One indication per player: after the viewer indicates (and the table
-    // comes back around), their IND cells are dead while ladder bids remain.
-    const once = renderAuction(runAuction(0, [bid(IND, 6, 2), bid(PASS), bid(PASS), bid(PASS)]));
-    for (let s = 0; s < 5; s++) expect(cell(once.app, s).disabled).toBe(true);
-    const sevenSpades = once.app.container.querySelector(
-      `button[data-bid="${bidKey(bid(NUM, 7, 0))}"]`,
-    ) as HTMLButtonElement;
-    expect(sevenSpades.disabled).toBe(false);
-
-    // Only pre-winning-bid: a live contract kills indications for everyone,
-    // even a viewer who never indicated (higher ladder bids stay open).
+    // Only pre-winning-bid: a live contract kills indications for everyone.
+    // Seat 1 opened the round, so the viewer (seat 0) is the dealer making
+    // the last of the four calls; higher ladder bids stay open to them.
     const afterBid = renderAuction(
-      runAuction(0, [bid(NUM, 7, 0), bid(PASS), bid(PASS), bid(NUM, 7, 1)]),
+      runAuction(1, [bid(NUM, 7, 0), bid(PASS), bid(PASS)]),
     );
     for (let s = 0; s < 5; s++) expect(cell(afterBid.app, s).disabled).toBe(true);
     const raise = afterBid.app.container.querySelector(
@@ -134,55 +125,23 @@ describe('auction UX', () => {
     expect(raise.disabled).toBe(false);
   });
 
-  it('shows each seat its ordered bid chips: indications distinct, passes muted (AC-2)', () => {
-    // Seat 0 indicates 6H then later bids 8C — both chips must show.
-    const state = runAuction(0, [
-      bid(IND, 6, 3),
-      bid(PASS),
-      bid(NUM, 7, 0),
-      bid(PASS),
-      bid(NUM, 8, 1),
-    ]);
+  it('shows each seat its call as a chip: indications distinct, passes muted (AC-2)', () => {
+    // One call per seat (single round): three calls in, dealer still to act.
+    const state = runAuction(1, [bid(IND, 6, 3), bid(NUM, 7, 0), bid(PASS)]);
     const { app } = renderAuction(state);
 
-    expect(chipTexts(chipsFor(app, 0))).toEqual(['6♥ ind', '8♣']);
-    expect(chipTexts(chipsFor(app, 1))).toEqual(['Pass']);
+    expect(chipTexts(chipsFor(app, 0))).toEqual([]); // dealer has not called yet
+    expect(chipTexts(chipsFor(app, 1))).toEqual(['6♥ ind']);
     expect(chipTexts(chipsFor(app, 2))).toEqual(['7♠']);
     expect(chipTexts(chipsFor(app, 3))).toEqual(['Pass']);
 
-    // Indications distinct, passes muted, the seat's latest emphasized.
-    const mine = chipsFor(app, 0);
-    const [indChip, bidChip] = [...(mine?.querySelectorAll('.bid-chip') ?? [])];
+    // Indications distinct, passes muted, a seat's (only) call emphasized.
+    const indChip = chipsFor(app, 1)?.querySelector('.bid-chip');
     expect(indChip?.classList.contains('bid-chip-ind')).toBe(true);
-    expect(indChip?.classList.contains('bid-chip-latest')).toBe(false);
+    const bidChip = chipsFor(app, 2)?.querySelector('.bid-chip');
     expect(bidChip?.classList.contains('bid-chip-latest')).toBe(true);
-    const pass = chipsFor(app, 1)?.querySelector('.bid-chip');
+    const pass = chipsFor(app, 3)?.querySelector('.bid-chip');
     expect(pass?.classList.contains('bid-chip-pass')).toBe(true);
-  });
-
-  it('caps long chip runs behind a +n expander (phone layout budget)', () => {
-    // Four raises by seat 0 across a long climbing auction.
-    const state = runAuction(0, [
-      bid(NUM, 7, 0),
-      bid(NUM, 7, 1),
-      bid(NUM, 7, 2),
-      bid(NUM, 7, 3),
-      bid(NUM, 7, 4),
-      bid(NUM, 8, 0),
-      bid(NUM, 8, 1),
-      bid(NUM, 8, 2),
-      bid(NUM, 8, 3),
-      bid(NUM, 8, 4),
-      bid(NUM, 9, 0),
-      bid(NUM, 9, 1),
-      bid(NUM, 9, 2),
-    ]);
-    const { app } = renderAuction(state);
-    const mine = chipsFor(app, 0);
-    // Seat 0 made 4 bids (7♠, 7NT, 8♥, 9♦): capped to the last 3 plus "+1".
-    expect(chipTexts(mine)).toEqual(['+1', '7NT', '8♥', '9♦']);
-    fireEvent.click(mine?.querySelector('.bid-chip-more') as HTMLButtonElement);
-    expect(chipTexts(chipsFor(app, 0))).toEqual(['7♠', '7NT', '8♥', '9♦']);
   });
 
   it('toasts a redeal naming the new dealer, clears history, and auto-dismisses (AC-3)', () => {

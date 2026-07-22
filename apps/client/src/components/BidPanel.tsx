@@ -1,6 +1,7 @@
 /**
  * Auction bid panel (PRD 6.3): a ladder-aware picker that replaces the trick
- * area while the auction runs. The grid keeps every numbered cell (rows 7-10
+ * area while the auction runs — a single round of four calls, dealer last
+ * (500-house-rules.md, Bidding). The grid keeps every numbered cell (rows 7-10
  * by strain columns S/C/D/H/NT) with Nulla and Double Nulla wedged in at
  * their ladder positions, each cell showing its avondale value; illegal cells
  * are disabled, never hidden, so the layout stays spatially stable as the
@@ -68,6 +69,9 @@ export function cellName(b: Bid): string {
   return 'Pass';
 }
 
+/** Title text for the dealer's throw-in pass (500-house-rules.md, Bidding). */
+export const REDEAL_TOOLTIP = 'No winning bid — passing throws the hand in for a redeal';
+
 export interface BidPanelProps {
   /** True when the viewer holds the bid turn. */
   active: boolean;
@@ -75,6 +79,12 @@ export interface BidPanelProps {
   legal: ReadonlySet<string>;
   /** True between submitting a bid and the next view. */
   locked: boolean;
+  /**
+   * True when the viewer is the dealer making the last call with no winning
+   * bid on the table: their pass IS the redeal choice, so the pass cell
+   * reads "Redeal" (500-house-rules.md, Bidding).
+   */
+  redealPass?: boolean;
   onBid(b: Bid): void;
 }
 
@@ -85,6 +95,7 @@ export function BidPanel(props: BidPanelProps): ReactNode {
     const key = bidKey(b);
     const enabled = props.active && !props.locked && props.legal.has(key);
     const value = bidValue(b);
+    const asRedeal = b.kind === PASS && props.redealPass === true;
     return (
       <button
         key={key}
@@ -92,12 +103,14 @@ export function BidPanel(props: BidPanelProps): ReactNode {
         className={['bid-cell', className].filter(Boolean).join(' ')}
         data-bid={key}
         disabled={!enabled}
-        title={b.kind === IND ? `${bidName(b)}: ${IND_TOOLTIP}` : bidName(b)}
+        title={
+          asRedeal ? REDEAL_TOOLTIP : b.kind === IND ? `${bidName(b)}: ${IND_TOOLTIP}` : bidName(b)
+        }
         onClick={() => {
           if (enabled) props.onBid(b);
         }}
       >
-        <span className="bid-cell-name">{cellName(b)}</span>
+        <span className="bid-cell-name">{asRedeal ? 'Redeal' : cellName(b)}</span>
         {value > 0 && <span className="bid-cell-value">{value}</span>}
       </button>
     );

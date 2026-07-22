@@ -88,9 +88,10 @@ const NULLA_MAX_RANK = 11; // nothing above a jack
 export const ORACLE_BID_HEADROOM = 2.5;
 // Tuned headroom (fh-c6i): opens 7 at est >= 3.0, 8 at 4.0, 9 at 5.0. The
 // measured trade-off over 5000 seeded hands of 4 Medium bots (sim-cli
-// --hands 5000 --seed 0): redeal rate 3.2% (was 90%+ of deals passed out at
-// the oracle's est >= 4.5 bar), 7+ contract rate 96.7% of deals, set rate
-// 28.0% (was ~9%) as est-3.0 openings lean on the partner and the middle.
+// --hands 5000 --seed 0, re-baselined under the one-pass auction, fh-8i7):
+// redeal rate 3.2% (was 90%+ of deals passed out at the oracle's est >= 4.5
+// bar), 7+ contract rate 96.7% of deals, set rate 28.4% (was ~9%) as
+// est-3.0 openings lean on the partner and the middle.
 // Smaller values redeal too often (est >= 3.5 already passes out 29% of
 // deals); larger ones push the set rate toward the ~40% AC-1 ceiling.
 export const BID_HEADROOM = 4.0;

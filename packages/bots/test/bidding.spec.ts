@@ -102,7 +102,6 @@ function auctionAt(ladderPos: number, mayIndicate: boolean): AuctionState {
     indications: [],
     indicated: [ladderPos < 0 ? !mayIndicate : false, false, false, false],
     history: [],
-    consecutiveQuiet: 0,
     turn: 0,
     done: false,
   };

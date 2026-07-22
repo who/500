@@ -9,13 +9,17 @@
 
 ## Bidding
 
-Bids ascend around the table. A bid names a number of tricks and a trump suit (or no-trump), or is a special bid (nulla / double nulla).
+A bid names a number of tricks and a trump suit (or no-trump), or is a special bid (nulla / double nulla). Later bids must outrank earlier ones.
+
+**One bid per player — a single round.** Each player, in turn, makes exactly **one call**: a bid, an indication, or a pass. The auction does **not** go around again; there are exactly **four calls per hand**.
+
+**Dealer calls last.** Bidding starts with the player left of the dealer and goes around once, ending with the dealer. If the first three players all pass (or only indicate), the dealer may either make a bid or **throw the hand in for a redeal**.
 
 **Indication bids (6-level).** A bid of **6 does not win the auction** and is not a real contract. It's a signal to your partner about your hand — what you're holding or what they might carry on a 7+ bid. It's a conversation, not a commitment.
 
 **Minimum winning bid: 7.**
 
-**Redeal.** If the auction never reaches a 7+ bid — everyone passes, or only 6-indications are made — the hand is **redealt**.
+**Redeal.** If no 7+ bid exists after all four calls — everyone passes, or only 6-indications are made — the hand is **redealt**. (From the dealer's seat this is a choice: with no winning bid on the table, the dealer's pass *is* the redeal call.)
 
 **Suit ranking** (low → high) at equal trick counts: **Spades, Clubs, Diamonds, Hearts, No-trump.**
 

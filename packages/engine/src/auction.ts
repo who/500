@@ -1,8 +1,10 @@
 /**
  * Incremental auction state machine mirroring run_auction in the Python
- * oracle (five_hundred.py 384-411): bids climb the ladder, each player may
- * indicate once while no winning bid exists, and the auction ends after
- * 3 consecutive quiet actions with a declarer or 4 without one (redeal).
+ * oracle (single round per 500-house-rules.md, Bidding): exactly four calls,
+ * one per player in seat order starting left of the dealer, the dealer
+ * calling last. Bids climb the ladder; a player may indicate while no
+ * winning bid exists. No winning bid after the fourth call means a redeal —
+ * the dealer's pass in that spot IS the throw-in choice.
  */
 
 import {
@@ -35,8 +37,8 @@ export interface AuctionState {
   readonly indicated: readonly boolean[]; // one flag per seat
   /** Every action applied so far, in order — the public auction log. */
   readonly history: readonly AuctionEntry[];
-  readonly consecutiveQuiet: number;
   readonly turn: number;
+  /** True once all four calls are in — a 5th call is illegal. */
   readonly done: boolean;
 }
 
@@ -53,7 +55,6 @@ export function initAuction(first: number): AuctionState {
     indications: [],
     indicated: [false, false, false, false],
     history: [],
-    consecutiveQuiet: 0,
     turn: first,
     done: false,
   };
@@ -79,45 +80,36 @@ export function legalBids(state: AuctionState, seat: number): Bid[] {
 }
 
 /**
- * Apply one auction action, returning the next state. Quiet-count
- * bookkeeping matches the oracle exactly: an illegal or too-low bid counts
- * as a pass, and an indication resets the quiet count just like a winning
- * bid does.
+ * Apply one auction action, returning the next state. Bookkeeping matches
+ * the oracle exactly: an illegal or too-low bid counts as a pass, and the
+ * auction is done once four calls are in regardless of what they were.
  */
 export function applyAuctionAction(state: AuctionState, seat: number, action: Bid): AuctionState {
   if (state.done) throw new Error('auction is over');
   if (seat !== state.turn) throw new Error(`not seat ${seat}'s turn`);
 
-  let { ladderPos, declarer, indications, indicated, consecutiveQuiet } = state;
+  let { ladderPos, declarer, indications, indicated } = state;
   if (action.kind === NUM || action.kind === NULLA || action.kind === DNULLA) {
     const idx = ladderIndex(action);
     if (idx !== undefined && idx > ladderPos) {
       ladderPos = idx;
       declarer = seat;
-      consecutiveQuiet = 0;
-    } else {
-      consecutiveQuiet += 1; // illegal/low bid treated as a pass
     }
+    // else: illegal/low bid treated as a pass
   } else if (action.kind === IND && mayIndicate(state, seat)) {
     indicated = indicated.map((f, i) => (i === seat ? true : f));
     indications = [...indications, { seat, bid: action }];
-    consecutiveQuiet = 0; // an indication keeps the auction alive
-  } else {
-    consecutiveQuiet += 1;
   }
 
-  const done =
-    (declarer !== null && consecutiveQuiet >= 3) ||
-    (declarer === null && consecutiveQuiet >= 4);
+  const history = [...state.history, { seat, bid: action }];
   return {
     ladderPos,
     declarer,
     indications,
     indicated,
-    history: [...state.history, { seat, bid: action }],
-    consecutiveQuiet,
+    history,
     turn: (seat + 1) % 4,
-    done,
+    done: history.length >= 4,
   };
 }
 

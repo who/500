@@ -304,7 +304,7 @@ class Replayer {
         !state.auction.done &&
         state.auction.ladderPos === -1 &&
         state.auction.declarer === null &&
-        state.auction.consecutiveQuiet === 0 &&
+        state.auction.history.length === 0 &&
         state.auction.indications.length === 0 &&
         state.middle.length === 5;
       this.check(fresh, null, 'dead auction', 'an auto-redealt fresh auction', {
