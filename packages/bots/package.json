@@ -13,6 +13,7 @@
     "build": "tsc -p tsconfig.json",
     "sim": "tsx src/sim-cli.ts",
     "sim:hard": "tsx src/sim-cli.ts --games 200 --policies HMHM",
+    "tune": "tsx src/tune-cli.ts",
     "test": "vitest run"
   },
   "dependencies": {

@@ -15,3 +15,4 @@ export * from './strength.js';
 export * from './calibration.js';
 export * from './sprt.js';
 export * from './arena.js';
+export * from './tuner.js';

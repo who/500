@@ -15,7 +15,8 @@
     "start": "node apps/server/dist/index.js",
     "e2e": "pnpm build && playwright test",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "learn:tune": "pnpm --filter @five-hundred/bots tune --"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",
