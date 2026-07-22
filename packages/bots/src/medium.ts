@@ -433,6 +433,60 @@ export class MediumPolicy implements Policy {
         }
       }
     }
+    // Declarer-side lead in a no-trump NUM contract (fh-2wt): the fh-n2n
+    // branch above is gated on trump !== null and skips NT entirely, so play
+    // used to fall through to firstMinBy and open with the LOWEST card. In NT
+    // nothing ruffs, so cash from the top: lead the joker (it beats any
+    // trick), then unseen-aware side bosses top-down, else lead high from the
+    // longest suit to establish it. isLoseAll returned above, so trump ===
+    // null here means a NUM no-trump contract (nulla/dnulla are lose-all).
+    if (
+      trump === null &&
+      ledSuit === null &&
+      trickPlays.length === 0 &&
+      seat % 2 === context.declarer % 2
+    ) {
+      // The joker takes any NT trick, subject only to the lead-declares-suit
+      // rule, so it is the ultimate cashing lead.
+      if (sorted.some((c) => c === JOKER)) return JOKER;
+      const seen = new Set<Card>(hand);
+      for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+      const unseen = DECK.filter((c) => !seen.has(c));
+      // While the joker is unseen (and not in hand) it beats every side card,
+      // so nothing is a sure winner (AC-2): an ace is not boss until the
+      // joker has been seen — fall through to the lead-from-strength path.
+      const jokerUnseen = unseen.some((c) => c === JOKER);
+      const sideBosses = jokerUnseen
+        ? []
+        : sorted.filter((c) =>
+            unseen.every(
+              (u) =>
+                cardSuit(u) !== cardSuit(c) || (cardRank(u) as number) < (cardRank(c) as number),
+            ),
+          );
+      if (sideBosses.length > 0) {
+        return firstMaxBy(sideBosses, (c) => cardRank(c) as number);
+      }
+      // No sure winners yet: lead high from our longest suit (tie-break to the
+      // higher top card) to establish length, instead of bleeding the lowest.
+      let bestSuit = -1;
+      let bestLen = 0;
+      let bestTop = -1;
+      for (let s = 0; s < 4; s++) {
+        const inSuit = sorted.filter((c) => cardSuit(c) === s);
+        if (inSuit.length === 0) continue;
+        const top = cardRank(firstMaxBy(inSuit, (c) => cardRank(c) as number)) as number;
+        if (inSuit.length > bestLen || (inSuit.length === bestLen && top > bestTop)) {
+          bestLen = inSuit.length;
+          bestTop = top;
+          bestSuit = s;
+        }
+      }
+      if (bestSuit >= 0) {
+        const inSuit = sorted.filter((c) => cardSuit(c) === bestSuit);
+        return firstMaxBy(inSuit, (c) => cardRank(c) as number);
+      }
+    }
     const winners = sorted.filter((c) => cardPower(c, trump, ledSuit) > currentMax);
     // Partner guardrail (fh-61z defect B, Easy's guardrail (a) ported up):
     // when the partner already holds the trick and a losing card exists,

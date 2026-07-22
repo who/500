@@ -736,6 +736,88 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
 });
 
 // ---------------------------------------------------------------------------
+// fh-2wt: declarer-side lead in a no-trump contract cashes from the top
+// ---------------------------------------------------------------------------
+
+describe('declarer-side no-trump lead (fh-2wt)', () => {
+  const NT_CONTRACT = bid(NUM, 8, 4); // strain 4 = no-trump, so trump === null
+  const ACE_SPADES = makeCard(0, 14);
+  const KING_SPADES = makeCard(0, 13);
+  const ACE_CLUBS = makeCard(1, 14);
+  const FIVE_DIAMONDS = makeCard(2, 5);
+  const SIX_DIAMONDS = makeCard(2, 6);
+  const SEVEN_DIAMONDS = makeCard(2, 7);
+
+  /** A completed trick; only `plays` matters to Medium's card counting. */
+  const trick = (cards: readonly Card[]) => ({
+    leader: 1,
+    ledSuit: 0,
+    plays: cards.map((card, i) => ({ seat: (1 + i) % 4, card })),
+    winner: 1,
+  });
+  // A trick that has already put the joker face-up on the table.
+  const jokerSeen = [trick([JOKER, makeCard(3, 4), makeCard(3, 5), makeCard(3, 6)])];
+
+  it('leads the joker first while holding it (ultimate cashing lead)', () => {
+    const hand = [JOKER, ACE_SPADES, ACE_CLUBS, FIVE_DIAMONDS];
+    expect(
+      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(JOKER);
+  });
+
+  it('cashes the top side boss once the joker has been seen', () => {
+    const hand = [ACE_SPADES, KING_SPADES, ACE_CLUBS, FIVE_DIAMONDS];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        hand,
+        [],
+        null,
+        null,
+        NT_CONTRACT,
+        { declarer: 0, tricks: jokerSeen },
+        noRng,
+      ),
+    ).toBe(ACE_SPADES);
+  });
+
+  it('AC-2: with the joker unseen, aces are not bosses — leads high from the longest suit', () => {
+    const hand = [ACE_SPADES, ACE_CLUBS, FIVE_DIAMONDS, SIX_DIAMONDS, SEVEN_DIAMONDS];
+    // Boss path would cash an ace; joker-aware detection rejects it and the
+    // lead-from-strength path opens the top of the 3-card diamond suit.
+    expect(
+      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(SEVEN_DIAMONDS);
+  });
+
+  it('never opens with its lowest card as NT declarer', () => {
+    const hand = [FIVE_DIAMONDS, SIX_DIAMONDS, SEVEN_DIAMONDS, ACE_SPADES, ACE_CLUBS];
+    const card = medium.choosePlay(
+      0,
+      hand,
+      hand,
+      [],
+      null,
+      null,
+      NT_CONTRACT,
+      { declarer: 0, tricks: [] },
+      noRng,
+    );
+    expect(card).not.toBe(FIVE_DIAMONDS);
+  });
+
+  it('as an NT defender the legacy lead is unchanged (branch is declarer-only)', () => {
+    const FIVE_SPADES = makeCard(0, 5);
+    const hand = [FIVE_SPADES, ACE_CLUBS];
+    // Declarer would open the ace; a defender keeps the legacy firstMinBy lead.
+    expect(
+      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: [] }, noRng),
+    ).toBe(FIVE_SPADES);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // fh-61z defect B: partner guardrail in the follow logic
 // ---------------------------------------------------------------------------
 
