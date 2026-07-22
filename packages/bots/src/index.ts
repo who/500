@@ -21,6 +21,7 @@ export * from './easy.js';
 export * from './medium.js';
 export * from './sim.js';
 export * from './hard/worlds.js';
+export * from './hard/priors.js';
 export * from './hard/bidding.js';
 export * from './hard/keeps.js';
 export * from './hard/play.js';

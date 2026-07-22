@@ -104,6 +104,40 @@ pnpm --filter @five-hundred/bots sim -- --games 200 --policies HMHM --log corpus
 
 Records are appended (`source: "sim"`, `createdAt: null`, `gameId` = seed+index).
 
+## Calibration (fh-sja.5)
+
+`fitCalibration(records, opts?)` fits two learned artifacts from a corpus with
+plain counting-and-shrinkage — no ML dependency:
+
+1. **Make-probability model** — `P(make | strength estimate, contract strain,
+   contract level, seat position)` for numbered contracts, as binned counts
+   shrunk toward coarser marginals. Query it with
+   `makeProbability(artifact, { strain, level, strength, seatPos })`; it returns
+   `null` when even the global tally is below `minSamples`, so a caller keeps
+   its hand-tuned behavior on thin data. `deriveParamsOverlay(artifact, opts)`
+   turns the calibrated make-rate into a **BotParams overlay** (a bounded
+   `bidding.headroom` nudge) the bots' overlay loader deep-merges.
+
+2. **Behavior priors** — the distribution of a seat's hand strength conditional
+   on its call (pass / indication / numbered bid), fitted **per policy kind**
+   (`human` vs each bot tier). `priorFor(artifact, kind, callKind, strain)`
+   returns the histogram + moments (or `null` if thin); `priorLogDensity(prior,
+   strength)` scores how typical a candidate hidden hand is. The Hard world
+   sampler consumes these via `samplePriorConditionedWorld` (packages/bots),
+   which keeps the best of several uniform draws by summed prior log-density —
+   extending the fh-zpg rule-based partner-indication conditioning to a learned
+   one, and falling back to the plain uniform draw when no prior applies.
+
+The artifact is a versioned plain-JSON object (`v = CALIBRATION_SCHEMA_VERSION`,
+records its own strength `weights` and `bucketWidth`). `validateCalibration` /
+`parseCalibration` are the loud-fallback gate, mirroring the BotParams overlay
+loader. Strength itself is `suitStrength(hand, strain, weights?)` — a faithful
+copy of the bots `MediumPolicy.suitStrength` (learn may not depend back on bots).
+
+`runSprt(outcomes, cfg?)` is a Wald sequential probability-ratio test over a
+win/loss stream (shared with the arena, fh-sja.3): it decides H0 (`p ≤ p0`) vs
+H1 (`p ≥ p1`) as early as the evidence allows, the no-regression gate AC-4 uses.
+
 ## API
 
 - `SCHEMA_VERSION`, `GameRecord`, `HandRecord`, `PlayerMeta`, … — the schema types.
@@ -113,3 +147,9 @@ Records are appended (`source: "sim"`, `createdAt: null`, `gameId` = seed+index)
 - `serializeGameRecord`, `appendGameRecordSync`, `writeGameRecordsSync` — writing.
 - `parseGameRecords`, `readGameRecordsSync`, `validateGameRecord`,
   `GameRecordError` — reading and validation.
+- `fitCalibration`, `makeProbability`, `deriveParamsOverlay`, `priorFor`,
+  `priorLogDensity`, `validateCalibration`, `parseCalibration`,
+  `serializeCalibration`, `CalibrationArtifact` — calibration (fh-sja.5).
+- `suitStrength`, `bestStrength`, `strengthBucket`, `DEFAULT_STRENGTH_WEIGHTS` —
+  hand-strength estimation.
+- `runSprt`, `sprtObserve`, `sprtInit`, `DEFAULT_SPRT` — the SPRT gate.
