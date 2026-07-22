@@ -285,8 +285,12 @@ button.primary {
   border-radius: 8px;
   background: var(--bg);
   /* Turn handoff reads as motion, not a jump (fh-8sw). The border stays a
-     constant 2px; .acting only recolors it and adds a shadow ring, so the
-     highlight itself never moves layout. */
+     constant 2px; .acting only recolors it and the ring, so the highlight
+     never moves layout. The ring is always present but transparent
+     (fh-jbs): animating box-shadow in from `none` interpolates the spread
+     from 0, which reads as a flash — keeping the geometry constant leaves
+     only color to transition. */
+  box-shadow: 0 0 0 3px transparent;
   transition:
     border-color 180ms ease,
     box-shadow 180ms ease;

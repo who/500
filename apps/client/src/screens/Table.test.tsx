@@ -164,6 +164,21 @@ describe('Table', () => {
     expect(seatEl(second.app, 2).querySelector('[data-dealer]')).not.toBeNull();
   });
 
+  it('a turn handoff re-renders every badge in place — no remount (fh-jbs AC-3)', () => {
+    // A remounted badge replays its 180ms border transition from the default
+    // color, which flashes; the same DOM nodes must survive the gameView
+    // update that moves toAct.
+    const { client, app } = renderTable(midTrickView());
+    const badges = [0, 1, 2, 3].map((s) => seatEl(app, s).querySelector('.seat-badge'));
+    applyEvent(client, env(2, { t: 'gameView', view: { view: midTrickView({ toAct: 3 }) } }));
+    for (const [s, badge] of badges.entries()) {
+      expect(badge?.isConnected).toBe(true);
+      expect(seatEl(app, s).querySelector('.seat-badge')).toBe(badge);
+    }
+    expect(badges[0]?.matches('.acting')).toBe(false);
+    expect(badges[3]?.matches('.acting')).toBe(true);
+  });
+
   it('shows the nulla partner sitting out with lose-all HUD framing (AC-3)', () => {
     // Ben (seat 1) declares nulla; his partner (seat 3) sits the hand out.
     // The defenders have forced one trick onto the bidders (side 1).

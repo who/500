@@ -36,8 +36,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function renderBadge(overrides: Partial<SeatBadgeProps> = {}) {
-  const app = render(
+function badgeElement(overrides: Partial<SeatBadgeProps> = {}) {
+  return (
     <SeatBadge
       name="Bot 2"
       isYou={false}
@@ -48,8 +48,12 @@ function renderBadge(overrides: Partial<SeatBadgeProps> = {}) {
       showBacks
       bidHistory={[]}
       {...overrides}
-    />,
+    />
   );
+}
+
+function renderBadge(overrides: Partial<SeatBadgeProps> = {}) {
+  const app = render(badgeElement(overrides));
   const badge = app.container.querySelector('.seat-badge') as HTMLElement;
   return { app, badge };
 }
@@ -121,6 +125,20 @@ describe('turn handoff keeps the badge box invariant (AC-1/AC-2)', () => {
   });
 });
 
+describe('turn handoff re-renders the badge in place (fh-jbs AC-3)', () => {
+  it('the same DOM node persists as isActing toggles on and off', () => {
+    // A remount would restart the 180ms transition from the default border
+    // color — exactly the flash fh-jbs reports — so the node must survive.
+    const { app, badge } = renderBadge();
+    app.rerender(badgeElement({ isActing: true }));
+    expect(badge.isConnected).toBe(true);
+    expect(app.container.querySelector('.seat-badge.acting')).toBe(badge);
+    app.rerender(badgeElement({ isActing: false }));
+    expect(badge.isConnected).toBe(true);
+    expect(app.container.querySelector('.seat-badge')).toBe(badge);
+  });
+});
+
 describe('the highlight animates as recolor only (AC-3)', () => {
   it('.acting declares paint-only properties over an unchanged border width', () => {
     const idle = renderBadge();
@@ -138,13 +156,23 @@ describe('the highlight animates as recolor only (AC-3)', () => {
     for (const prop of declared) expect(['border-color', 'box-shadow']).toContain(prop);
   });
 
+  it('the ring is a permanent transparent reserve, so .acting only recolors it (fh-jbs)', () => {
+    // Animating box-shadow in from `none` interpolates the spread from 0,
+    // which reads as a flash at handoff; both states must share geometry.
+    const badgeRule = /\.seat-badge \{[^}]*\}/.exec(CSS)?.[0];
+    expect(badgeRule).toMatch(/box-shadow: 0 0 0 3px transparent;/);
+    const actingRule = /\.seat-badge\.acting \{[^}]*\}/.exec(CSS)?.[0];
+    expect(actingRule).toMatch(/box-shadow: 0 0 0 3px (?!transparent)/);
+  });
+
   it('transitions border-color/box-shadow and yields to prefers-reduced-motion', () => {
     const badgeRule = /\.seat-badge \{[^}]*\}/.exec(CSS)?.[0];
     expect(badgeRule).toMatch(/transition:[^;]*border-color/);
     expect(badgeRule).toMatch(/transition:[^;]*box-shadow/);
-    const reduced = /@media \(prefers-reduced-motion: reduce\) \{[^@]*?\.seat-badge \{[^}]*transition: none/.exec(
-      CSS,
-    );
+    const reduced =
+      /@media \(prefers-reduced-motion: reduce\) \{[^@]*?\.seat-badge \{[^}]*transition: none/.exec(
+        CSS,
+      );
     expect(reduced).not.toBeNull();
   });
 });
