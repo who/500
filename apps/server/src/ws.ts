@@ -62,6 +62,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
     case 'configureBots':
       store.configureBots(client, cmd.bots);
       return;
+    case 'setAdaptiveBots':
+      store.setAdaptiveBots(client, cmd.on);
+      return;
     case 'startGame':
       store.startGame(client);
       return;

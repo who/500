@@ -55,6 +55,10 @@ export function Lobby(): ReactNode {
     client.send({ t: 'configureBots', bots: [{ seat, difficulty }] });
   }
 
+  function handleAdaptive(on: boolean): void {
+    client.send({ t: 'setAdaptiveBots', on });
+  }
+
   function renderSeat(seat: RoomSeatView): ReactNode {
     const isYou = mySeat === seat.seat;
     return (
@@ -101,6 +105,15 @@ export function Lobby(): ReactNode {
       <header className="room-code">
         <h1>
           Room <strong data-testid="room-code">{room.roomCode}</strong>
+          {room.learnedVersion != null && (
+            <span
+              className="tag"
+              data-testid="learned-tag"
+              title="Hard bots can play a self-play-tuned strategy overlay"
+            >
+              learned v{room.learnedVersion}
+            </span>
+          )}
         </h1>
         <button type="button" onClick={handleCopy}>
           {copied ? 'Copied!' : 'Copy invite link'}
@@ -126,6 +139,18 @@ export function Lobby(): ReactNode {
       </div>
 
       <footer className="lobby-controls">
+        {room.learnedVersion != null && (
+          <label className="adaptive-toggle" title="Hard seats play the learned overlay">
+            <input
+              type="checkbox"
+              data-testid="adaptive-bots"
+              checked={room.adaptiveBots ?? false}
+              disabled={!isHost}
+              onChange={(e) => handleAdaptive(e.target.checked)}
+            />
+            Adaptive bots
+          </label>
+        )}
         {isHost ? (
           <button
             type="button"

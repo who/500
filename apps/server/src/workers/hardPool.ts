@@ -29,6 +29,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { serializeGame, type Action, type GameState } from '@five-hundred/engine';
+import { overlayJson as defaultOverlayJson } from '../botParams.js';
 
 export const HARD_POOL_MAX_WORKERS = 4;
 export const DEFAULT_HARD_BUDGET_MS = 1000;
@@ -58,6 +59,12 @@ export interface HardWorkerRequest {
   readonly seat: number;
   readonly seed: number;
   readonly budgetMs: number;
+  /**
+   * Serialized learned BotParams (fh-sja.6). Present only when the deciding
+   * room opted into the adaptive overlay; the worker validates it and falls
+   * back to DEFAULT_PARAMS if it is absent or malformed.
+   */
+  readonly paramsJson?: string;
 }
 
 export type HardWorkerResponse =
@@ -66,7 +73,12 @@ export type HardWorkerResponse =
 
 /** What the bot driver needs from a pool; tests substitute fakes. */
 export interface HardDecider {
-  decide(state: GameState, seat: number, seed: number): Promise<Action>;
+  /**
+   * `useOverlay` (fh-sja.6): when true and a learned overlay is loaded, the
+   * decision runs HardPolicy under the overlay params; otherwise it runs the
+   * checked-in defaults. Optional so existing callers/fakes need no change.
+   */
+  decide(state: GameState, seat: number, seed: number, useOverlay?: boolean): Promise<Action>;
 }
 
 const IS_SOURCE = import.meta.url.endsWith('.ts');
@@ -125,6 +137,8 @@ export class HardBotPool implements HardDecider {
   constructor(
     private readonly size: number = hardPoolSize(),
     private readonly budgetMs: number = hardBudgetMs(),
+    /** Serialized learned overlay for opted-in rooms; null disables it. */
+    private readonly overlayJson: string | null = defaultOverlayJson,
   ) {
     this.init = workerEntry().then(
       (url) => {
@@ -149,12 +163,13 @@ export class HardBotPool implements HardDecider {
     return this.workers.size;
   }
 
-  decide(state: GameState, seat: number, seed: number): Promise<Action> {
+  decide(state: GameState, seat: number, seed: number, useOverlay = false): Promise<Action> {
     if (this.disposed) return Promise.reject(new Error('hard bot pool is disposed'));
     if (this.initError !== null) return Promise.reject(this.initError);
+    const paramsJson = useOverlay ? (this.overlayJson ?? undefined) : undefined;
     return new Promise<Action>((resolve, reject) => {
       this.queue.push({
-        request: { stateJson: serializeGame(state), seat, seed, budgetMs: this.budgetMs },
+        request: { stateJson: serializeGame(state), seat, seed, budgetMs: this.budgetMs, paramsJson },
         resolve,
         reject,
         retried: false,

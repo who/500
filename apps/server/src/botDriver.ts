@@ -170,7 +170,11 @@ export class BotDriver {
       const pool = this.resolveHardPool();
       if (pool !== null) {
         const seed = (this.session.seed + this.hardDecisions++) >>> 0;
-        return pool.decide(state, seat, seed).catch((err: unknown) => {
+        // fh-sja.6: opt this room's Hard seats into the learned overlay when
+        // its adaptive-bots toggle is on. The pool is the single gate on
+        // overlay presence — with no overlay loaded it sends the defaults
+        // regardless, so this is a no-op unless learning is actually shipped.
+        return pool.decide(state, seat, seed, this.room.adaptiveBots).catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
           console.error(
             `[bots] hard decision failed for seat ${seat} in room ${this.room.code}: ` +

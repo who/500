@@ -98,7 +98,13 @@ function isRoomView(x: unknown): boolean {
     x.seats.length === 4 &&
     x.seats.every(isRoomSeatView) &&
     typeof x.started === 'boolean' &&
-    typeof x.paused === 'boolean'
+    typeof x.paused === 'boolean' &&
+    // fh-sja.6 fields are optional (forward/backward compatible): validated
+    // when present, treated as null/false when absent.
+    (x.learnedVersion === undefined ||
+      x.learnedVersion === null ||
+      typeof x.learnedVersion === 'string') &&
+    (x.adaptiveBots === undefined || typeof x.adaptiveBots === 'boolean')
   );
 }
 
@@ -129,6 +135,7 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   configureBots: (m) =>
     Array.isArray(m.bots) &&
     m.bots.every((b) => isRec(b) && isSeat(b.seat) && isDifficulty(b.difficulty)),
+  setAdaptiveBots: (m) => typeof m.on === 'boolean',
   startGame: () => true,
   convertSeatToBot: (m) => isSeat(m.seat) && isDifficulty(m.difficulty),
   bid: (m) => isBid(m.bid),

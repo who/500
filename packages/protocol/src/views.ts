@@ -39,6 +39,18 @@ export interface RoomView {
    * a bot. Always false when no game is running or a bot holds the turn.
    */
   readonly paused: boolean;
+  /**
+   * fh-sja.6: the loaded learned-overlay version tag ("learned vX" in the
+   * lobby), or null when the server ships no overlay. Optional for forward/
+   * backward compatibility — absent is treated as null.
+   */
+  readonly learnedVersion?: string | null;
+  /**
+   * fh-sja.6: whether this room's Hard seats use the learned overlay.
+   * Host-toggleable pre-game; defaults to whether an overlay is loaded.
+   * Optional for compatibility — absent is treated as false.
+   */
+  readonly adaptiveBots?: boolean;
 }
 
 /**

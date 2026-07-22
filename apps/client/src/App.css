@@ -209,6 +209,22 @@ button.primary {
 .lobby-controls {
   display: flex;
   justify-content: center;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.adaptive-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.85rem;
+  color: var(--text-h);
+  white-space: nowrap;
+}
+
+.adaptive-toggle input {
+  margin: 0;
 }
 
 /* Phones: stack the seats into a single column, table graphic hidden. */

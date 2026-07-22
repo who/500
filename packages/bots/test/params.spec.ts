@@ -26,6 +26,7 @@ import {
   PLAY_WORLDS_FLOOR,
   ROLLOUT_WORLDS,
   SLAM_MARGIN,
+  loadOverlayInfo,
   loadParams,
   mergeParams,
   validateParams,
@@ -201,5 +202,49 @@ describe('loadParams', () => {
 
   it('exposes a git-ignored default overlay path under params/', () => {
     expect(DEFAULT_OVERLAY_PATH).toBe('params/local.json');
+  });
+});
+
+describe('loadOverlayInfo (fh-sja.6 overlay metadata)', () => {
+  it('reports absence when there is no overlay', () => {
+    const warn = vi.fn();
+    const info = loadOverlayInfo({ readOverlay: () => null, warn });
+    expect(info.present).toBe(false);
+    expect(info.version).toBeNull();
+    expect(info.params).toBe(DEFAULT_PARAMS);
+    expect(warn).not.toHaveBeenCalled();
+  });
+
+  it('surfaces the overlay version and merged params when present', () => {
+    const info = loadOverlayInfo({
+      readOverlay: () => ({
+        schemaVersion: PARAMS_SCHEMA_VERSION,
+        version: '1.deadbeef',
+        hardBidding: { bidMargin: 3 },
+      }),
+    });
+    expect(info.present).toBe(true);
+    expect(info.version).toBe('1.deadbeef');
+    expect(info.params.hardBidding.bidMargin).toBe(3);
+  });
+
+  it('reports present with a null version when the overlay omits one', () => {
+    const info = loadOverlayInfo({
+      readOverlay: () => ({ schemaVersion: PARAMS_SCHEMA_VERSION, hardBidding: { bidMargin: 3 } }),
+    });
+    expect(info.present).toBe(true);
+    expect(info.version).toBeNull();
+  });
+
+  it('reports absence (never a version) when the overlay is invalid', () => {
+    const warn = vi.fn();
+    const info = loadOverlayInfo({
+      readOverlay: () => ({ schemaVersion: 999, version: 'x', hardBidding: { bidMargin: 3 } }),
+      warn,
+    });
+    expect(info.present).toBe(false);
+    expect(info.version).toBeNull();
+    expect(info.params).toBe(DEFAULT_PARAMS);
+    expect(warn).toHaveBeenCalledOnce();
   });
 });

@@ -153,6 +153,46 @@ describe('Lobby', () => {
     expect((guestSelect as HTMLSelectElement).value).toBe('hard');
   });
 
+  it('shows the learned tag and lets the host toggle adaptive bots (fh-sja.6)', async () => {
+    const user = userEvent.setup();
+    const host = makeClient();
+    const hostView = renderApp(host);
+    seatHost(host, anaRoom({ learnedVersion: '1.abcd1234', adaptiveBots: true }));
+
+    // The lobby surfaces the loaded overlay version.
+    const tag = within(hostView.container).getByTestId('learned-tag');
+    expect(tag.textContent).toContain('learned v1.abcd1234');
+
+    // Host toggles the opt-in off -> setAdaptiveBots command.
+    const toggle = within(hostView.container).getByTestId('adaptive-bots') as HTMLInputElement;
+    expect(toggle.checked).toBe(true);
+    expect(toggle.disabled).toBe(false);
+    await user.click(toggle);
+    expect(host.sent).toContainEqual({ t: 'setAdaptiveBots', on: false });
+  });
+
+  it('hides the learned tag and toggle when the server ships no overlay (fh-sja.6)', () => {
+    const client = makeClient();
+    const view = renderApp(client);
+    seatHost(client, anaRoom({ learnedVersion: null }));
+    expect(view.container.querySelector('[data-testid="learned-tag"]')).toBeNull();
+    expect(view.container.querySelector('[data-testid="adaptive-bots"]')).toBeNull();
+  });
+
+  it('disables the adaptive toggle for a non-host (fh-sja.6)', () => {
+    const guest = makeClient();
+    const guestView = renderApp(guest);
+    // Guest sees the room but does not hold the host seat.
+    applyEvent(
+      guest,
+      env(0, { t: 'roomState', room: anaRoom({ learnedVersion: '1.abcd1234', adaptiveBots: true }) }),
+    );
+    applyEvent(guest, { event: { t: 'seatGranted', seat: 1, token: 'tok-guest' } });
+    const toggle = guestView.container.querySelector('[data-testid="adaptive-bots"]') as HTMLInputElement;
+    expect(toggle).not.toBeNull();
+    expect(toggle.disabled).toBe(true);
+  });
+
   it('renders your seat at the bottom with your partner across', () => {
     const client = makeClient();
     const view = renderApp(client);

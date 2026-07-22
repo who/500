@@ -245,12 +245,31 @@ export interface LoadParamsOptions {
 }
 
 /**
- * Load the effective params: defaults with the optional overlay merged in. Any
- * failure — unreadable file, malformed JSON, wrong schema version, a non-finite
- * leaf after merge — logs a loud warning and returns DEFAULT_PARAMS unchanged.
- * With no overlay present, returns DEFAULT_PARAMS silently.
+ * The result of loading the effective params, carrying enough metadata for the
+ * product to surface learning: whether a valid overlay was actually applied
+ * ({@link present}) and the human-readable version tag it carried
+ * ({@link version}, e.g. the lobby's "learned vX"). `params` is always safe to
+ * use — it falls back to {@link DEFAULT_PARAMS} on any failure.
  */
-export function loadParams(options: LoadParamsOptions = {}): BotParams {
+export interface OverlayInfo {
+  /** True only when a valid overlay was found, merged, and validated. */
+  readonly present: boolean;
+  /** The overlay's `version` string when present and a non-empty string, else null. */
+  readonly version: string | null;
+  /** Effective params: defaults with the overlay merged in, or defaults alone. */
+  readonly params: BotParams;
+}
+
+const NO_OVERLAY: OverlayInfo = { present: false, version: null, params: DEFAULT_PARAMS };
+
+/**
+ * Load the effective params plus overlay metadata: defaults with the optional
+ * overlay merged in. Any failure — unreadable file, malformed JSON, wrong
+ * schema version, a non-finite leaf after merge — logs a loud warning and
+ * reports `present: false` with DEFAULT_PARAMS unchanged. With no overlay
+ * present, reports `present: false` silently.
+ */
+export function loadOverlayInfo(options: LoadParamsOptions = {}): OverlayInfo {
   const warn = options.warn ?? ((m: string) => console.warn(m));
   const path = options.overlayPath ?? resolveDefaultOverlayPath();
   const read = options.readOverlay ?? defaultReadOverlay;
@@ -260,13 +279,13 @@ export function loadParams(options: LoadParamsOptions = {}): BotParams {
     raw = read(path);
   } catch (err) {
     warn(`[BotParams] overlay ${path} unreadable, using defaults: ${errText(err)}`);
-    return DEFAULT_PARAMS;
+    return NO_OVERLAY;
   }
-  if (raw === null || raw === undefined) return DEFAULT_PARAMS; // no overlay: defaults
+  if (raw === null || raw === undefined) return NO_OVERLAY; // no overlay: defaults
 
   if (typeof raw !== 'object') {
     warn(`[BotParams] overlay ${path} is not an object, using defaults`);
-    return DEFAULT_PARAMS;
+    return NO_OVERLAY;
   }
   const overlay = raw as PartialBotParams;
   // A version mismatch on the overlay is a hard reject: we will not merge a
@@ -276,15 +295,26 @@ export function loadParams(options: LoadParamsOptions = {}): BotParams {
       `[BotParams] overlay ${path} schemaVersion ${String(overlay.schemaVersion)} != ` +
         `${PARAMS_SCHEMA_VERSION}, using defaults`,
     );
-    return DEFAULT_PARAMS;
+    return NO_OVERLAY;
   }
   const merged = mergeParams(DEFAULT_PARAMS, overlay);
   const result = validateParams(merged);
   if (!result.ok) {
     warn(`[BotParams] overlay ${path} invalid (${result.error}), using defaults`);
-    return DEFAULT_PARAMS;
+    return NO_OVERLAY;
   }
-  return deepFreeze(result.params);
+  const rawVersion = (raw as { version?: unknown }).version;
+  const version = typeof rawVersion === 'string' && rawVersion.length > 0 ? rawVersion : null;
+  return { present: true, version, params: deepFreeze(result.params) };
+}
+
+/**
+ * Load just the effective params (defaults with the optional overlay merged
+ * in). A thin wrapper over {@link loadOverlayInfo} for callers that do not need
+ * the presence/version metadata.
+ */
+export function loadParams(options: LoadParamsOptions = {}): BotParams {
+  return loadOverlayInfo(options).params;
 }
 
 function errText(err: unknown): string {

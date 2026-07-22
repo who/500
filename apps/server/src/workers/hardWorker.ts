@@ -14,17 +14,41 @@
 
 import { parentPort } from 'node:worker_threads';
 import { deserializeGame, makeRng } from '@five-hundred/engine';
-import { HardPolicy, policyAction } from '@five-hundred/bots';
+import { HardPolicy, policyAction, validateParams, type BotParams } from '@five-hundred/bots';
 import type { HardWorkerRequest, HardWorkerResponse } from './hardPool.js';
 
 const port = parentPort;
 if (port === null) throw new Error('hardWorker must be launched as a worker thread');
+
+/**
+ * Decode the request's learned overlay (fh-sja.6): a validated BotParams when
+ * the room opted in and the payload is well-formed, else undefined so
+ * HardPolicy uses its DEFAULT_PARAMS. A malformed payload is logged and
+ * ignored rather than failing the decision — a shipped-bot move beats none.
+ */
+function overlayParams(request: HardWorkerRequest): BotParams | undefined {
+  if (request.paramsJson === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(request.paramsJson);
+  } catch (err) {
+    console.error(`[hard] seat ${request.seat}: unparseable overlay params, using defaults: ${String(err)}`);
+    return undefined;
+  }
+  const result = validateParams(parsed);
+  if (!result.ok) {
+    console.error(`[hard] seat ${request.seat}: invalid overlay params (${result.error}), using defaults`);
+    return undefined;
+  }
+  return result.params;
+}
 
 port.on('message', (request: HardWorkerRequest) => {
   let response: HardWorkerResponse;
   try {
     const state = deserializeGame(request.stateJson);
     const policy = new HardPolicy({
+      params: overlayParams(request),
       play: {
         deadlineMs: request.budgetMs,
         onDecision: (d) => {

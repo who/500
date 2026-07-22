@@ -19,6 +19,7 @@ import type {
   RoomView,
   StateBearingEvent,
 } from '@five-hundred/protocol';
+import { OVERLAY_PRESENT, OVERLAY_VERSION } from './botParams.js';
 
 /** One connection's transport surface plus its room bindings. */
 export interface RoomClient {
@@ -46,6 +47,12 @@ export interface Room {
   seq: number;
   lastActivity: number;
   clients: Set<RoomClient>;
+  /**
+   * fh-sja.6: whether this room's Hard seats use the learned overlay. Defaults
+   * to whether an overlay is loaded (so behavior is identical to before when
+   * none is), host-toggleable pre-game. Inert without a loaded overlay.
+   */
+  adaptiveBots: boolean;
 }
 
 export const DEFAULT_DIFFICULTY: BotDifficulty = 'medium';
@@ -130,6 +137,11 @@ export function roomView(room: Room): RoomView {
     seats: room.seats.map((s, i) => seatView(i, s)),
     started: room.game !== null,
     paused: isPaused(room),
+    // fh-sja.6: surface learning in the lobby. learnedVersion is the loaded
+    // overlay's tag (null when none is shipped, hiding the tag); adaptiveBots
+    // is this room's opt-in.
+    learnedVersion: OVERLAY_VERSION,
+    adaptiveBots: room.adaptiveBots,
   };
 }
 
@@ -190,6 +202,7 @@ export class RoomStore {
       seq: 0,
       lastActivity: Date.now(),
       clients: new Set([client]),
+      adaptiveBots: OVERLAY_PRESENT,
     };
     this.rooms.set(room.code, room);
     client.room = room;
@@ -322,6 +335,30 @@ export class RoomStore {
       const s = room.seats[b.seat];
       if (s !== undefined && s.kind !== 'human') s.difficulty = b.difficulty;
     }
+    this.touch(room);
+    this.broadcastRoomState(room);
+  }
+
+  /**
+   * Host only, pre-game (fh-sja.6): toggle whether this room's Hard seats use
+   * the learned overlay. Gated exactly like configureBots — bot policies are
+   * fixed at game start, so the choice is locked in for the game.
+   */
+  setAdaptiveBots(client: RoomClient, on: boolean): void {
+    const room = client.room;
+    if (room === null) {
+      this.sendError(client, 'badCommand', 'Not in a room.');
+      return;
+    }
+    if (client !== room.host) {
+      this.sendError(client, 'notHost', 'Only the host can configure bots.');
+      return;
+    }
+    if (room.game !== null) {
+      this.sendError(client, 'badCommand', 'Game already started.');
+      return;
+    }
+    room.adaptiveBots = on;
     this.touch(room);
     this.broadcastRoomState(room);
   }

@@ -39,6 +39,7 @@ import {
   HARD_LEAVES,
   dimensionsFor,
   mirroredWinRate,
+  overlayVersion,
   vectorToOverlay,
   vectorToParams,
 } from '../src/tune.js';
@@ -190,5 +191,28 @@ describe('Self-play tuner (real Hard arena)', () => {
   it('cleans up: no overlay file is written by a report-only decision', () => {
     // Sanity: the spec never writes to the shipped overlay path.
     expect(existsSync('packages/bots/params/local.json')).toBe(false);
+  });
+});
+
+describe('overlayVersion (fh-sja.6 version stamp)', () => {
+  const vec = HARD_LEAVES.map((l) => l.min);
+
+  it('is a pure function of the overlay contents', () => {
+    const a = overlayVersion(vectorToOverlay(HARD_LEAVES, vec));
+    const b = overlayVersion(vectorToOverlay(HARD_LEAVES, vec));
+    expect(a).toBe(b);
+    expect(a).toMatch(/^\d+\.[0-9a-f]{8}$/);
+  });
+
+  it('changes when a tuned leaf changes', () => {
+    const base = overlayVersion(vectorToOverlay(HARD_LEAVES, vec));
+    const bumped = overlayVersion(vectorToOverlay(HARD_LEAVES, [vec[0]! + 1, ...vec.slice(1)]));
+    expect(bumped).not.toBe(base);
+  });
+
+  it('ignores the schemaVersion/version envelope fields', () => {
+    const overlay = vectorToOverlay(HARD_LEAVES, vec);
+    const withVersion = { ...overlay, version: 'ignored' };
+    expect(overlayVersion(withVersion)).toBe(overlayVersion(overlay));
   });
 });

@@ -125,6 +125,31 @@ export function vectorToOverlay(leaves: readonly TunableLeaf[], vector: readonly
   return { schemaVersion: PARAMS_SCHEMA_VERSION, ...overlay } as PartialBotParams;
 }
 
+/**
+ * A short, deterministic version tag for an overlay: `<schema>.<hash>` where
+ * the hash is FNV-1a over the overlay's numeric leaves in stable key order.
+ * Pure — identical params always stamp the same tag — so it doubles as a
+ * content fingerprint the lobby shows as "learned v<tag>".
+ */
+export function overlayVersion(overlay: PartialBotParams): string {
+  const groups = Object.keys(overlay)
+    .filter((k) => k !== 'schemaVersion' && k !== 'version')
+    .sort();
+  const parts: string[] = [];
+  for (const g of groups) {
+    const leaves = overlay[g as keyof PartialBotParams] as Record<string, number> | undefined;
+    if (leaves === undefined) continue;
+    for (const key of Object.keys(leaves).sort()) parts.push(`${g}.${key}=${leaves[key]}`);
+  }
+  let h = 0x811c9dc5;
+  const canonical = parts.join('|');
+  for (let i = 0; i < canonical.length; i++) {
+    h ^= canonical.charCodeAt(i);
+    h = Math.imul(h, 0x01000193);
+  }
+  return `${PARAMS_SCHEMA_VERSION}.${(h >>> 0).toString(16).padStart(8, '0')}`;
+}
+
 /** Decode a vector into a full BotParams by merging its overlay over `base`. */
 export function vectorToParams(
   leaves: readonly TunableLeaf[],
@@ -359,8 +384,13 @@ export async function runTune(args: string[]): Promise<void> {
 
   if (decision.promote) {
     const overlay = vectorToOverlay(leaves, report.best.vector);
-    writeFileSync(outPath, JSON.stringify(overlay, null, 2));
-    console.log(`\n✅ PROMOTED — wrote candidate overlay to ${outPath}`);
+    // Stamp a deterministic version so the product can surface which learned
+    // overlay a room is running (fh-sja.6 lobby tag). The hash is a pure
+    // function of the tuned leaves, so identical params always stamp the same
+    // version and a changed param always changes it.
+    const stamped = { ...overlay, version: overlayVersion(overlay) };
+    writeFileSync(outPath, JSON.stringify(stamped, null, 2));
+    console.log(`\n✅ PROMOTED — wrote candidate overlay ${stamped.version} to ${outPath}`);
     if (tier === 'medium') {
       console.log(
         '⚠️  Medium overlay is EXPERIMENTAL and NOT auto-loaded/shipped ' +

@@ -48,6 +48,15 @@ export interface ConfigureBotsCommand {
   readonly bots: readonly BotSeatConfig[];
 }
 
+/**
+ * Host only, pre-game: toggle whether this room's Hard seats use the learned
+ * overlay (fh-sja.6). Inert unless the server has a promoted overlay loaded.
+ */
+export interface SetAdaptiveBotsCommand {
+  readonly t: 'setAdaptiveBots';
+  readonly on: boolean;
+}
+
 /** Host only: start the game; empty seats become bots at their difficulty. */
 export interface StartGameCommand {
   readonly t: 'startGame';
@@ -118,6 +127,7 @@ export type ClientCommand =
   | JoinRoomCommand
   | SitCommand
   | ConfigureBotsCommand
+  | SetAdaptiveBotsCommand
   | StartGameCommand
   | ConvertSeatToBotCommand
   | BidCommand
