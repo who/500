@@ -14,7 +14,7 @@
  * (Easy) and heuristics (Medium) need to know which play is the partner's.
  */
 
-import type { Bid, Card, GameState, Indication, Rng, TrickPlay } from '@five-hundred/engine';
+import type { Bid, Card, GameState, Indication, Rng, Trick, TrickPlay } from '@five-hundred/engine';
 import { cardPower, cardSuit, trumpOf } from '@five-hundred/engine';
 
 /**
@@ -29,6 +29,18 @@ export interface BidContext {
   readonly seat: number;
   readonly indications: readonly Indication[];
   readonly scores: readonly [number, number];
+}
+
+/**
+ * What a player knows about the hand beyond the trick in progress: who
+ * declared and every completed trick, in order. From the tricks (plus its own
+ * hand and the current trick) a policy can count which cards are already out
+ * of play — trumps especially, so a declarer can tell when the defenders
+ * cannot ruff anymore (fh-n2n).
+ */
+export interface PlayContext {
+  readonly declarer: number;
+  readonly tricks: readonly Trick[];
 }
 
 export interface Policy {
@@ -60,7 +72,9 @@ export interface Policy {
 
   /**
    * Pick a card from `legal`. trickPlays are the cards already played to the
-   * trick in progress, in play order; ledSuit is null when leading.
+   * trick in progress, in play order; ledSuit is null when leading; context
+   * carries the declarer and the completed tricks so a policy can reason
+   * about which cards are still live.
    */
   choosePlay(
     seat: number,
@@ -70,6 +84,7 @@ export interface Policy {
     trump: number | null,
     ledSuit: number | null,
     contract: Bid,
+    context: PlayContext,
     rng: Rng,
   ): Card;
 }
@@ -81,8 +96,8 @@ export interface PlayChoice {
 }
 
 /**
- * A policy whose play decision needs the full (unredacted) GameState — trick
- * history, hand counts, discards — rather than choosePlay's local view. The
+ * A policy whose play decision needs the full (unredacted) GameState — hand
+ * counts, discards, the exchange — rather than choosePlay's local view. The
  * Hard bot's determinized rollouts are the one implementor: sampling hidden
  * worlds requires everything the seat has observed, which the Policy
  * choosePlay signature deliberately omits. Drivers that hold a full state

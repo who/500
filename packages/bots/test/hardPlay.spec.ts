@@ -150,6 +150,7 @@ describe('choosePlayByRollout', () => {
       play.trump,
       play.ledSuit,
       state.contract,
+      { declarer: play.declarer, tricks: play.tricks },
     );
     expect(card).toBe(medium);
   });

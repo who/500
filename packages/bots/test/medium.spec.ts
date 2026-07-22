@@ -87,6 +87,7 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
         play.trump,
         play.ledSuit,
         contract,
+        { declarer: play.declarer, tricks: play.tricks },
         rng,
       );
       if (card === JOKER && play.trump === null && play.ledSuit === null) {
@@ -164,6 +165,12 @@ const noRng: Rng = {
 const HEARTS10 = bid(NUM, 10, 3);
 const medium = new MediumPolicy();
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
+/**
+ * Play context that makes seat 0 a DEFENDER with no history — the declarer-side
+ * trump-drawing branch (fh-n2n) never fires, so these calls pin the original
+ * oracle behavior (which is exactly what the parity fixture recorded).
+ */
+const DEFENDER_CTX = { declarer: 1, tricks: [] } as const;
 
 // ---------------------------------------------------------------------------
 // AC-1: pinned oracle strength / lowness values on fixed hands
@@ -435,6 +442,7 @@ describe('AC-2: 100-context oracle decision parity', () => {
               rec.trump as number | null,
               rec.led_suit as number | null,
               toBid(rec.contract as FixtureBid),
+              DEFENDER_CTX,
               noRng,
             ),
           ).toBe(rec.result);
@@ -557,7 +565,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 12) }]; // QS holds the trick
     const legal = [makeCard(0, 5), makeCard(0, 10), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), noRng),
+      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 10));
   });
 
@@ -565,7 +573,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 5) }];
     const legal = [makeCard(0, 13), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), noRng),
+      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 14));
   });
 
@@ -573,7 +581,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 10) }];
     const legal = [makeCard(0, 5), makeCard(0, 11), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, noRng),
+      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 11));
   });
 
@@ -581,8 +589,121 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 14) }];
     const legal = [makeCard(0, 5), makeCard(0, 11)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, noRng),
+      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 5));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-n2n AC-2: declarer-side trump drawing
+// ---------------------------------------------------------------------------
+
+describe('declarer-side trump drawing (fh-n2n)', () => {
+  // Hearts trump: the 13 trump cards are the joker, JH (right bower),
+  // JD (left bower), and hearts 4-10, Q, K, A.
+  const HEARTS = 3;
+  const JOKER_CARD = JOKER;
+  const RIGHT_BOWER = makeCard(3, 11);
+  const LEFT_BOWER = makeCard(2, 11);
+  const ACE_SPADES = makeCard(0, 14);
+  const KING_SPADES = makeCard(0, 13);
+  const FIVE_CLUBS = makeCard(1, 5);
+  const HAND = [JOKER_CARD, RIGHT_BOWER, ACE_SPADES, KING_SPADES, FIVE_CLUBS];
+
+  /** A completed trick; only `plays` matters to Medium's card counting. */
+  const trick = (cards: readonly Card[]) => ({
+    leader: 1,
+    ledSuit: HEARTS,
+    plays: cards.map((card, i) => ({ seat: (1 + i) % 4, card })),
+    winner: 1,
+  });
+
+  // 8 natural hearts down: KH, AH, and the left bower are still out.
+  const eightHeartsDown = [
+    trick([makeCard(3, 4), makeCard(3, 5), makeCard(3, 6), makeCard(3, 7)]),
+    trick([makeCard(3, 8), makeCard(3, 9), makeCard(3, 10), makeCard(3, 12)]),
+  ];
+  // All 11 trumps outside the bot's hand are down: none are live anymore.
+  const allTrumpsDown = [
+    ...eightHeartsDown,
+    trick([makeCard(3, 13), makeCard(3, 14), LEFT_BOWER, makeCard(0, 4)]),
+  ];
+
+  it('leads boss trump on consecutive leads while opponents may hold trump', () => {
+    expect(
+      medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(JOKER_CARD);
+    expect(
+      medium.choosePlay(
+        0,
+        HAND,
+        HAND,
+        [],
+        HEARTS,
+        null,
+        HEARTS10,
+        { declarer: 0, tricks: eightHeartsDown },
+        noRng,
+      ),
+    ).toBe(JOKER_CARD);
+  });
+
+  it("declarer's partner draws trump too", () => {
+    expect(
+      medium.choosePlay(2, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(JOKER_CARD);
+  });
+
+  it('switches to cashing side winners once trump is exhausted', () => {
+    expect(
+      medium.choosePlay(
+        0,
+        HAND,
+        HAND,
+        [],
+        HEARTS,
+        null,
+        HEARTS10,
+        { declarer: 0, tricks: allTrumpsDown },
+        noRng,
+      ),
+    ).toBe(ACE_SPADES);
+  });
+
+  it('draws from surplus trump length even without the boss', () => {
+    // 9 trumps down, only the joker is out; three low trumps beat it on length.
+    const nineDown = [
+      trick([makeCard(3, 7), makeCard(3, 8), makeCard(3, 9), makeCard(3, 10)]),
+      trick([makeCard(3, 12), makeCard(3, 13), makeCard(3, 14), RIGHT_BOWER]),
+      trick([LEFT_BOWER, makeCard(0, 4), makeCard(0, 5), makeCard(0, 6)]),
+    ];
+    const hand = [makeCard(3, 4), makeCard(3, 5), makeCard(3, 6), ACE_SPADES];
+    expect(
+      medium.choosePlay(
+        0,
+        hand,
+        hand,
+        [],
+        HEARTS,
+        null,
+        HEARTS10,
+        { declarer: 0, tricks: nineDown },
+        noRng,
+      ),
+    ).toBe(makeCard(3, 6));
+  });
+
+  it('does not bleed a lone low trump into a war it cannot win', () => {
+    const hand = [makeCard(3, 4), ACE_SPADES, FIVE_CLUBS];
+    expect(
+      medium.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+    ).toBe(ACE_SPADES);
+  });
+
+  it('as a defender the old lead is unchanged', () => {
+    expect(
+      medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, DEFENDER_CTX, noRng),
+    ).toBe(KING_SPADES);
   });
 });
 

@@ -77,6 +77,7 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
         play.trump,
         play.ledSuit,
         contract,
+        { declarer: play.declarer, tricks: play.tricks },
         rng,
       );
       if (card === JOKER && play.trump === null && play.ledSuit === null) {
@@ -141,6 +142,8 @@ function stubRng(randomValue: number): Rng {
 const HEARTS = bid(NUM, 8, 3); // hearts trump
 const NULLA_BID = bid(NULLA);
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
+// Easy ignores the play context entirely; any well-formed one will do.
+const PLAY_CTX = { declarer: 1, tricks: [] } as const;
 
 describe('AC-1: headless Easy table', () => {
   it('4 Easy bots complete 500 seeded hands with zero illegal actions', () => {
@@ -215,6 +218,7 @@ describe('AC-3: guardrail (a) — partner-boss-card restraint', () => {
         3,
         ledSpades,
         HEARTS,
+        PLAY_CTX,
         rng,
       );
       expect(pick).toBe(lowSpade); // 5H would trump the partner's ace
@@ -236,6 +240,7 @@ describe('AC-3: guardrail (a) — partner-boss-card restraint', () => {
           3,
           ledSpades,
           HEARTS,
+          PLAY_CTX,
           rng,
         ),
       );
@@ -250,7 +255,7 @@ describe('AC-3: guardrail (a) — partner-boss-card restraint', () => {
     const winners = [makeCard(3, 11), JOKER]; // right bower and joker both win
     const picks = new Set<Card>();
     for (let i = 0; i < 200; i++) {
-      picks.add(easy.choosePlay(seat, winners, winners, plays, 3, ledSpades, HEARTS, rng));
+      picks.add(easy.choosePlay(seat, winners, winners, plays, 3, ledSpades, HEARTS, PLAY_CTX, rng));
     }
     expect(picks).toEqual(new Set(winners));
   });
@@ -276,6 +281,7 @@ describe('AC-3: guardrail (b) — lose-all ducking', () => {
         null,
         ledSpades,
         NULLA_BID,
+        PLAY_CTX,
         rng,
       );
       expect(pick).toBe(sevenSpades);
@@ -289,7 +295,9 @@ describe('AC-3: guardrail (b) — lose-all ducking', () => {
     const winners = [aceSpades, kingSpades];
     const picks = new Set<Card>();
     for (let i = 0; i < 200; i++) {
-      picks.add(easy.choosePlay(0, winners, winners, plays, null, ledSpades, NULLA_BID, rng));
+      picks.add(
+        easy.choosePlay(0, winners, winners, plays, null, ledSpades, NULLA_BID, PLAY_CTX, rng),
+      );
     }
     expect(picks).toEqual(new Set(winners));
   });
@@ -300,7 +308,7 @@ describe('AC-3: guardrail (b) — lose-all ducking', () => {
     const hand = [sevenSpades, aceSpades];
     const picks = new Set<Card>();
     for (let i = 0; i < 200; i++) {
-      picks.add(easy.choosePlay(0, hand, hand, [], null, null, NULLA_BID, rng));
+      picks.add(easy.choosePlay(0, hand, hand, [], null, null, NULLA_BID, PLAY_CTX, rng));
     }
     expect(picks).toEqual(new Set(hand));
   });

@@ -30,11 +30,16 @@
  * counterpart; (fh-e52) it never saw the game score either, so an endgame
  * headroom stretch applies when the opponents can win the game off this
  * auction. With no indications and scores clear of the endgame the
- * decisions match the oracle fixture exactly.
+ * decisions match the oracle fixture exactly. A third (fh-n2n): the oracle's
+ * choose_play never saw the play history, so its declarer led its lowest
+ * side card into ruffs; here a declarer-side lead in a trump contract draws
+ * trump first, then cashes established side winners. Defender play (the
+ * fixture context) is untouched.
  */
 
 import type { Bid, Card, TrickPlay } from '@five-hundred/engine';
 import {
+  DECK,
   IND,
   JOKER,
   LADDER,
@@ -53,7 +58,7 @@ import {
   partnerOf,
   trumpOf,
 } from '@five-hundred/engine';
-import type { BidContext, Policy } from './policy.js';
+import type { BidContext, PlayContext, Policy } from './policy.js';
 import { defaultGiveBestCard } from './policy.js';
 
 // _suit_strength weights (five_hundred.py 249-271)
@@ -105,6 +110,13 @@ export function endgameHeadroom(context: BidContext): number {
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
+
+/** Trump-suit membership under `trump`: joker, both bowers, natural trumps. */
+function isTrumpCard(c: Card, trump: number): boolean {
+  if (c === JOKER) return true;
+  const s = cardSuit(c) as number;
+  return s === trump || ((cardRank(c) as number) === 11 && s === SAME_COLOR[trump]);
+}
 
 /** First element with the strictly greatest key — Python max() semantics. */
 function firstMaxBy(cards: readonly Card[], key: (c: Card) => number): Card {
@@ -319,13 +331,14 @@ export class MediumPolicy implements Policy {
   }
 
   choosePlay(
-    _seat: number,
-    _hand: readonly Card[],
+    seat: number,
+    hand: readonly Card[],
     legal: readonly Card[],
     trickPlays: readonly TrickPlay[],
     trump: number | null,
     ledSuit: number | null,
     contract: Bid,
+    context: PlayContext,
   ): Card {
     const sorted = [...legal].sort(ascending);
     let currentMax = -1;
@@ -340,6 +353,50 @@ export class MediumPolicy implements Policy {
       return firstMaxBy(pool, (c) =>
         cardPower(c, trump, ledSuit !== null ? ledSuit : cardSuit(c)),
       );
+    }
+    // Declarer-side lead in a trump contract (fh-n2n): draw trump while any
+    // may still be live, then cash established side winners. The unseen set
+    // is everything outside this hand and the played tricks, so it includes
+    // the partner's trumps and any buried in the discards — the bot draws a
+    // touch longer than a card-perfect reader would, never shorter.
+    if (
+      trump !== null &&
+      ledSuit === null &&
+      trickPlays.length === 0 &&
+      seat % 2 === context.declarer % 2
+    ) {
+      const seen = new Set<Card>(hand);
+      for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+      const unseen = DECK.filter((c) => !seen.has(c));
+      const outTrumps = unseen.filter((c) => isTrumpCard(c, trump));
+      const ownTrumps = sorted.filter((c) => isTrumpCard(c, trump));
+      if (outTrumps.length > 0 && ownTrumps.length > 0) {
+        const top = firstMaxBy(ownTrumps, (c) => cardPower(c, trump, null));
+        const topPower = cardPower(top, trump, null);
+        const boss = outTrumps.every((c) => cardPower(c, trump, null) < topPower);
+        // Lead the boss trump, or from surplus length; never bleed the last
+        // trumps into a war this hand cannot win.
+        if (boss || (ownTrumps.length >= 2 && ownTrumps.length > outTrumps.length)) {
+          return top;
+        }
+      }
+      if (outTrumps.length === 0) {
+        // Trump is fully out, so a ruff is impossible: cash the biggest side
+        // card no unseen card of its suit can beat.
+        const sideBosses = sorted.filter(
+          (c) =>
+            !isTrumpCard(c, trump) &&
+            unseen.every(
+              (u) =>
+                isTrumpCard(u, trump) ||
+                cardSuit(u) !== cardSuit(c) ||
+                (cardRank(u) as number) < (cardRank(c) as number),
+            ),
+        );
+        if (sideBosses.length > 0) {
+          return firstMaxBy(sideBosses, (c) => cardRank(c) as number);
+        }
+      }
     }
     const winners = sorted.filter((c) => cardPower(c, trump, ledSuit) > currentMax);
     if (winners.length > 0) return firstMinBy(winners, (c) => cardPower(c, trump, ledSuit));

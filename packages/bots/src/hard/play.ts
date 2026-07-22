@@ -164,6 +164,7 @@ export function choosePlayByRollout(
       play.trump,
       play.ledSuit,
       contract,
+      { declarer: play.declarer, tricks: play.tricks },
     );
   }
   options.onDecision?.({ seat, worldsDone, elapsedMs, fellBack: false });

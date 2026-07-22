@@ -17,7 +17,7 @@
 import type { Bid, Card, Rng, TrickPlay } from '@five-hundred/engine';
 import { IND, LADDER, PASS, bid, isLoseAll, partnerOf } from '@five-hundred/engine';
 import { bestPlaySoFar, losingPlays } from './helpers.js';
-import type { BidContext, Policy } from './policy.js';
+import type { BidContext, PlayContext, Policy } from './policy.js';
 import { defaultChooseJokerSuit, defaultGiveBestCard } from './policy.js';
 
 export class EasyPolicy implements Policy {
@@ -72,6 +72,7 @@ export class EasyPolicy implements Policy {
     trump: number | null,
     ledSuit: number | null,
     contract: Bid,
+    _context: PlayContext,
     rng: Rng,
   ): Card {
     if (legal.length === 0) throw new Error('choosePlay requires a non-empty legal set');
