@@ -14,3 +14,4 @@ export * from './reader.js';
 export * from './strength.js';
 export * from './calibration.js';
 export * from './sprt.js';
+export * from './arena.js';

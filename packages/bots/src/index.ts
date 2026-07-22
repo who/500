@@ -26,3 +26,4 @@ export * from './hard/bidding.js';
 export * from './hard/keeps.js';
 export * from './hard/play.js';
 export * from './hard/policy.js';
+export * from './arena-runner.js';
