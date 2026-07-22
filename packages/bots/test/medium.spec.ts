@@ -62,7 +62,7 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
           hand,
           auction.ladderPos,
           mayIndicate,
-          { seat, indications: auction.indications },
+          { seat, indications: auction.indications, scores: state.game.scores },
           rng,
         ),
       };
@@ -163,7 +163,7 @@ const noRng: Rng = {
 
 const HEARTS10 = bid(NUM, 10, 3);
 const medium = new MediumPolicy();
-const NO_SIGNALS = { seat: 0, indications: [] } as const;
+const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 
 // ---------------------------------------------------------------------------
 // AC-1: pinned oracle strength / lowness values on fixed hands
@@ -238,7 +238,7 @@ describe('partner indication support (fh-zpg)', () => {
     makeCard(2, 4),
     makeCard(2, 8),
   ];
-  const partnerHearts = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }] };
+  const partnerHearts = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }], scores: [0, 0] } as const;
 
   it('passes the support hand when nobody has indicated', () => {
     expect(medium.chooseBid(SUPPORT_HAND, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
@@ -251,15 +251,87 @@ describe('partner indication support (fh-zpg)', () => {
   });
 
   it('ignores the identical indication from an opponent', () => {
-    const opponentHearts = { seat: 0, indications: [{ seat: 1, bid: bid(IND, 6, 3) }] };
+    const opponentHearts = { seat: 0, indications: [{ seat: 1, bid: bid(IND, 6, 3) }], scores: [0, 0] } as const;
     expect(medium.chooseBid(SUPPORT_HAND, -1, true, opponentHearts, noRng)).toEqual(bid('PASS'));
   });
 
   it('does not abandon a clearly stronger own suit for the signal', () => {
     // HAND_A bids 7D on raw strength 5.45; partner's spade indication lifts
     // spades only to 3.15 + 2.0 = 5.15, so the own diamond plan holds.
-    const partnerSpades = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 0) }] };
+    const partnerSpades = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 0) }], scores: [0, 0] } as const;
     expect(medium.chooseBid(HAND_A, -1, true, partnerSpades, noRng)).toEqual(bid(NUM, 7, 2));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-e52: endgame aggression — the game score relaxes the bid gate
+// ---------------------------------------------------------------------------
+
+describe('endgame aggression (fh-e52)', () => {
+  // JH JD AH KH 5H (hearts est 3.35: two bowers, two honors, one low) over
+  // junk. Below the 4.5 opening bar at level scores, inside the stretched
+  // gate (3.35 + 2.5 + 1.5 >= 7) once the opponents threaten to go out.
+  const STRETCH_HAND = [
+    makeCard(3, 11),
+    makeCard(2, 11),
+    makeCard(3, 14),
+    makeCard(3, 13),
+    makeCard(3, 5),
+    makeCard(0, 4),
+    makeCard(0, 5),
+    makeCard(1, 6),
+    makeCard(1, 7),
+    makeCard(2, 8),
+  ];
+  // SUPPORT_HAND's cards (hearts est 2.95): one tier weaker, so it needs the
+  // desperate stretch (opp >= 460) rather than the plain endgame one.
+  const WEAK_HAND = [
+    makeCard(3, 11),
+    makeCard(3, 13),
+    makeCard(3, 6),
+    makeCard(3, 5),
+    makeCard(0, 14),
+    makeCard(0, 5),
+    makeCard(1, 6),
+    makeCard(1, 7),
+    makeCard(2, 4),
+    makeCard(2, 8),
+  ];
+  const at = (seat: number, scores: readonly [number, number]) =>
+    ({ seat, indications: [], scores }) as const;
+
+  it('passes the stretch hand at level scores', () => {
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 0]), noRng)).toEqual(bid('PASS'));
+  });
+
+  it('bids 7H on the same hand when the opponents can win off this auction', () => {
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(
+      bid(NUM, 7, 3),
+    );
+  });
+
+  it('activates exactly when opp score + cheapest contract reaches 500', () => {
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 350]), noRng)).toEqual(bid('PASS'));
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 360]), noRng)).toEqual(
+      bid(NUM, 7, 3),
+    );
+  });
+
+  it('orients the threat by the seat side, not raw score order', () => {
+    // Same 400 on side 0: an opponent seat stretches, a side-0 seat does not.
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(1, [400, 0]), noRng)).toEqual(
+      bid(NUM, 7, 3),
+    );
+    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [400, 0]), noRng)).toEqual(
+      bid('PASS'),
+    );
+  });
+
+  it('stretches further once defender tricks alone can end the game', () => {
+    expect(medium.chooseBid(WEAK_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(bid('PASS'));
+    expect(medium.chooseBid(WEAK_HAND, -1, false, at(0, [0, 460]), noRng)).toEqual(
+      bid(NUM, 7, 3),
+    );
   });
 });
 

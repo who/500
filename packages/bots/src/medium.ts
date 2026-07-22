@@ -24,11 +24,13 @@
  *
  * No tuning or strength improvements here — the strength gate lives in the
  * sim-harness leaf, and the Hard bot reuses this class verbatim as its
- * rollout opponent model, so any drift compounds. One recorded divergence
- * (fh-zpg): the oracle's choose_bid never saw the auction, so a partner's
+ * rollout opponent model, so any drift compounds. Two recorded divergences:
+ * (fh-zpg) the oracle's choose_bid never saw the auction, so a partner's
  * indication adds a discounted support bonus here that has no Python
- * counterpart; with no indications in play the decisions match the oracle
- * fixture exactly.
+ * counterpart; (fh-e52) it never saw the game score either, so an endgame
+ * headroom stretch applies when the opponents can win the game off this
+ * auction. With no indications and scores clear of the endgame the
+ * decisions match the oracle fixture exactly.
  */
 
 import type { Bid, Card, TrickPlay } from '@five-hundred/engine';
@@ -41,6 +43,7 @@ import {
   NUM,
   PASS,
   SAME_COLOR,
+  WIN_SCORE,
   bid,
   cardPower,
   cardRank,
@@ -80,6 +83,26 @@ export const PARTNER_INDICATION_BONUS = 2.0;
 
 // consider_slam threshold (five_hundred.py 346)
 const SLAM_EST = 8.0;
+
+// Endgame aggression (fh-e52, no oracle counterpart: choose_bid never saw
+// the game score). When the opponents end the game by winning this auction,
+// passing concedes it, so a longshot contract that merely denies them the
+// middle is worth stretching for. The stretch widens once they can also go
+// out on defender tricks (10/trick), where owning the contract is the only
+// remaining lever. Values below WIN_SCORE - CHEAPEST_CONTRACT leave the bid
+// gate untouched, so play away from the endgame is byte-identical.
+export const CHEAPEST_CONTRACT = 140; // 7S, the lowest winning bid's value
+export const ENDGAME_HEADROOM = 1.5;
+export const DESPERATE_HEADROOM = 2.5;
+// Four defender tricks (40 pts) end the game from here even if we declare.
+export const DESPERATE_SCORE = 460;
+
+/** Extra bid headroom the game score justifies for the seat's side. */
+export function endgameHeadroom(context: BidContext): number {
+  const oppScore = context.scores[1 - (context.seat % 2)] as number;
+  if (oppScore + CHEAPEST_CONTRACT < WIN_SCORE) return 0;
+  return oppScore >= DESPERATE_SCORE ? DESPERATE_HEADROOM : ENDGAME_HEADROOM;
+}
 
 const ascending = (a: Card, b: Card): number => a - b;
 
@@ -189,7 +212,7 @@ export class MediumPolicy implements Policy {
         ownEst = own;
       }
     }
-    const maxLevel = Math.min(10, Math.trunc(est + BID_HEADROOM));
+    const maxLevel = Math.min(10, Math.trunc(est + BID_HEADROOM + endgameHeadroom(context)));
     if (maxLevel < 7) {
       if (mayIndicate && ownEst >= INDICATE_EST && ownBestStrain < 4) {
         return bid(IND, 6, ownBestStrain);

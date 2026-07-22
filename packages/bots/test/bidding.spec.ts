@@ -14,7 +14,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { AuctionState, Bid, Card } from '@five-hundred/engine';
+import type { AuctionState, Bid, Card, GameState } from '@five-hundred/engine';
 import {
   DECK,
   IND,
@@ -31,12 +31,14 @@ import {
 } from '@five-hundred/engine';
 import type { ObservedConstraints } from '../src/index.js';
 import {
+  GAME_WIN_VALUE,
   MediumPolicy,
   candidateBids,
   chooseBidByRollout,
   considerSlamByRollout,
   samplePartnerIndicationWorld,
   sampleWorld,
+  sideZeroGameValue,
 } from '../src/index.js';
 
 const S = (r: number): Card => r - 4;
@@ -111,7 +113,7 @@ function isLegalAt(b: Bid, ladderPos: number, mayIndicate: boolean): boolean {
   return legalBids(auctionAt(ladderPos, mayIndicate), 0).some((l) => bidKey(l) === key);
 }
 
-const NO_SIGNALS = { seat: 0, indications: [] } as const;
+const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 
 describe('AC-1 fixture hands', () => {
   it('bids hearts on the strong hearts hand', () => {
@@ -288,10 +290,93 @@ describe('partner indication signal (fh-zpg)', () => {
   });
 
   it('chooseBid stays legal and deterministic under a partner indication', () => {
-    const ctx = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }] };
+    const ctx = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }], scores: [0, 0] } as const;
     const a = chooseBidByRollout(GARBAGE, -1, true, ctx, makeRng(61), { worlds: 4 });
     const b = chooseBidByRollout(GARBAGE, -1, true, ctx, makeRng(61), { worlds: 4 });
     expect(bidKey(a)).toBe(bidKey(b));
     expect(isLegalAt(a, -1, true)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-e52: endgame awareness — rollout values fold through the game score
+// ---------------------------------------------------------------------------
+
+describe('endgame game-value mapping (fh-e52)', () => {
+  /** Minimal scored state: sideZeroGameValue only reads handResult. */
+  const scored = (
+    declarer: number,
+    made: boolean,
+    declarerDelta: number,
+    defenderDelta: number,
+  ): GameState =>
+    ({
+      handResult: {
+        contract: bid(NUM, 7, 0),
+        declarer,
+        slam: false,
+        made,
+        declarerDelta,
+        defenderDelta,
+        declarerSideTricks: 7,
+        defenderSideTricks: 3,
+      },
+    }) as unknown as GameState;
+
+  it('is exactly the point differential when nothing can end the game', () => {
+    expect(sideZeroGameValue(scored(0, true, 140, 30), [100, 100])).toBe(110);
+  });
+
+  it('collapses an opponent game-out to -GAME_WIN_VALUE', () => {
+    // Opponents at 360 making 7S cross 500 on contract value alone.
+    expect(sideZeroGameValue(scored(1, true, 140, 30), [0, 360])).toBe(-GAME_WIN_VALUE);
+  });
+
+  it('sees the defender-trick out even when we take the contract', () => {
+    // We declare and make, but four defender tricks lift 460 to 500 — the
+    // rules nuance the packet pins: taking the contract is not absolute
+    // protection at opp >= 460.
+    expect(sideZeroGameValue(scored(0, true, 200, 40), [0, 460])).toBe(-GAME_WIN_VALUE);
+  });
+
+  it('collapses our own game-out to +GAME_WIN_VALUE', () => {
+    expect(sideZeroGameValue(scored(0, true, 200, 30), [400, 0])).toBe(GAME_WIN_VALUE);
+  });
+});
+
+describe('endgame bidding aggression (fh-e52)', () => {
+  // Hearts est 3.35 (two bowers, A-K, one low): every strain is pruned at
+  // level scores, so the pass is deterministic; the endgame stretch puts 7H
+  // back in candidate range for the rollout to judge.
+  const STRETCH_HAND: Card[] = [
+    H(11),
+    D(11),
+    H(14),
+    H(13),
+    H(5),
+    S(4),
+    S(5),
+    C(6),
+    C(7),
+    D(8),
+  ];
+
+  it('passes the stretch hand at level scores', () => {
+    const b = chooseBidByRollout(STRETCH_HAND, -1, false, NO_SIGNALS, makeRng(70));
+    expect(b.kind).toBe(PASS);
+  });
+
+  it('bids on the same hand and seed when the opponents are one hand out', () => {
+    const ctx = { seat: 0, indications: [], scores: [0, 440] } as const;
+    const b = chooseBidByRollout(STRETCH_HAND, -1, false, ctx, makeRng(70));
+    expect(b.kind).toBe(NUM);
+  });
+
+  it('stays deterministic and legal under endgame scores', () => {
+    const ctx = { seat: 0, indications: [], scores: [0, 460] } as const;
+    const a = chooseBidByRollout(STRETCH_HAND, -1, false, ctx, makeRng(71), { worlds: 4 });
+    const b = chooseBidByRollout(STRETCH_HAND, -1, false, ctx, makeRng(71), { worlds: 4 });
+    expect(bidKey(a)).toBe(bidKey(b));
+    expect(isLegalAt(a, -1, false)).toBe(true);
   });
 });

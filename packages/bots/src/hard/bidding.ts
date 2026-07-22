@@ -18,7 +18,9 @@
  *     proxy bounding cost); all four seats play with Medium policies.
  *   - Pass baseline: ONE shared world played out with this seat passing and
  *     Medium bidders elsewhere (single-world cheap heuristic, not a full
- *     opponent rollout); a dead auction counts as 0 points (redeal).
+ *     opponent rollout); a dead auction scores as an unchanged game (0 at
+ *     level scores). In endgame states (fh-e52) the baseline averages over
+ *     all sampled worlds instead — there the pass/bid call is the decision.
  *   - Safety margin: +25 expected points (BID_MARGIN); slam declares on a
  *     +25 EV edge of the slam variant over the non-slam variant (SLAM_MARGIN).
  *   - Auction worlds ignore prior NUM bids as constraints (documented
@@ -42,14 +44,25 @@ import {
   NULLA,
   NUM,
   PASS,
+  WIN_SCORE,
   applyAction,
+  applyHandResult,
   bid,
+  bidKey,
+  bidValue,
   cardRank,
   initHandFromDeal,
   ladderIndex,
   partnerOf,
 } from '@five-hundred/engine';
-import { BID_HEADROOM, INDICATE_EST, MediumPolicy } from '../medium.js';
+import {
+  BID_HEADROOM,
+  CHEAPEST_CONTRACT,
+  DESPERATE_SCORE,
+  INDICATE_EST,
+  MediumPolicy,
+  endgameHeadroom,
+} from '../medium.js';
 import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
@@ -167,6 +180,43 @@ export function sideZeroDelta(state: GameState): number {
     : res.defenderDelta - res.declarerDelta;
 }
 
+/**
+ * Terminal value of a game-ending rollout outcome (fh-e52). Set to
+ * WIN_SCORE so that near the endgame a conceded game (-500) outweighs any
+ * ordinary contract swing and the comparison approximates game-win
+ * probability — a longshot bid with negative point EV is correct when
+ * passing loses the game outright. Deliberately NOT larger: at WIN_SCORE a
+ * dnulla or 10-level outcome that ends a game from level scores maps to
+ * exactly its point value, so bidding away from the endgame does not get
+ * globally louder.
+ */
+export const GAME_WIN_VALUE = WIN_SCORE;
+
+/**
+ * Rollout value for side 0 given the real game score (side-0 oriented): the
+ * post-hand score differential, folded through the engine's own win /
+ * out-the-back check. Game-ending outcomes pin to +-GAME_WIN_VALUE and the
+ * differential clamps at the same bound, so near the endgame a hand that
+ * WINS the game beats any point-safe continuation from a lost position —
+ * the trailing side reaches for 9s, 10s, and slams instead of banking
+ * points that never add up to 500 in time. At any fixed score the
+ * differential is sideZeroDelta plus a constant, so candidate ranking and
+ * the pass margin away from the game boundary are exactly the pre-fh-e52
+ * behavior.
+ */
+export function sideZeroGameValue(
+  state: GameState,
+  scores: readonly [number, number],
+): number {
+  const res = state.handResult;
+  if (res === null) throw new Error('rollout ended without a hand result');
+  const after = applyHandResult({ scores: [scores[0], scores[1]], winner: null }, res);
+  if (after.winner === 0) return GAME_WIN_VALUE;
+  if (after.winner === 1) return -GAME_WIN_VALUE;
+  const diff = after.scores[0] - after.scores[1];
+  return Math.max(-GAME_WIN_VALUE, Math.min(GAME_WIN_VALUE, diff));
+}
+
 /** Assemble a rollout deal: my cards at seat 0, the world's hands elsewhere. */
 export function worldDeal(
   myTen: readonly Card[],
@@ -201,10 +251,11 @@ function rolloutContract(
   world: SampledWorld,
   candidate: Bid,
   rng: Rng,
+  scores: readonly [number, number],
 ): number {
   let st = scriptAuction(worldDeal(myTen, world, world.dead), candidate);
   st = driveHand(st, rolloutPolicies(false), rng);
-  return sideZeroDelta(st);
+  return sideZeroGameValue(st, scores);
 }
 
 /**
@@ -213,7 +264,12 @@ function rolloutContract(
  * driven manually (not via driveHand) because the engine's auto-redeal on
  * the fourth quiet action would deal fresh cards unrelated to the world.
  */
-function rolloutPass(myTen: readonly Card[], world: SampledWorld, rng: Rng): number {
+function rolloutPass(
+  myTen: readonly Card[],
+  world: SampledWorld,
+  rng: Rng,
+  scores: readonly [number, number],
+): number {
   // MediumPolicy.chooseBid is deterministic and declares no rng parameter.
   let st = worldDeal(myTen, world, world.dead);
   let guard = 0;
@@ -223,20 +279,26 @@ function rolloutPass(myTen: readonly Card[], world: SampledWorld, rng: Rng): num
     if (auction === null) throw new Error('auction phase without auction state');
     const seat = auction.turn;
     const mayIndicate = auction.declarer === null && !auction.indicated[seat];
+    // Rollout seat parity matches the side-0-oriented scores, so the modeled
+    // opponents see the same endgame pressure the real ones would (fh-e52).
     const b: Bid =
       seat === ME
         ? bid(PASS)
         : OPPONENT.chooseBid(st.hands[seat] ?? [], auction.ladderPos, mayIndicate, {
             seat,
             indications: auction.indications,
+            scores,
           });
     if (b.kind === PASS && auction.declarer === null && auction.consecutiveQuiet === 3) {
-      return 0; // fourth quiet action with no winner: redeal
+      // Fourth quiet action with no winner: redeal at the same scores, so
+      // the value is the unchanged (clamped) differential.
+      const diff = scores[0] - scores[1];
+      return Math.max(-GAME_WIN_VALUE, Math.min(GAME_WIN_VALUE, diff));
     }
     st = mustApply(st, { type: 'bid', seat, bid: b });
   }
   st = driveHand(st, rolloutPolicies(false), rng);
-  return sideZeroDelta(st);
+  return sideZeroGameValue(st, scores);
 }
 
 /**
@@ -250,6 +312,7 @@ export function candidateBids(
   hand: readonly Card[],
   ladderPos: number,
   indicatedStrain: number | null = null,
+  extraHeadroom = 0,
 ): Bid[] {
   const sorted = [...hand].sort(ascending);
   const candidates: Bid[] = [];
@@ -263,7 +326,10 @@ export function candidateBids(
       }
     }
     if (lowest === null) continue;
-    const maxLevel = Math.min(10, Math.trunc(OPPONENT.suitStrength(sorted, s) + BID_HEADROOM));
+    const maxLevel = Math.min(
+      10,
+      Math.trunc(OPPONENT.suitStrength(sorted, s) + BID_HEADROOM + extraHeadroom),
+    );
     // Prune strains the Medium formula puts more than one level out of
     // reach; the rollout gets to stretch exactly one level past Medium.
     if (s !== indicatedStrain && lowest.level > maxLevel + 1) continue;
@@ -306,6 +372,13 @@ export function chooseBidByRollout(
   const sorted = [...hand].sort(ascending);
   const partnerInd = context.indications.find((i) => i.seat === partnerOf(context.seat));
   const partnerStrain = partnerInd !== undefined ? partnerInd.bid.strain : null;
+  // Game score oriented to the rollout's frame, where this seat's side is
+  // side 0 (fh-e52); candidate pruning widens by the same endgame headroom
+  // Medium uses so longshot contracts reach the rollout at all.
+  const myScores: readonly [number, number] =
+    context.seat % 2 === 0
+      ? context.scores
+      : [context.scores[1], context.scores[0]];
 
   const indicationOrPass = (): Bid => {
     let bestStrain = 0;
@@ -321,7 +394,25 @@ export function chooseBidByRollout(
     return bid(PASS);
   };
 
-  const candidates = candidateBids(sorted, ladderPos, partnerStrain);
+  const stretch = endgameHeadroom(context);
+  const candidates = candidateBids(sorted, ladderPos, partnerStrain, stretch);
+  // From a DESPERATE losing endgame (opponents go out on defender tricks, so
+  // failing a denial bid costs nothing extra), also offer each strain's
+  // cheapest GAME-WINNING level and let the rollout decide whether the
+  // moonshot beats the slow bleed (fh-e52). Not in the wider stretch band:
+  // there a crashed moonshot feeds the leaders 10/trick and digs the hole
+  // faster than passing would — deny at the 7/8 level instead.
+  if (myScores[1] >= DESPERATE_SCORE && myScores[0] < myScores[1]) {
+    const needed = WIN_SCORE - myScores[0];
+    for (let s = 0; s < 5; s++) {
+      for (let i = ladderPos + 1; i < LADDER.length; i++) {
+        const b = LADDER[i] as Bid;
+        if (b.kind !== NUM || b.strain !== s || bidValue(b) < needed) continue;
+        if (!candidates.some((c) => bidKey(c) === bidKey(b))) candidates.push(b);
+        break;
+      }
+    }
+  }
   if (candidates.length === 0) return indicationOrPass();
 
   const constraints = unseenConstraints(sorted);
@@ -334,12 +425,25 @@ export function chooseBidByRollout(
     );
   }
 
-  const passEV = rolloutPass(sorted, sampled[0] as SampledWorld, rng);
+  // The one-world pass baseline is fine mid-game, but in the endgame the
+  // pass/bid call IS the decision, and one world flips it on a coin toss
+  // (redeal vs opponents closing out the game) — average over all sampled
+  // worlds there instead (fh-e52).
+  let passEV: number;
+  if (stretch > 0) {
+    let passTotal = 0;
+    for (const world of sampled) passTotal += rolloutPass(sorted, world, rng, myScores);
+    passEV = passTotal / sampled.length;
+  } else {
+    passEV = rolloutPass(sorted, sampled[0] as SampledWorld, rng, myScores);
+  }
   let best: Bid | null = null;
   let bestEV = -Infinity;
   for (const candidate of candidates) {
     let total = 0;
-    for (const world of sampled) total += rolloutContract(sorted, world, candidate, rng);
+    for (const world of sampled) {
+      total += rolloutContract(sorted, world, candidate, rng, myScores);
+    }
     const ev = total / sampled.length;
     if (ev > bestEV) {
       best = candidate;
@@ -347,6 +451,19 @@ export function chooseBidByRollout(
     }
   }
   if (best !== null && bestEV >= passEV + margin) return best;
+  // Near the game boundary the value scale saturates at +-GAME_WIN_VALUE and
+  // a fixed margin over passEV stops being satisfiable, which can deadlock a
+  // table of Hard bots into passing out every redeal (fh-e52):
+  //  - Desperate: passing is a near-certain game loss, so any candidate that
+  //    is strictly better than passing is correct even without the margin.
+  //  - Close-out: a made contract wins the game outright; when the rollout
+  //    calls the bid a near-certain win, take it rather than pass on a
+  //    saturated passEV that models the opponents bidding when they may not.
+  if (best !== null) {
+    const nearCertain = GAME_WIN_VALUE * 0.9;
+    if (stretch > 0 && passEV <= -nearCertain && bestEV > passEV) return best;
+    if (myScores[0] + CHEAPEST_CONTRACT >= WIN_SCORE && bestEV >= nearCertain) return best;
+  }
   return indicationOrPass();
 }
 

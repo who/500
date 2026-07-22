@@ -52,7 +52,7 @@ function botAction(state: GameState, policies: readonly Policy[], rng: Rng): Act
           hand,
           auction.ladderPos,
           mayIndicate,
-          { seat, indications: auction.indications },
+          { seat, indications: auction.indications, scores: state.game.scores },
           rng,
         ),
       };
@@ -140,7 +140,7 @@ function stubRng(randomValue: number): Rng {
 
 const HEARTS = bid(NUM, 8, 3); // hearts trump
 const NULLA_BID = bid(NULLA);
-const NO_SIGNALS = { seat: 0, indications: [] } as const;
+const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 
 describe('AC-1: headless Easy table', () => {
   it('4 Easy bots complete 500 seeded hands with zero illegal actions', () => {

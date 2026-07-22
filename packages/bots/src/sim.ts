@@ -78,7 +78,7 @@ export function policyAction(
           hand,
           auction.ladderPos,
           mayIndicate,
-          { seat, indications: auction.indications },
+          { seat, indications: auction.indications, scores: state.game.scores },
           rng,
         ),
       };

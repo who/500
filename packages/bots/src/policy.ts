@@ -21,10 +21,14 @@ import { cardPower, cardSuit, trumpOf } from '@five-hundred/engine';
  * What a bidder knows about the auction beyond the ladder position: its own
  * seat and every indication made so far (an indication is a signal to the
  * partner, so policies need the seat to tell partner signals from opponents').
+ * `scores` is the cumulative game score per side (index = seat % 2) so a
+ * policy can weigh the auction against the game state (fh-e52) — e.g. bid a
+ * longshot rather than hand the opponents a game-winning contract.
  */
 export interface BidContext {
   readonly seat: number;
   readonly indications: readonly Indication[];
+  readonly scores: readonly [number, number];
 }
 
 export interface Policy {
