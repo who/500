@@ -116,10 +116,13 @@ function isLegalAt(b: Bid, ladderPos: number, mayIndicate: boolean): boolean {
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 
 describe('AC-1 fixture hands', () => {
-  it('bids hearts on the strong hearts hand', () => {
+  it('bids a strong contract on the strong hearts hand', () => {
+    // Hearts (est 6.75) or no-trumps (joker plus three aces) are both
+    // sound here; the fh-c6i tuned candidate set lets the rollout weigh the
+    // higher-scoring NT, so pin only "a numbered contract in one of them".
     const b = chooseBidByRollout(STRONG_HEARTS, -1, true, NO_SIGNALS, makeRng(1));
     expect(b.kind).toBe(NUM);
-    expect(b.strain).toBe(3);
+    expect([3, 4]).toContain(b.strain);
   });
 
   it('passes the garbage hand at every position', () => {
@@ -345,20 +348,23 @@ describe('endgame game-value mapping (fh-e52)', () => {
 });
 
 describe('endgame bidding aggression (fh-e52)', () => {
-  // Hearts est 3.35 (two bowers, A-K, one low): every strain is pruned at
-  // level scores, so the pass is deterministic; the endgame stretch puts 7H
-  // back in candidate range for the rollout to judge.
+  // Best strain diamonds at est 1.90 (bower JH plus low fill, KC on the
+  // side): with the fh-c6i tuned headroom every strain still prunes at level
+  // scores (est < 2.0 across the board), so the pass is deterministic; the
+  // endgame stretch puts the 7-level back in candidate range for the rollout
+  // to judge. The KC keeps the top rank above a queen so the nulla candidate
+  // gate stays shut.
   const STRETCH_HAND: Card[] = [
     H(11),
-    D(11),
-    H(14),
-    H(13),
-    H(5),
+    H(12),
     S(4),
     S(5),
+    S(7),
+    C(13),
     C(6),
-    C(7),
-    D(8),
+    C(8),
+    D(4),
+    D(6),
   ];
 
   it('passes the stretch hand at level scores', () => {

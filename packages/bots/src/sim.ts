@@ -178,16 +178,34 @@ export interface ContractStats {
 export type SimStats = Record<string, ContractStats>;
 
 /**
- * Play `n` independent hands (first bidder rotating i % 4 like the oracle)
- * and accumulate per-contract stats.
+ * simulateHands result: per-contract stats plus the auction-health counters
+ * behind the fh-c6i bid-timidity gates (redeal rate, 7+ contract rate, set
+ * rate). `deals` counts every deal drawn including redeals, so
+ * `deals - hands` is the number of passed-out auctions.
  */
-export function simulateHands(n: number, policies: readonly Policy[], seed = 0): SimStats {
+export interface HandSimResult {
+  readonly contracts: SimStats;
+  readonly hands: number;
+  readonly deals: number;
+}
+
+/**
+ * Play `n` independent hands (first bidder rotating i % 4 like the oracle)
+ * and accumulate per-contract stats plus redeal counts.
+ */
+export function simulateHands(
+  n: number,
+  policies: readonly Policy[],
+  seed = 0,
+): HandSimResult {
   const rng = makeRng(seed);
   const stats: SimStats = {};
+  let deals = 0;
   for (let i = 0; i < n; i++) {
     // Each hand is a fresh single-hand game; dealer sits right of bidder i%4.
     let state = newGame(rng.int(0x100000000), (i + 3) % 4);
     state = driveHand(state, policies, rng);
+    deals += state.dealsDrawn; // fresh game: hand 0, so this counts redeals too
     const res = state.handResult;
     if (res === null) throw new Error('scored hand is missing its result');
     const key = bidName(res.contract) + (res.slam ? ' +SLAM' : '');
@@ -198,7 +216,7 @@ export function simulateHands(n: number, policies: readonly Policy[], seed = 0):
     s.defPts += res.defenderDelta;
     s.slams += res.slam ? 1 : 0;
   }
-  return stats;
+  return { contracts: stats, hands: n, deals };
 }
 
 /** Play one full game on the shared rng stream; returns the winning side. */
@@ -256,9 +274,52 @@ export async function simulateGamesYielding(
   return wins;
 }
 
-/** Oracle print_stats table, returned as a string (printStats logs it). */
-export function formatStats(stats: SimStats): string {
-  const rows = Object.entries(stats).sort((a, b) => b[1].n - a[1].n);
+/**
+ * Auction-health metrics derived from a simulateHands run — the observable
+ * gates for the fh-c6i bid-timidity tuning (AC-1 / AC-2):
+ *   redealRate     passed-out auctions per deal drawn
+ *   contractRate   share of DEALS that produced a 7+ (numbered) contract,
+ *                  the strict reading of "hands reaching a 7+ contract" —
+ *                  redeals and lose-all contracts both count against it
+ *   setRate        failed numbered contracts per numbered contract
+ */
+export interface AuctionHealth {
+  readonly hands: number;
+  readonly deals: number;
+  readonly redeals: number;
+  readonly redealRate: number;
+  readonly numContracts: number;
+  readonly contractRate: number;
+  readonly setRate: number;
+}
+
+/** A contract key is a numbered (7+) bid iff it starts with its level. */
+const isNumKey = (key: string): boolean => key.charCodeAt(0) >= 0x30 && key.charCodeAt(0) <= 0x39;
+
+export function auctionHealth(result: HandSimResult): AuctionHealth {
+  const { contracts, hands, deals } = result;
+  const redeals = deals - hands;
+  let numContracts = 0;
+  let numMade = 0;
+  for (const [k, s] of Object.entries(contracts)) {
+    if (!isNumKey(k)) continue;
+    numContracts += s.n;
+    numMade += s.made;
+  }
+  return {
+    hands,
+    deals,
+    redeals,
+    redealRate: deals > 0 ? redeals / deals : 0,
+    numContracts,
+    contractRate: deals > 0 ? numContracts / deals : 0,
+    setRate: numContracts > 0 ? (numContracts - numMade) / numContracts : 0,
+  };
+}
+
+/** Oracle print_stats table plus the fh-c6i auction-health summary lines. */
+export function formatStats(result: HandSimResult): string {
+  const rows = Object.entries(result.contracts).sort((a, b) => b[1].n - a[1].n);
   const lines = [
     `${'contract'.padStart(14)} ${'n'.padStart(6)} ${'made%'.padStart(7)} ` +
       `${'avg decl'.padStart(9)} ${'avg def'.padStart(8)}`,
@@ -271,9 +332,16 @@ export function formatStats(stats: SimStats): string {
         `${(s.defPts / s.n).toFixed(1).padStart(8)}`,
     );
   }
+  const h = auctionHealth(result);
+  const pct = (x: number): string => `${(100 * x).toFixed(1)}%`;
+  lines.push(
+    `hands ${h.hands}  deals ${h.deals}  redeals ${h.redeals} (redeal rate ${pct(h.redealRate)})`,
+    `7+ contracts ${h.numContracts}/${h.deals} deals ` +
+      `(contract rate ${pct(h.contractRate)})  set rate ${pct(h.setRate)}`,
+  );
   return lines.join('\n');
 }
 
-export function printStats(stats: SimStats): void {
-  console.log(formatStats(stats));
+export function printStats(result: HandSimResult): void {
+  console.log(formatStats(result));
 }

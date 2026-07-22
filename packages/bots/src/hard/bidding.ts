@@ -21,8 +21,9 @@
  *     opponent rollout); a dead auction scores as an unchanged game (0 at
  *     level scores). In endgame states (fh-e52) the baseline averages over
  *     all sampled worlds instead — there the pass/bid call is the decision.
- *   - Safety margin: +25 expected points (BID_MARGIN); slam declares on a
- *     +25 EV edge of the slam variant over the non-slam variant (SLAM_MARGIN).
+ *   - Safety margin: +10 expected points (BID_MARGIN, tuned down from the
+ *     packet's +25 by fh-c6i — see the constant); slam declares on a +25 EV
+ *     edge of the slam variant over the non-slam variant (SLAM_MARGIN).
  *   - Auction worlds ignore prior NUM bids as constraints (documented
  *     simplification per the leaf's non-goals), but a partner indication
  *     conditions the sampled partner hand and its strain always stays a
@@ -70,8 +71,15 @@ import { sampleWorld } from './worlds.js';
 
 /** Default shared rollout worlds per decision (fh-7hw.4 adapts this). */
 export const ROLLOUT_WORLDS = 16;
-/** EV edge over the pass baseline required to bid (packet decision: +25). */
-export const BID_MARGIN = 25;
+/**
+ * EV edge over the pass baseline required to bid. Originally +25, which with
+ * noisy small-world rollouts suppressed close-but-positive bids and passed
+ * out 6.5% of 4-Hard auctions (fh-c6i). At +10 the measured 4-Hard numbers
+ * (sim-cli --hands 500 --seed 0 --policies HHHH) are redeal rate 4.4%,
+ * 7+ contract rate 95.0% of deals, set rate 35.4%, and the Hard-beats-Medium
+ * strength gate stays green (both sides >= 60% at the suite budget).
+ */
+export const BID_MARGIN = 10;
 /** EV edge of the slam variant over non-slam required to declare. */
 export const SLAM_MARGIN = 25;
 

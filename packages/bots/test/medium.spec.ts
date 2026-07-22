@@ -37,7 +37,7 @@ import {
   toActSeat,
 } from '@five-hundred/engine';
 import type { Policy } from '../src/index.js';
-import { MediumPolicy } from '../src/index.js';
+import { MediumPolicy, ORACLE_BID_HEADROOM } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // GameState -> Policy driver (mirrors the oracle's play_hand call sites)
@@ -164,6 +164,8 @@ const noRng: Rng = {
 
 const HEARTS10 = bid(NUM, 10, 3);
 const medium = new MediumPolicy();
+/** Oracle-headroom instance: replays the fixture's choose_bid contexts. */
+const oracleMedium = new MediumPolicy(ORACLE_BID_HEADROOM);
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 /**
  * Play context that makes seat 0 a DEFENDER with no history — the declarer-side
@@ -275,34 +277,36 @@ describe('partner indication support (fh-zpg)', () => {
 // ---------------------------------------------------------------------------
 
 describe('endgame aggression (fh-e52)', () => {
-  // JH JD AH KH 5H (hearts est 3.35: two bowers, two honors, one low) over
-  // junk. Below the 4.5 opening bar at level scores, inside the stretched
-  // gate (3.35 + 2.5 + 1.5 >= 7) once the opponents threaten to go out.
+  // JH KH 6H 5H (hearts est 2.20: bower, honor, two lows) over junk. Below
+  // the est >= 3.0 opening bar at the tuned headroom (fh-c6i), inside the
+  // stretched gate (2.20 + 4.0 + 1.5 >= 7) once the opponents threaten to
+  // go out.
   const STRETCH_HAND = [
     makeCard(3, 11),
-    makeCard(2, 11),
-    makeCard(3, 14),
     makeCard(3, 13),
+    makeCard(3, 6),
     makeCard(3, 5),
     makeCard(0, 4),
     makeCard(0, 5),
     makeCard(1, 6),
     makeCard(1, 7),
+    makeCard(2, 4),
     makeCard(2, 8),
   ];
-  // SUPPORT_HAND's cards (hearts est 2.95): one tier weaker, so it needs the
-  // desperate stretch (opp >= 460) rather than the plain endgame one.
+  // QH 6H 5H over junk (hearts est 1.25): one tier weaker, so it needs the
+  // desperate stretch (opp >= 460, 1.25 + 4.0 + 2.5 >= 7) rather than the
+  // plain endgame one (1.25 + 4.0 + 1.5 < 7).
   const WEAK_HAND = [
-    makeCard(3, 11),
-    makeCard(3, 13),
+    makeCard(3, 12),
     makeCard(3, 6),
     makeCard(3, 5),
-    makeCard(0, 14),
+    makeCard(0, 4),
     makeCard(0, 5),
     makeCard(1, 6),
     makeCard(1, 7),
     makeCard(2, 4),
     makeCard(2, 8),
+    makeCard(2, 9),
   ];
   const at = (seat: number, scores: readonly [number, number]) =>
     ({ seat, indications: [], scores }) as const;
@@ -401,7 +405,10 @@ describe('AC-2: 100-context oracle decision parity', () => {
     (_i, method, rec) => {
       switch (method) {
         case 'choose_bid': {
-          const b = medium.chooseBid(
+          // Bidding POLICY diverges from the oracle by design (fh-c6i tuned
+          // headroom); parity replays at the oracle's own headroom, which
+          // pins everything else about choose_bid exactly.
+          const b = oracleMedium.chooseBid(
             rec.hand as Card[],
             rec.ladder_pos as number,
             rec.may_indicate as boolean,

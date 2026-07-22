@@ -165,8 +165,8 @@ describe('HardPolicy', () => {
   it('plays full hands through the headless sim harness, worker-free', () => {
     const hard = new HardPolicy({ bidWorlds: 2, keepWorlds: 2, play: { worlds: 2 } });
     const medium = new MediumPolicy();
-    const stats = simulateHands(2, [hard, medium, medium, medium], 0x5eed);
-    const hands = Object.values(stats).reduce((n, s) => n + s.n, 0);
+    const result = simulateHands(2, [hard, medium, medium, medium], 0x5eed);
+    const hands = Object.values(result.contracts).reduce((n, s) => n + s.n, 0);
     expect(hands).toBe(2);
   }, 30_000);
 });

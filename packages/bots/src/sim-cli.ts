@@ -11,6 +11,12 @@
  * side 0 vs Easy side 1) for --games. sim:hard is the fh-7hw.5 strength-gate
  * run: it front-loads --games 200 --policies HMHM, and later flags win, so
  * appended --games/--seed/--policies override those defaults.
+ *
+ * Every --hands run ends with the fh-c6i auction-health summary (redeal
+ * rate, 7+ contract rate, set rate). The bid-timidity gates are measured at
+ * seed 0:
+ *   AC-1  --hands 5000 --seed 0                 (4 Medium)
+ *   AC-2  --hands 500 --seed 0 --policies HHHH  (4 Hard)
  */
 
 import { EasyPolicy } from './easy.js';

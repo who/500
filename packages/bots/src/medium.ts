@@ -4,8 +4,9 @@
  * void-building keeps, cheapest-winner / lose-all-duck play, slam at
  * est >= 8.0, and the joker led into the shortest held suit.
  *
- * Fidelity first: every numeric constant below is the oracle's, named once
- * in this header block with its source line —
+ * Fidelity first: every numeric constant below is the oracle's (except the
+ * tuned BID_HEADROOM, recorded as divergence fh-c6i below), named once in
+ * this header block with its source line —
  *   _suit_strength (249-271): joker 1.0; bowers 0.95; trump honors 0.55
  *     (Q+) / 0.35 (rest); side ace 0.75, side king 0.25; NT ace 0.9,
  *     king 0.5, queen 0.2
@@ -22,9 +23,9 @@
  * inputs (the oracle deals hands sorted the same way), and the parity
  * fixture records sorted contexts. Strains tie-break low (S,C,D,H,NT).
  *
- * No tuning or strength improvements here — the strength gate lives in the
- * sim-harness leaf, and the Hard bot reuses this class verbatim as its
- * rollout opponent model, so any drift compounds. Two recorded divergences:
+ * The Hard bot reuses this class verbatim as its rollout opponent model, so
+ * any drift compounds; divergences from the oracle are recorded here. Four
+ * recorded divergences:
  * (fh-zpg) the oracle's choose_bid never saw the auction, so a partner's
  * indication adds a discounted support bonus here that has no Python
  * counterpart; (fh-e52) it never saw the game score either, so an endgame
@@ -34,7 +35,9 @@
  * choose_play never saw the play history, so its declarer led its lowest
  * side card into ruffs; here a declarer-side lead in a trump contract draws
  * trump first, then cashes established side winners. Defender play (the
- * fixture context) is untouched.
+ * fixture context) is untouched. A fourth (fh-c6i): the oracle's bid
+ * headroom passed out ~91% of deals; live play uses the tuned BID_HEADROOM
+ * below, and the parity fixture replays choose_bid at ORACLE_BID_HEADROOM.
  */
 
 import type { Bid, Card, TrickPlay } from '@five-hundred/engine';
@@ -78,7 +81,19 @@ const NT_QUEEN = 0.2;
 // max-level formula (fh-7hw.3 decision).
 const NULLA_LOWNESS = 8.6;
 const NULLA_MAX_RANK = 11; // nothing above a jack
-export const BID_HEADROOM = 2.5; // max_level = min(10, int(est + 2.5))
+// The oracle's headroom (max_level = min(10, int(est + 2.5))) needs est >=
+// 4.5 to open 7, which ~91% of deals fail on ALL FOUR seats — live tables
+// redealt constantly (fh-c6i). The parity fixture replays choose_bid at this
+// value; live play uses the tuned BID_HEADROOM below.
+export const ORACLE_BID_HEADROOM = 2.5;
+// Tuned headroom (fh-c6i): opens 7 at est >= 3.0, 8 at 4.0, 9 at 5.0. The
+// measured trade-off over 5000 seeded hands of 4 Medium bots (sim-cli
+// --hands 5000 --seed 0): redeal rate 3.2% (was 90%+ of deals passed out at
+// the oracle's est >= 4.5 bar), 7+ contract rate 96.7% of deals, set rate
+// 28.0% (was ~9%) as est-3.0 openings lean on the partner and the middle.
+// Smaller values redeal too often (est >= 3.5 already passes out 29% of
+// deals); larger ones push the set rate toward the ~40% AC-1 ceiling.
+export const BID_HEADROOM = 4.0;
 export const INDICATE_EST = 4.5;
 // A partner indication promises est >= INDICATE_EST in that strain; the
 // receiver credits a discounted share of it (fh-zpg), not the full promise,
@@ -149,6 +164,13 @@ function firstMinBy(cards: readonly Card[], key: (c: Card) => number): Card {
 }
 
 export class MediumPolicy implements Policy {
+  /**
+   * Bid headroom is injectable so the oracle parity fixture can replay
+   * choose_bid at ORACLE_BID_HEADROOM; every live construction uses the
+   * tuned default (fh-c6i).
+   */
+  constructor(private readonly bidHeadroom: number = BID_HEADROOM) {}
+
   /**
    * Rough expected tricks with `strain` as trump (or NT). Oracle
    * _suit_strength (five_hundred.py 245-271); public so specs can pin the
@@ -224,7 +246,10 @@ export class MediumPolicy implements Policy {
         ownEst = own;
       }
     }
-    const maxLevel = Math.min(10, Math.trunc(est + BID_HEADROOM + endgameHeadroom(context)));
+    const maxLevel = Math.min(
+      10,
+      Math.trunc(est + this.bidHeadroom + endgameHeadroom(context)),
+    );
     if (maxLevel < 7) {
       if (mayIndicate && ownEst >= INDICATE_EST && ownBestStrain < 4) {
         return bid(IND, 6, ownBestStrain);
