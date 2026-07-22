@@ -238,6 +238,32 @@ function playGame(policies: readonly Policy[], rng: Rng): 0 | 1 {
 }
 
 /**
+ * Play one full game like {@link playGame}, but invoke `onHand` with the
+ * scored state after every hand (before the nextHand advance) and return the
+ * terminal GameState instead of just the winner. The game-log recorder
+ * (packages/learn) consumes each scored hand through `onHand`; sim.ts itself
+ * stays free of the log schema and of I/O. RNG usage matches playGame exactly,
+ * so a logged run is bit-identical to the unlogged one at the same seed.
+ */
+export function playGameRecording(
+  policies: readonly Policy[],
+  rng: Rng,
+  seed: number,
+  onHand: (state: GameState) => void,
+): GameState {
+  let state = newGame(seed);
+  for (;;) {
+    state = driveHand(state, policies, rng);
+    onHand(state);
+    if (state.game.winner !== null) return state;
+    if (state.handNumber + 1 >= MAX_GAME_HANDS) return state; // most points wins
+    const next = applyAction(state, { type: 'nextHand', seat: 0 });
+    if (!next.ok) throw new Error(`nextHand rejected: ${next.error.message}`);
+    state = next.state;
+  }
+}
+
+/**
  * Play `n` full games and count wins per side (index = seat % 2). First
  * bidder of hand 0 is seat 0 and rotates per hand, like the oracle.
  */

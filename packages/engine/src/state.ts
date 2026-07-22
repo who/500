@@ -120,8 +120,12 @@ export interface GameState {
   readonly game: GameScore;
 }
 
-/** Replay the seed stream to produce deal `index` (cheap: 45 swaps each). */
-function drawDeal(seed: number, index: number): Deal {
+/**
+ * Replay the seed stream to produce deal `index` (cheap: 45 swaps each).
+ * Exported so game-log tooling can reconstruct a hand's pristine deal from
+ * `(seed, dealsDrawn - 1)` after play has emptied the live hands.
+ */
+export function drawDeal(seed: number, index: number): Deal {
   const rng = makeRng(seed);
   let d = deal(rng);
   for (let i = 0; i < index; i++) d = deal(rng);

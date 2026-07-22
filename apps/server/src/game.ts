@@ -37,6 +37,7 @@ import type {
   StateBearingEvent,
 } from '@five-hundred/protocol';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
+import { createGameLogger, resolveGameLogConfig, type GameLogConfig, type GameLogger } from './gameLog.js';
 import { isPaused, roomView, type Room, type RoomClient } from './rooms.js';
 
 /** Game commands: everything ws.ts does not route to the room lifecycle. */
@@ -65,6 +66,8 @@ export interface GameSession {
   readonly ready: Set<number>;
   /** Bot turn driver, null when the session runs without one (test stubs). */
   driver: BotDriver | null;
+  /** Opt-in JSONL game logger, null when logging is disabled (the default). */
+  logger: GameLogger | null;
   /** Whose turn it is; rooms.ts duck-types this for the paused flag. */
   actingSeat(): number | null;
   /** True once the game reached gameOver; rooms.ts duck-types this for rematch. */
@@ -84,6 +87,11 @@ export function isGameSession(game: unknown): game is GameSession {
 export interface GameSessionOptions {
   /** Bot driver config; `null` runs without a driver (test stub mode). */
   bots?: BotDriverOptions | null;
+  /**
+   * Game-log config; omit to read it from the environment (off by default).
+   * Tests inject an explicit config to log to a temp dir or force it off.
+   */
+  log?: GameLogConfig;
 }
 
 /**
@@ -103,6 +111,7 @@ export function createGameSession(
     state: newGame(seed),
     ready: new Set(),
     driver: null,
+    logger: createGameLogger(room, seed, opts.log ?? resolveGameLogConfig()),
     actingSeat(): number | null {
       return toActSeat(session.state);
     },
@@ -208,6 +217,17 @@ export function applyGameAction(room: Room, action: Action): ApplyResult {
     broadcastAll(room, { t: 'roomState', room: roomView(room) });
   }
   session.driver?.onAdvance();
+  // Opt-in game logging: snapshot each hand as it scores, and flush the whole
+  // record once the game is over. Both transitions are crossed exactly once,
+  // so each hand is recorded once and the record is written once.
+  if (session.logger !== null) {
+    if (prev.phase !== 'handScored' && result.state.phase === 'handScored') {
+      session.logger.recordHand(result.state);
+    }
+    if (prev.phase !== 'gameOver' && result.state.phase === 'gameOver') {
+      session.logger.finish(result.state);
+    }
+  }
   // A hand that decides the game needs no ready-up: gameOver supersedes it,
   // so apply the engine's nextHand at once (handScored -> gameOver).
   if (result.state.phase === 'handScored' && result.state.game.winner !== null) {

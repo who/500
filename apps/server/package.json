@@ -12,6 +12,7 @@
   "dependencies": {
     "@five-hundred/bots": "workspace:*",
     "@five-hundred/engine": "workspace:*",
+    "@five-hundred/learn": "workspace:*",
     "@five-hundred/protocol": "workspace:*",
     "ws": "^8.21.1"
   },

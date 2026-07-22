@@ -90,6 +90,9 @@ importers:
       '@five-hundred/engine':
         specifier: workspace:*
         version: link:../../packages/engine
+      '@five-hundred/learn':
+        specifier: workspace:*
+        version: link:../../packages/learn
       '@five-hundred/protocol':
         specifier: workspace:*
         version: link:../../packages/protocol
@@ -118,6 +121,9 @@ importers:
       '@five-hundred/engine':
         specifier: workspace:*
         version: link:../engine
+      '@five-hundred/learn':
+        specifier: workspace:*
+        version: link:../learn
     devDependencies:
       tsx:
         specifier: ^4.23.1
@@ -130,6 +136,22 @@ importers:
         version: 3.2.7(@types/node@24.13.3)(jsdom@29.1.1)(lightningcss@1.33.0)(supports-color@8.1.1)(tsx@4.23.1)
 
   packages/engine:
+    devDependencies:
+      tsx:
+        specifier: ^4.23.1
+        version: 4.23.1
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.0.0
+        version: 3.2.7(@types/node@24.13.3)(jsdom@29.1.1)(lightningcss@1.33.0)(supports-color@8.1.1)(tsx@4.23.1)
+
+  packages/learn:
+    dependencies:
+      '@five-hundred/engine':
+        specifier: workspace:*
+        version: link:../engine
     devDependencies:
       tsx:
         specifier: ^4.23.1

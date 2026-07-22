@@ -1,0 +1,99 @@
+/**
+ * Opt-in JSONL game logging for the server (fh-sja.2). Off unless explicitly
+ * enabled; when enabled, every finished game appends one GameRecord to a
+ * corpus file using the shared packages/learn schema. Hand snapshots and the
+ * final record are built by the same recorder the headless sim uses — this
+ * module only supplies the env-driven config, the per-seat policy metadata,
+ * and the file sink.
+ */
+
+import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
+import type { GameState } from '@five-hundred/engine';
+import {
+  GameRecorder,
+  appendGameRecordSync,
+  type PlayerMeta,
+  type PolicyKind,
+} from '@five-hundred/learn';
+import type { Room } from './rooms.js';
+
+export interface GameLogConfig {
+  readonly enabled: boolean;
+  readonly dir: string;
+  readonly file: string;
+}
+
+/**
+ * Resolve logging config from the environment. Logging is DISABLED unless
+ * `FH_GAME_LOG` is `1`/`true`; the directory and filename have safe defaults.
+ */
+export function resolveGameLogConfig(env: NodeJS.ProcessEnv = process.env): GameLogConfig {
+  const flag = env.FH_GAME_LOG;
+  const enabled = flag === '1' || flag === 'true';
+  return {
+    enabled,
+    dir: env.FH_GAME_LOG_DIR ?? 'logs/games',
+    file: env.FH_GAME_LOG_FILE ?? 'games.jsonl',
+  };
+}
+
+/** A seat's log-schema policy kind: 'human', or the bot's difficulty tier. */
+function seatKind(room: Room, seat: number): PolicyKind {
+  const s = room.seats[seat];
+  return s !== undefined && s.kind === 'human' ? 'human' : (s?.difficulty ?? 'medium');
+}
+
+/**
+ * Accumulates a game's hands and writes one JSONL line at game end. Feed each
+ * scored hand to {@link recordHand} and the terminal state to {@link finish}.
+ */
+export class GameLogger {
+  private readonly recorder: GameRecorder;
+
+  constructor(
+    private readonly path: string,
+    seed: number,
+    players: readonly PlayerMeta[],
+  ) {
+    this.recorder = new GameRecorder({
+      source: 'server',
+      gameId: randomUUID(),
+      seed,
+      createdAt: new Date().toISOString(),
+      players,
+    });
+  }
+
+  recordHand(state: GameState): void {
+    this.recorder.recordHand(state);
+  }
+
+  /** Append the finished game to the corpus (best-effort; logs on failure). */
+  finish(state: GameState): void {
+    try {
+      appendGameRecordSync(this.path, this.recorder.finish(state));
+    } catch (err) {
+      console.error('game-log write failed:', err instanceof Error ? err.message : err);
+    }
+  }
+}
+
+/**
+ * Build a logger for a game, or null when logging is disabled. Seat metadata
+ * is captured at game start (empty seats have already been converted to bots).
+ */
+export function createGameLogger(
+  room: Room,
+  seed: number,
+  config: GameLogConfig,
+): GameLogger | null {
+  if (!config.enabled) return null;
+  const players: PlayerMeta[] = [0, 1, 2, 3].map((seat) => ({
+    seat,
+    kind: seatKind(room, seat),
+    paramsSchemaVersion: null,
+    overlayHash: null,
+  }));
+  return new GameLogger(join(config.dir, config.file), seed, players);
+}

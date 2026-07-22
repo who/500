@@ -1,5 +1,5 @@
 {
-  "name": "@five-hundred/bots",
+  "name": "@five-hundred/learn",
   "version": "0.0.0",
   "private": true,
   "type": "module",
@@ -11,13 +11,10 @@
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
-    "sim": "tsx src/sim-cli.ts",
-    "sim:hard": "tsx src/sim-cli.ts --games 200 --policies HMHM",
     "test": "vitest run"
   },
   "dependencies": {
-    "@five-hundred/engine": "workspace:*",
-    "@five-hundred/learn": "workspace:*"
+    "@five-hundred/engine": "workspace:*"
   },
   "devDependencies": {
     "tsx": "^4.23.1",

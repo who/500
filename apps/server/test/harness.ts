@@ -31,6 +31,7 @@ import {
   isGameSession,
   resumeView,
   type GameSession,
+  type GameSessionOptions,
 } from '../src/game.js';
 import { RoomStore, type Room } from '../src/rooms.js';
 import { attachWs, type WsApp } from '../src/ws.js';
@@ -48,10 +49,13 @@ export interface TestApp {
  * without the bot driver (bots: null) so the scripted stubs below keep full
  * control of bot seats; botDriver.spec.ts exercises the driver itself.
  */
-export async function startTestApp(seed: number = SEED): Promise<TestApp> {
+export async function startTestApp(
+  seed: number = SEED,
+  extra: Partial<GameSessionOptions> = {},
+): Promise<TestApp> {
   const server = createServer();
   const store = new RoomStore({
-    startGame: (room) => createGameSession(room, seed, { bots: null }),
+    startGame: (room) => createGameSession(room, seed, { bots: null, ...extra }),
     resumeView,
   });
   const app = attachWs(server, store);
