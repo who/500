@@ -67,30 +67,24 @@ import {
   trumpOf,
 } from '@five-hundred/engine';
 import { bestPlaySoFar } from './helpers.js';
+import { DEFAULT_PARAMS, type BotParams } from './params.js';
 import type { BidContext, PlayContext, Policy } from './policy.js';
 import { defaultGiveBestCard } from './policy.js';
 
-// _suit_strength weights (five_hundred.py 249-271)
-const JOKER_TRICKS = 1.0;
-const BOWER = 0.95;
-const TRUMP_HONOR = 0.55; // trump Q or better (bowers scored above)
-const TRUMP_LOW = 0.35;
-const SIDE_ACE = 0.75;
-const SIDE_KING = 0.25;
-const NT_ACE = 0.9;
-const NT_KING = 0.5;
-const NT_QUEEN = 0.2;
+// Every strategy constant below now lives in BotParams (params/default.json,
+// fh-sja.1); the names re-exported here are the checked-in defaults, kept so
+// downstream imports (the Hard bot reuses the Medium indication rule verbatim
+// and prunes rollout candidates by the same max-level formula, fh-7hw.3) and
+// the oracle parity fixture keep working unchanged. A MediumPolicy actually
+// reads whatever BotParams it was constructed with; DEFAULT_PARAMS reproduces
+// the pre-externalization numbers byte-for-byte.
 
-// choose_bid thresholds (five_hundred.py 280-289). The headroom and
-// indication thresholds are exported because the Hard bot reuses the Medium
-// indication rule verbatim and prunes rollout candidates by the same
-// max-level formula (fh-7hw.3 decision).
-const NULLA_LOWNESS = 8.6;
-const NULLA_MAX_RANK = 11; // nothing above a jack
 // The oracle's headroom (max_level = min(10, int(est + 2.5))) needs est >=
 // 4.5 to open 7, which ~91% of deals fail on ALL FOUR seats — live tables
 // redealt constantly (fh-c6i). The parity fixture replays choose_bid at this
-// value; live play uses the tuned BID_HEADROOM below.
+// value; live play uses the tuned bidding.headroom below. This stays a bare
+// constant (not a BotParams knob): it pins a historical baseline the fixture
+// asserts against, not a tunable.
 export const ORACLE_BID_HEADROOM = 2.5;
 // Tuned headroom (fh-c6i): opens 7 at est >= 3.0, 8 at 4.0, 9 at 5.0. The
 // measured trade-off over 5000 seeded hands of 4 Medium bots (sim-cli
@@ -100,16 +94,13 @@ export const ORACLE_BID_HEADROOM = 2.5;
 // est-3.0 openings lean on the partner and the middle.
 // Smaller values redeal too often (est >= 3.5 already passes out 29% of
 // deals); larger ones push the set rate toward the ~40% AC-1 ceiling.
-export const BID_HEADROOM = 4.0;
-export const INDICATE_EST = 4.5;
+export const BID_HEADROOM = DEFAULT_PARAMS.bidding.headroom;
+export const INDICATE_EST = DEFAULT_PARAMS.bidding.indicateEst;
 // A partner indication promises est >= INDICATE_EST in that strain; the
 // receiver credits a discounted share of it (fh-zpg), not the full promise,
 // so a clearly stronger own-suit plan (raw edge > the bonus) still wins.
 // Deliberately beyond the oracle: choose_bid never saw the auction at all.
-export const PARTNER_INDICATION_BONUS = 2.0;
-
-// consider_slam threshold (five_hundred.py 346)
-const SLAM_EST = 8.0;
+export const PARTNER_INDICATION_BONUS = DEFAULT_PARAMS.bidding.partnerIndicationBonus;
 
 // Endgame aggression (fh-e52, no oracle counterpart: choose_bid never saw
 // the game score). When the opponents end the game by winning this auction,
@@ -118,17 +109,19 @@ const SLAM_EST = 8.0;
 // out on defender tricks (10/trick), where owning the contract is the only
 // remaining lever. Values below WIN_SCORE - CHEAPEST_CONTRACT leave the bid
 // gate untouched, so play away from the endgame is byte-identical.
-export const CHEAPEST_CONTRACT = 140; // 7S, the lowest winning bid's value
-export const ENDGAME_HEADROOM = 1.5;
-export const DESPERATE_HEADROOM = 2.5;
+export const CHEAPEST_CONTRACT = DEFAULT_PARAMS.endgame.cheapestContract; // 7S value
+export const ENDGAME_HEADROOM = DEFAULT_PARAMS.endgame.headroom;
+export const DESPERATE_HEADROOM = DEFAULT_PARAMS.endgame.desperateHeadroom;
 // Four defender tricks (40 pts) end the game from here even if we declare.
-export const DESPERATE_SCORE = 460;
+export const DESPERATE_SCORE = DEFAULT_PARAMS.endgame.desperateScore;
 
 /** Extra bid headroom the game score justifies for the seat's side. */
-export function endgameHeadroom(context: BidContext): number {
+export function endgameHeadroom(context: BidContext, params: BotParams = DEFAULT_PARAMS): number {
   const oppScore = context.scores[1 - (context.seat % 2)] as number;
-  if (oppScore + CHEAPEST_CONTRACT < WIN_SCORE) return 0;
-  return oppScore >= DESPERATE_SCORE ? DESPERATE_HEADROOM : ENDGAME_HEADROOM;
+  if (oppScore + params.endgame.cheapestContract < WIN_SCORE) return 0;
+  return oppScore >= params.endgame.desperateScore
+    ? params.endgame.desperateHeadroom
+    : params.endgame.headroom;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -172,11 +165,13 @@ function firstMinBy(cards: readonly Card[], key: (c: Card) => number): Card {
 
 export class MediumPolicy implements Policy {
   /**
-   * Bid headroom is injectable so the oracle parity fixture can replay
-   * choose_bid at ORACLE_BID_HEADROOM; every live construction uses the
-   * tuned default (fh-c6i).
+   * All strategy constants come from the injected BotParams (fh-sja.1),
+   * defaulting to the checked-in DEFAULT_PARAMS. The oracle parity fixture
+   * replays choose_bid by constructing with a params whose bidding.headroom is
+   * ORACLE_BID_HEADROOM; every live construction uses the tuned default
+   * (fh-c6i).
    */
-  constructor(private readonly bidHeadroom: number = BID_HEADROOM) {}
+  constructor(private readonly params: BotParams = DEFAULT_PARAMS) {}
 
   /**
    * Rough expected tricks with `strain` as trump (or NT). Oracle
@@ -185,22 +180,23 @@ export class MediumPolicy implements Policy {
    */
   suitStrength(hand: readonly Card[], strain: number): number {
     const trump = strain !== NT ? strain : null;
+    const w = this.params.suitStrength;
     const sorted = [...hand].sort(ascending);
     let score = 0.0;
-    if (sorted.includes(JOKER)) score += JOKER_TRICKS;
+    if (sorted.includes(JOKER)) score += w.joker;
     for (const c of sorted) {
       if (c === JOKER) continue;
       const s = cardSuit(c) as number;
       const r = cardRank(c) as number;
       if (trump !== null) {
-        if (r === 11 && (s === trump || s === SAME_COLOR[trump])) score += BOWER;
-        else if (s === trump) score += r >= 12 ? TRUMP_HONOR : TRUMP_LOW;
-        else if (r === 14) score += SIDE_ACE;
-        else if (r === 13) score += SIDE_KING;
+        if (r === 11 && (s === trump || s === SAME_COLOR[trump])) score += w.bower;
+        else if (s === trump) score += r >= 12 ? w.trumpHonor : w.trumpLow;
+        else if (r === 14) score += w.sideAce;
+        else if (r === 13) score += w.sideKing;
       } else {
-        if (r === 14) score += NT_ACE;
-        else if (r === 13) score += NT_KING;
-        else if (r === 12) score += NT_QUEEN;
+        if (r === 14) score += w.ntAce;
+        else if (r === 13) score += w.ntKing;
+        else if (r === 12) score += w.ntQueen;
       }
     }
     return score;
@@ -222,13 +218,14 @@ export class MediumPolicy implements Policy {
     mayIndicate: boolean,
     context: BidContext,
   ): Bid {
+    const p = this.params;
     const sorted = [...hand].sort(ascending);
     // Lose-all option: uniformly low hand, no joker, nothing above a jack.
     if (
       sorted.length > 0 &&
       !sorted.includes(JOKER) &&
-      this.lowness(sorted) >= NULLA_LOWNESS &&
-      Math.max(...sorted.map((c) => cardRank(c) as number)) <= NULLA_MAX_RANK
+      this.lowness(sorted) >= p.bidding.nullaLowness &&
+      Math.max(...sorted.map((c) => cardRank(c) as number)) <= p.bidding.nullaMaxRank
     ) {
       const nullaI = ladderIndex(bid(NULLA)) as number;
       if (nullaI > ladderPos) return bid(NULLA);
@@ -242,7 +239,7 @@ export class MediumPolicy implements Policy {
       const own = this.suitStrength(sorted, s);
       const strength =
         partnerInd !== undefined && partnerInd.bid.strain === s
-          ? own + PARTNER_INDICATION_BONUS
+          ? own + p.bidding.partnerIndicationBonus
           : own;
       if (strength > est) {
         bestStrain = s;
@@ -255,10 +252,10 @@ export class MediumPolicy implements Policy {
     }
     const maxLevel = Math.min(
       10,
-      Math.trunc(est + this.bidHeadroom + endgameHeadroom(context)),
+      Math.trunc(est + p.bidding.headroom + endgameHeadroom(context, p)),
     );
     if (maxLevel < 7) {
-      if (mayIndicate && ownEst >= INDICATE_EST && ownBestStrain < 4) {
+      if (mayIndicate && ownEst >= p.bidding.indicateEst && ownBestStrain < 4) {
         return bid(IND, 6, ownBestStrain);
       }
       return bid(PASS);
@@ -343,7 +340,7 @@ export class MediumPolicy implements Policy {
 
   considerSlam(hand15: readonly Card[], contract: Bid): boolean {
     if (contract.kind !== NUM) return false;
-    return this.suitStrength(hand15, contract.strain) >= SLAM_EST;
+    return this.suitStrength(hand15, contract.strain) >= this.params.slam.est;
   }
 
   giveBestCard(hand: readonly Card[], contract: Bid): Card {

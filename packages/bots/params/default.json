@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "suitStrength": {
+    "joker": 1.0,
+    "bower": 0.95,
+    "trumpHonor": 0.55,
+    "trumpLow": 0.35,
+    "sideAce": 0.75,
+    "sideKing": 0.25,
+    "ntAce": 0.9,
+    "ntKing": 0.5,
+    "ntQueen": 0.2
+  },
+  "bidding": {
+    "headroom": 4.0,
+    "indicateEst": 4.5,
+    "partnerIndicationBonus": 2.0,
+    "nullaLowness": 8.6,
+    "nullaMaxRank": 11
+  },
+  "slam": {
+    "est": 8.0
+  },
+  "endgame": {
+    "cheapestContract": 140,
+    "headroom": 1.5,
+    "desperateHeadroom": 2.5,
+    "desperateScore": 460
+  },
+  "hardBidding": {
+    "rolloutWorlds": 16,
+    "bidMargin": 10,
+    "slamMargin": 25,
+    "nullaCandLowness": 8.0,
+    "nullaCandMaxRank": 12,
+    "dnullaCandLowness": 8.6,
+    "dnullaCandMaxRank": 11,
+    "indWorldTries": 20
+  },
+  "hardKeeps": {
+    "keepWorlds": 30,
+    "marginalKeeps": 3,
+    "nearMarginalDiscards": 4,
+    "maxCandidates": 12
+  },
+  "hardPlay": {
+    "worldsFloor": 20,
+    "worldsCap": 200
+  }
+}

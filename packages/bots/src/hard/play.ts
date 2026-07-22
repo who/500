@@ -27,16 +27,21 @@
 import type { Action, Card, GameState, Rng } from '@five-hundred/engine';
 import { JOKER, legalPlaysFor, playToAct } from '@five-hundred/engine';
 import { MediumPolicy } from '../medium.js';
+import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import { mustApply } from './bidding.js';
 import type { SampledWorld } from './worlds.js';
 import { deriveConstraints, sampleWorld } from './worlds.js';
 
+// The world-count knobs below now live in BotParams (hardPlay group,
+// fh-sja.1); the names re-exported here are the checked-in defaults. A
+// HardPolicy threads its own BotParams into choosePlayByRollout.
+
 /** Fewest worlds a rollout average may rest on; also the fixed-mode default. */
-export const PLAY_WORLDS_FLOOR = 20;
+export const PLAY_WORLDS_FLOOR = DEFAULT_PARAMS.hardPlay.worldsFloor;
 /** Most worlds a budget-mode decision samples even with time to spare (PRD 4.3). */
-export const PLAY_WORLDS_CAP = 200;
+export const PLAY_WORLDS_CAP = DEFAULT_PARAMS.hardPlay.worldsCap;
 
 /** How a rollout decision went; budget-mode telemetry for logging/benching. */
 export interface HardPlayDecision {
@@ -61,10 +66,19 @@ export interface HardPlayOptions {
   readonly now?: () => number;
   /** Called once per multi-card decision with what the rollout achieved. */
   readonly onDecision?: (decision: HardPlayDecision) => void;
+  /** Strategy constants; defaults to DEFAULT_PARAMS. */
+  readonly params?: BotParams;
 }
 
 const MEDIUM = new MediumPolicy();
 const POLICIES: readonly Policy[] = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
+
+/** Four Medium seats sharing the given params (the default-fast-path reuses POLICIES). */
+function playPolicies(params: BotParams): readonly Policy[] {
+  if (params === DEFAULT_PARAMS) return POLICIES;
+  const m = new MediumPolicy(params);
+  return [m, m, m, m];
+}
 
 /** Points delta for `seat`'s side out of a scored hand. */
 export function sideDeltaFor(state: GameState, seat: number): number {
@@ -89,8 +103,14 @@ export function determinize(state: GameState, world: SampledWorld): GameState {
 }
 
 /** Play `card` in the determinized state and Medium the hand to its score. */
-function playout(base: GameState, action: Action, seat: number, rng: Rng): number {
-  const scored = driveHand(mustApply(base, action), POLICIES, rng);
+function playout(
+  base: GameState,
+  action: Action,
+  seat: number,
+  rng: Rng,
+  policies: readonly Policy[],
+): number {
+  const scored = driveHand(mustApply(base, action), policies, rng);
   return sideDeltaFor(scored, seat);
 }
 
@@ -117,14 +137,17 @@ export function choosePlayByRollout(
   if (first === undefined) throw new Error(`seat ${seat} has no legal play`);
   if (legal.length === 1) return first; // instant: no sampling, no clock
 
+  const params = options.params ?? DEFAULT_PARAMS;
+  const medium = params === DEFAULT_PARAMS ? MEDIUM : new MediumPolicy(params);
+  const policies = playPolicies(params);
   const deadline = options.deadlineMs;
   const now = options.now ?? Date.now;
   const start = deadline !== undefined ? now() : 0;
-  const floor = Math.max(1, options.minWorlds ?? PLAY_WORLDS_FLOOR);
+  const floor = Math.max(1, options.minWorlds ?? params.hardPlay.worldsFloor);
   const cap =
     deadline !== undefined
-      ? Math.max(floor, options.maxWorlds ?? PLAY_WORLDS_CAP)
-      : Math.max(1, options.worlds ?? PLAY_WORLDS_FLOOR);
+      ? Math.max(floor, options.maxWorlds ?? params.hardPlay.worldsCap)
+      : Math.max(1, options.worlds ?? params.hardPlay.worldsFloor);
 
   // A joker led with no trump names a suit; the choice depends only on the
   // viewer's own fixed hand, so make it once and reuse it in every world.
@@ -133,7 +156,7 @@ export function choosePlayByRollout(
   const actionFor = (card: Card): Action => {
     if (card === JOKER && play.trump === null && play.ledSuit === null) {
       const rest = (play.hands[seat] ?? []).filter((c) => c !== JOKER);
-      return { type: 'playCard', seat, card, jokerSuit: MEDIUM.chooseJokerSuit(rest) };
+      return { type: 'playCard', seat, card, jokerSuit: medium.chooseJokerSuit(rest) };
     }
     return { type: 'playCard', seat, card };
   };
@@ -146,7 +169,7 @@ export function choosePlayByRollout(
     if (deadline !== undefined && now() - start >= deadline) break;
     const base = determinize(state, sampleWorld(constraints, rng));
     for (let i = 0; i < actions.length; i++) {
-      totals[i] = (totals[i] as number) + playout(base, actions[i] as Action, seat, rng);
+      totals[i] = (totals[i] as number) + playout(base, actions[i] as Action, seat, rng, policies);
     }
     worldsDone++;
   }
@@ -156,7 +179,7 @@ export function choosePlayByRollout(
     // Too few worlds to trust the averages: the budget was missed, so take
     // Medium's heuristic choice instead (packet fallback, reported for logs).
     options.onDecision?.({ seat, worldsDone, elapsedMs, fellBack: true });
-    return MEDIUM.choosePlay(
+    return medium.choosePlay(
       seat,
       play.hands[seat] ?? [],
       legal,

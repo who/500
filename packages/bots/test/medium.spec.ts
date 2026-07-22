@@ -37,7 +37,7 @@ import {
   toActSeat,
 } from '@five-hundred/engine';
 import type { Policy } from '../src/index.js';
-import { MediumPolicy, ORACLE_BID_HEADROOM } from '../src/index.js';
+import { DEFAULT_PARAMS, MediumPolicy, ORACLE_BID_HEADROOM, mergeParams } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // GameState -> Policy driver (mirrors the oracle's play_hand call sites)
@@ -165,7 +165,9 @@ const noRng: Rng = {
 const HEARTS10 = bid(NUM, 10, 3);
 const medium = new MediumPolicy();
 /** Oracle-headroom instance: replays the fixture's choose_bid contexts. */
-const oracleMedium = new MediumPolicy(ORACLE_BID_HEADROOM);
+const oracleMedium = new MediumPolicy(
+  mergeParams(DEFAULT_PARAMS, { bidding: { headroom: ORACLE_BID_HEADROOM } }),
+);
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
 /**
  * Play context that makes seat 0 a DEFENDER with no history — the declarer-side

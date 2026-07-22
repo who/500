@@ -56,21 +56,19 @@ import {
   ladderIndex,
   partnerOf,
 } from '@five-hundred/engine';
-import {
-  BID_HEADROOM,
-  CHEAPEST_CONTRACT,
-  DESPERATE_SCORE,
-  INDICATE_EST,
-  MediumPolicy,
-  endgameHeadroom,
-} from '../medium.js';
+import { MediumPolicy, endgameHeadroom } from '../medium.js';
+import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
 
+// Every gate below now lives in BotParams (hardBidding group, fh-sja.1); the
+// names re-exported here are the checked-in defaults, kept for downstream
+// imports. A HardPolicy threads its own BotParams into every function here.
+
 /** Default shared rollout worlds per decision (fh-7hw.4 adapts this). */
-export const ROLLOUT_WORLDS = 16;
+export const ROLLOUT_WORLDS = DEFAULT_PARAMS.hardBidding.rolloutWorlds;
 /**
  * EV edge over the pass baseline required to bid. Originally +25, which with
  * noisy small-world rollouts suppressed close-but-positive bids and passed
@@ -80,17 +78,9 @@ export const ROLLOUT_WORLDS = 16;
  * deals, set rate 32.0%, and the Hard-beats-Medium strength gate stays
  * green (both sides >= 60% at the suite budget).
  */
-export const BID_MARGIN = 10;
+export const BID_MARGIN = DEFAULT_PARAMS.hardBidding.bidMargin;
 /** EV edge of the slam variant over non-slam required to declare. */
-export const SLAM_MARGIN = 25;
-
-// Candidate gates for the lose-all contracts. NULLA is looser than Medium's
-// own 8.6/jack gate so the rollout, not the heuristic, gets the final say;
-// DNULLA demands Medium's full gate because the partner's half is unknown.
-const NULLA_CAND_LOWNESS = 8.0;
-const NULLA_CAND_MAX_RANK = 12; // nothing above a queen
-const DNULLA_CAND_LOWNESS = 8.6;
-const DNULLA_CAND_MAX_RANK = 11; // nothing above a jack
+export const SLAM_MARGIN = DEFAULT_PARAMS.hardBidding.slamMargin;
 
 export interface HardBidOptions {
   /** Worlds sampled per decision, shared across candidates. Min 1. */
@@ -99,6 +89,8 @@ export interface HardBidOptions {
   readonly margin?: number;
   /** EV edge of slam over non-slam required to declare. */
   readonly slamMargin?: number;
+  /** Strategy constants; defaults to DEFAULT_PARAMS. */
+  readonly params?: BotParams;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -114,24 +106,27 @@ export const ROLLOUT_PARTNER = 2;
  * this many misses the strongest sampled partner hand is kept, so the bias
  * survives even when the promise is unreachable given the visible cards.
  */
-export const IND_WORLD_TRIES = 20;
+export const IND_WORLD_TRIES = DEFAULT_PARAMS.hardBidding.indWorldTries;
 
 /**
  * Sample a world whose partner hand honors an indication of `strain`: keep
  * the first sample whose partner suitStrength meets the indication promise
- * (INDICATE_EST), else the strongest of IND_WORLD_TRIES draws (fh-zpg).
+ * (bidding.indicateEst), else the strongest of hardBidding.indWorldTries draws
+ * (fh-zpg).
  */
 export function samplePartnerIndicationWorld(
   constraints: ObservedConstraints,
   strain: number,
   rng: Rng,
+  params: BotParams = DEFAULT_PARAMS,
 ): SampledWorld {
+  const opponent = new MediumPolicy(params);
   let best: SampledWorld | null = null;
   let bestEst = -Infinity;
-  for (let t = 0; t < IND_WORLD_TRIES; t++) {
+  for (let t = 0; t < params.hardBidding.indWorldTries; t++) {
     const world = sampleWorld(constraints, rng);
-    const est = OPPONENT.suitStrength(world.hands[ROLLOUT_PARTNER] ?? [], strain);
-    if (est >= INDICATE_EST) return world;
+    const est = opponent.suitStrength(world.hands[ROLLOUT_PARTNER] ?? [], strain);
+    if (est >= params.bidding.indicateEst) return world;
     if (est > bestEst) {
       best = world;
       bestEst = est;
@@ -142,8 +137,11 @@ export function samplePartnerIndicationWorld(
 
 /** Medium everywhere, with seat 0's slam answer scripted per variant. */
 class ScriptedSlamMedium extends MediumPolicy {
-  constructor(private readonly slamAnswer: boolean) {
-    super();
+  constructor(
+    private readonly slamAnswer: boolean,
+    params: BotParams = DEFAULT_PARAMS,
+  ) {
+    super(params);
   }
   override considerSlam(): boolean {
     return this.slamAnswer;
@@ -152,8 +150,9 @@ class ScriptedSlamMedium extends MediumPolicy {
 
 const OPPONENT = new MediumPolicy();
 
-function rolloutPolicies(slamAnswer: boolean): readonly Policy[] {
-  return [new ScriptedSlamMedium(slamAnswer), OPPONENT, OPPONENT, OPPONENT];
+function rolloutPolicies(slamAnswer: boolean, params: BotParams = DEFAULT_PARAMS): readonly Policy[] {
+  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new MediumPolicy(params);
+  return [new ScriptedSlamMedium(slamAnswer, params), opponent, opponent, opponent];
 }
 
 /** Auction-time constraints: nothing is known beyond the viewer's own cards. */
@@ -261,9 +260,10 @@ function rolloutContract(
   candidate: Bid,
   rng: Rng,
   scores: readonly [number, number],
+  params: BotParams = DEFAULT_PARAMS,
 ): number {
   let st = scriptAuction(worldDeal(myTen, world, world.dead), candidate);
-  st = driveHand(st, rolloutPolicies(false), rng);
+  st = driveHand(st, rolloutPolicies(false, params), rng);
   return sideZeroGameValue(st, scores);
 }
 
@@ -278,8 +278,10 @@ function rolloutPass(
   world: SampledWorld,
   rng: Rng,
   scores: readonly [number, number],
+  params: BotParams = DEFAULT_PARAMS,
 ): number {
   // MediumPolicy.chooseBid is deterministic and declares no rng parameter.
+  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new MediumPolicy(params);
   let st = worldDeal(myTen, world, world.dead);
   let guard = 0;
   while (st.phase === 'auction') {
@@ -293,7 +295,7 @@ function rolloutPass(
     const b: Bid =
       seat === ME
         ? bid(PASS)
-        : OPPONENT.chooseBid(st.hands[seat] ?? [], auction.ladderPos, mayIndicate, {
+        : opponent.chooseBid(st.hands[seat] ?? [], auction.ladderPos, mayIndicate, {
             seat,
             indications: auction.indications,
             scores,
@@ -310,7 +312,7 @@ function rolloutPass(
     }
     st = mustApply(st, { type: 'bid', seat, bid: b });
   }
-  st = driveHand(st, rolloutPolicies(false), rng);
+  st = driveHand(st, rolloutPolicies(false, params), rng);
   return sideZeroGameValue(st, scores);
 }
 
@@ -326,7 +328,9 @@ export function candidateBids(
   ladderPos: number,
   indicatedStrain: number | null = null,
   extraHeadroom = 0,
+  params: BotParams = DEFAULT_PARAMS,
 ): Bid[] {
+  const opponent = new MediumPolicy(params);
   const sorted = [...hand].sort(ascending);
   const candidates: Bid[] = [];
   for (let s = 0; s < 5; s++) {
@@ -341,7 +345,7 @@ export function candidateBids(
     if (lowest === null) continue;
     const maxLevel = Math.min(
       10,
-      Math.trunc(OPPONENT.suitStrength(sorted, s) + BID_HEADROOM + extraHeadroom),
+      Math.trunc(opponent.suitStrength(sorted, s) + params.bidding.headroom + extraHeadroom),
     );
     // Prune strains the Medium formula puts more than one level out of
     // reach; the rollout gets to stretch exactly one level past Medium.
@@ -352,12 +356,13 @@ export function candidateBids(
     }
   }
   if (!sorted.includes(JOKER) && sorted.length > 0) {
-    const lowness = OPPONENT.lowness(sorted);
+    const lowness = opponent.lowness(sorted);
     const maxRank = Math.max(...sorted.map((c) => cardRank(c) as number));
-    if (lowness >= NULLA_CAND_LOWNESS && maxRank <= NULLA_CAND_MAX_RANK) {
+    const hb = params.hardBidding;
+    if (lowness >= hb.nullaCandLowness && maxRank <= hb.nullaCandMaxRank) {
       if ((ladderIndex(bid(NULLA)) as number) > ladderPos) candidates.push(bid(NULLA));
     }
-    if (lowness >= DNULLA_CAND_LOWNESS && maxRank <= DNULLA_CAND_MAX_RANK) {
+    if (lowness >= hb.dnullaCandLowness && maxRank <= hb.dnullaCandMaxRank) {
       if ((ladderIndex(bid(DNULLA)) as number) > ladderPos) candidates.push(bid(DNULLA));
     }
   }
@@ -380,8 +385,10 @@ export function chooseBidByRollout(
   rng: Rng,
   options: HardBidOptions = {},
 ): Bid {
-  const worlds = Math.max(1, options.worlds ?? ROLLOUT_WORLDS);
-  const margin = options.margin ?? BID_MARGIN;
+  const params = options.params ?? DEFAULT_PARAMS;
+  const worlds = Math.max(1, options.worlds ?? params.hardBidding.rolloutWorlds);
+  const margin = options.margin ?? params.hardBidding.bidMargin;
+  const opponent = new MediumPolicy(params);
   const sorted = [...hand].sort(ascending);
   const partnerInd = context.indications.find((i) => i.seat === partnerOf(context.seat));
   const partnerStrain = partnerInd !== undefined ? partnerInd.bid.strain : null;
@@ -397,25 +404,27 @@ export function chooseBidByRollout(
     let bestStrain = 0;
     let est = -Infinity;
     for (let s = 0; s < 5; s++) {
-      const strength = OPPONENT.suitStrength(sorted, s);
+      const strength = opponent.suitStrength(sorted, s);
       if (strength > est) {
         bestStrain = s;
         est = strength;
       }
     }
-    if (mayIndicate && est >= INDICATE_EST && bestStrain < 4) return bid(IND, 6, bestStrain);
+    if (mayIndicate && est >= params.bidding.indicateEst && bestStrain < 4) {
+      return bid(IND, 6, bestStrain);
+    }
     return bid(PASS);
   };
 
-  const stretch = endgameHeadroom(context);
-  const candidates = candidateBids(sorted, ladderPos, partnerStrain, stretch);
+  const stretch = endgameHeadroom(context, params);
+  const candidates = candidateBids(sorted, ladderPos, partnerStrain, stretch, params);
   // From a DESPERATE losing endgame (opponents go out on defender tricks, so
   // failing a denial bid costs nothing extra), also offer each strain's
   // cheapest GAME-WINNING level and let the rollout decide whether the
   // moonshot beats the slow bleed (fh-e52). Not in the wider stretch band:
   // there a crashed moonshot feeds the leaders 10/trick and digs the hole
   // faster than passing would — deny at the 7/8 level instead.
-  if (myScores[1] >= DESPERATE_SCORE && myScores[0] < myScores[1]) {
+  if (myScores[1] >= params.endgame.desperateScore && myScores[0] < myScores[1]) {
     const needed = WIN_SCORE - myScores[0];
     for (let s = 0; s < 5; s++) {
       for (let i = ladderPos + 1; i < LADDER.length; i++) {
@@ -434,7 +443,7 @@ export function chooseBidByRollout(
     sampled.push(
       partnerStrain === null
         ? sampleWorld(constraints, rng)
-        : samplePartnerIndicationWorld(constraints, partnerStrain, rng),
+        : samplePartnerIndicationWorld(constraints, partnerStrain, rng, params),
     );
   }
 
@@ -445,17 +454,17 @@ export function chooseBidByRollout(
   let passEV: number;
   if (stretch > 0) {
     let passTotal = 0;
-    for (const world of sampled) passTotal += rolloutPass(sorted, world, rng, myScores);
+    for (const world of sampled) passTotal += rolloutPass(sorted, world, rng, myScores, params);
     passEV = passTotal / sampled.length;
   } else {
-    passEV = rolloutPass(sorted, sampled[0] as SampledWorld, rng, myScores);
+    passEV = rolloutPass(sorted, sampled[0] as SampledWorld, rng, myScores, params);
   }
   let best: Bid | null = null;
   let bestEV = -Infinity;
   for (const candidate of candidates) {
     let total = 0;
     for (const world of sampled) {
-      total += rolloutContract(sorted, world, candidate, rng, myScores);
+      total += rolloutContract(sorted, world, candidate, rng, myScores, params);
     }
     const ev = total / sampled.length;
     if (ev > bestEV) {
@@ -475,7 +484,9 @@ export function chooseBidByRollout(
   if (best !== null) {
     const nearCertain = GAME_WIN_VALUE * 0.9;
     if (stretch > 0 && passEV <= -nearCertain && bestEV > passEV) return best;
-    if (myScores[0] + CHEAPEST_CONTRACT >= WIN_SCORE && bestEV >= nearCertain) return best;
+    if (myScores[0] + params.endgame.cheapestContract >= WIN_SCORE && bestEV >= nearCertain) {
+      return best;
+    }
   }
   return indicationOrPass();
 }
@@ -492,9 +503,10 @@ function rolloutSlamVariant(
   contract: Bid,
   slam: boolean,
   rng: Rng,
+  params: BotParams = DEFAULT_PARAMS,
 ): number {
   let st = scriptAuction(worldDeal(my15.slice(0, 10), world, my15.slice(10)), contract);
-  st = driveHand(st, rolloutPolicies(slam), rng);
+  st = driveHand(st, rolloutPolicies(slam, params), rng);
   return sideZeroDelta(st);
 }
 
@@ -514,15 +526,16 @@ export function considerSlamByRollout(
   if (hand15.length !== 15) {
     throw new Error(`considerSlam expects the 15 picked-up cards, got ${hand15.length}`);
   }
-  const worlds = Math.max(1, options.worlds ?? ROLLOUT_WORLDS);
-  const slamMargin = options.slamMargin ?? SLAM_MARGIN;
+  const params = options.params ?? DEFAULT_PARAMS;
+  const worlds = Math.max(1, options.worlds ?? params.hardBidding.rolloutWorlds);
+  const slamMargin = options.slamMargin ?? params.hardBidding.slamMargin;
   const sorted = [...hand15].sort(ascending);
   const constraints = unseenConstraints(sorted);
   let diff = 0;
   for (let i = 0; i < worlds; i++) {
     const world = sampleWorld(constraints, rng);
-    diff += rolloutSlamVariant(sorted, world, contract, true, rng);
-    diff -= rolloutSlamVariant(sorted, world, contract, false, rng);
+    diff += rolloutSlamVariant(sorted, world, contract, true, rng, params);
+    diff -= rolloutSlamVariant(sorted, world, contract, false, rng, params);
   }
   return diff / worlds >= slamMargin;
 }

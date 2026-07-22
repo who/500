@@ -14,6 +14,7 @@ export function engineDependencyName(): string {
   return ENGINE_NAME;
 }
 
+export * from './params.js';
 export * from './policy.js';
 export * from './helpers.js';
 export * from './easy.js';

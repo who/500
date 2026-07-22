@@ -22,6 +22,7 @@
 import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import { JOKER } from '@five-hundred/engine';
 import { MediumPolicy } from '../medium.js';
+import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, PlayChoice, PlayContext, StateAwarePolicy } from '../policy.js';
 import { defaultGiveBestCard } from '../policy.js';
 import { chooseBidByRollout, considerSlamByRollout } from './bidding.js';
@@ -36,14 +37,24 @@ export interface HardPolicyOptions {
   readonly keepWorlds?: number;
   /** Card-play rollout config (fixed worlds or a wall-clock deadline). */
   readonly play?: HardPlayOptions;
+  /**
+   * Strategy constants threaded into every rollout (fh-sja.1); defaults to
+   * the checked-in DEFAULT_PARAMS. Both this policy and the Medium opponent
+   * models inside its rollouts read from here.
+   */
+  readonly params?: BotParams;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
 
 export class HardPolicy implements StateAwarePolicy {
-  private readonly medium = new MediumPolicy();
+  private readonly params: BotParams;
+  private readonly medium: MediumPolicy;
 
-  constructor(private readonly options: HardPolicyOptions = {}) {}
+  constructor(private readonly options: HardPolicyOptions = {}) {
+    this.params = options.params ?? DEFAULT_PARAMS;
+    this.medium = new MediumPolicy(this.params);
+  }
 
   chooseBid(
     hand: readonly Card[],
@@ -54,15 +65,22 @@ export class HardPolicy implements StateAwarePolicy {
   ): Bid {
     return chooseBidByRollout(hand, ladderPos, mayIndicate, context, rng, {
       worlds: this.options.bidWorlds,
+      params: this.params,
     });
   }
 
   chooseKeeps(cards: readonly Card[], contract: Bid, rng: Rng): Card[] {
-    return chooseKeepsByRollout(cards, contract, rng, { worlds: this.options.keepWorlds });
+    return chooseKeepsByRollout(cards, contract, rng, {
+      worlds: this.options.keepWorlds,
+      params: this.params,
+    });
   }
 
   considerSlam(hand15: readonly Card[], contract: Bid, rng: Rng): boolean {
-    return considerSlamByRollout(hand15, contract, rng, { worlds: this.options.bidWorlds });
+    return considerSlamByRollout(hand15, contract, rng, {
+      worlds: this.options.bidWorlds,
+      params: this.params,
+    });
   }
 
   giveBestCard(hand: readonly Card[], contract: Bid): Card {
@@ -91,7 +109,10 @@ export class HardPolicy implements StateAwarePolicy {
   }
 
   choosePlayFromState(state: GameState, seat: number, rng: Rng): PlayChoice {
-    const card = choosePlayByRollout(state, seat, rng, this.options.play);
+    const card = choosePlayByRollout(state, seat, rng, {
+      ...this.options.play,
+      params: this.params,
+    });
     const play = state.play;
     if (
       play !== null &&

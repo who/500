@@ -1,0 +1,4 @@
+# Local BotParams overlay (fh-sja.1): a git-ignored tuning artifact deep-merged
+# over default.json at load. The checked-in default.json stays the source of
+# truth; only local.json is ignored.
+local.json

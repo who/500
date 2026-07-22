@@ -53,33 +53,47 @@ import {
   trumpOf,
 } from '@five-hundred/engine';
 import { MediumPolicy } from '../medium.js';
+import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import { ME, mustApply, scriptAuction, sideZeroDelta, worldDeal } from './bidding.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
 
+// The keep gates below now live in BotParams (hardKeeps group, fh-sja.1); the
+// names re-exported here are the checked-in defaults. A HardPolicy threads its
+// own BotParams into every function here.
+
 /**
  * Default worlds per keep decision — the packet's floor of 30; fh-7hw.4
  * adapts upward from here against its time budget.
  */
-export const KEEP_WORLDS = 30;
+export const KEEP_WORLDS = DEFAULT_PARAMS.hardKeeps.keepWorlds;
 /** Kept cards nearest the keep/discard boundary eligible to swap out. */
-export const MARGINAL_KEEPS = 3;
+export const MARGINAL_KEEPS = DEFAULT_PARAMS.hardKeeps.marginalKeeps;
 /** Discarded cards nearest the boundary eligible to swap in. */
-export const NEAR_MARGINAL_DISCARDS = 4;
+export const NEAR_MARGINAL_DISCARDS = DEFAULT_PARAMS.hardKeeps.nearMarginalDiscards;
 /** Candidate cap (base + swaps), per the packet's ~12. */
-export const MAX_CANDIDATES = 12;
+export const MAX_CANDIDATES = DEFAULT_PARAMS.hardKeeps.maxCandidates;
 
 export interface HardKeepsOptions {
   /** Worlds sampled per decision, shared across candidates. Min 1. */
   readonly worlds?: number;
+  /** Strategy constants; defaults to DEFAULT_PARAMS. */
+  readonly params?: BotParams;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
 
 const MEDIUM = new MediumPolicy();
 const POLICIES: readonly Policy[] = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
+
+/** Four Medium seats sharing the given params (the default-fast-path reuses POLICIES). */
+function keepsPolicies(params: BotParams): readonly Policy[] {
+  if (params === DEFAULT_PARAMS) return POLICIES;
+  const m = new MediumPolicy(params);
+  return [m, m, m, m];
+}
 
 /**
  * Candidate keep-sets: Medium's chooseKeeps as the base (for lose-all that
@@ -90,9 +104,13 @@ const POLICIES: readonly Policy[] = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
  * needed; the order (base first, then by boundary distance) is what the
  * first-in-order tie break resolves against.
  */
-export function candidateKeeps(cards: readonly Card[], contract: Bid): Card[][] {
+export function candidateKeeps(
+  cards: readonly Card[],
+  contract: Bid,
+  params: BotParams = DEFAULT_PARAMS,
+): Card[][] {
   const sorted = [...cards].sort(ascending);
-  const base = MEDIUM.chooseKeeps(sorted, contract);
+  const base = new MediumPolicy(params).chooseKeeps(sorted, contract);
   const keepSet = new Set(base);
   const discards = sorted.filter((c) => !keepSet.has(c));
   const trump = trumpOf(contract);
@@ -102,10 +120,11 @@ export function candidateKeeps(cards: readonly Card[], contract: Bid): Card[][] 
   const keepDesire = isLoseAll(contract)
     ? (c: Card): number => -(c === JOKER ? 99 : (cardRank(c) as number))
     : (c: Card): number => cardPower(c, trump, cardSuit(c));
-  const outs = [...base].sort((a, b) => keepDesire(a) - keepDesire(b)).slice(0, MARGINAL_KEEPS);
+  const hk = params.hardKeeps;
+  const outs = [...base].sort((a, b) => keepDesire(a) - keepDesire(b)).slice(0, hk.marginalKeeps);
   const ins = [...discards]
     .sort((a, b) => keepDesire(b) - keepDesire(a))
-    .slice(0, NEAR_MARGINAL_DISCARDS);
+    .slice(0, hk.nearMarginalDiscards);
   const pairs: [number, number][] = [];
   for (let i = 0; i < outs.length; i++) {
     for (let j = 0; j < ins.length; j++) pairs.push([i, j]);
@@ -113,7 +132,7 @@ export function candidateKeeps(cards: readonly Card[], contract: Bid): Card[][] 
   pairs.sort((p, q) => p[0] + p[1] - (q[0] + q[1]) || p[0] - q[0]);
   const candidates: Card[][] = [[...base]];
   for (const [i, j] of pairs) {
-    if (candidates.length >= MAX_CANDIDATES) break;
+    if (candidates.length >= hk.maxCandidates) break;
     const out = outs[i] as Card;
     const inn = ins[j] as Card;
     candidates.push([...base.filter((c) => c !== out), inn].sort(ascending));
@@ -170,6 +189,7 @@ export function playoutKeeps(
   contract: Bid,
   world: SampledWorld,
   rng: Rng,
+  params: BotParams = DEFAULT_PARAMS,
 ): number {
   const sorted = [...cards].sort(ascending);
   let st: GameState;
@@ -195,7 +215,7 @@ export function playoutKeeps(
     if (contract.kind === NUM) st = mustApply(st, { type: 'declineSlam', seat: ME });
   }
   st = mustApply(st, { type: 'discardKeeps', seat: ME, keeps: [...keeps] });
-  st = driveHand(st, POLICIES, rng);
+  st = driveHand(st, keepsPolicies(params), rng);
   return sideZeroDelta(st);
 }
 
@@ -206,10 +226,11 @@ export function evaluateKeeps(
   contract: Bid,
   worlds: readonly SampledWorld[],
   rng: Rng,
+  params: BotParams = DEFAULT_PARAMS,
 ): number {
   if (worlds.length === 0) throw new Error('evaluateKeeps needs at least one world');
   let total = 0;
-  for (const w of worlds) total += playoutKeeps(cards, keeps, contract, w, rng);
+  for (const w of worlds) total += playoutKeeps(cards, keeps, contract, w, rng, params);
   return total / worlds.length;
 }
 
@@ -230,13 +251,14 @@ export function chooseKeepsByRollout(
   if (sorted.length === 16 && contract.kind !== NUM) {
     throw new Error('only a slammed numbered contract holds 16 cards');
   }
-  const n = Math.max(1, options.worlds ?? KEEP_WORLDS);
-  const candidates = candidateKeeps(sorted, contract);
+  const params = options.params ?? DEFAULT_PARAMS;
+  const n = Math.max(1, options.worlds ?? params.hardKeeps.keepWorlds);
+  const candidates = candidateKeeps(sorted, contract, params);
   const worlds = sampleKeepWorlds(sorted, contract, n, rng);
   let best = candidates[0] as Card[];
   let bestEV = -Infinity;
   for (const cand of candidates) {
-    const ev = evaluateKeeps(sorted, cand, contract, worlds, rng);
+    const ev = evaluateKeeps(sorted, cand, contract, worlds, rng, params);
     if (ev > bestEV) {
       best = cand;
       bestEV = ev;
