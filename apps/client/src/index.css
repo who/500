@@ -44,7 +44,19 @@
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;
 
+  /* Upward scale unit (fh-mwj): 1px at <=900px viewports, growing linearly
+     to 1.6px by ~2700px. Table, card, and trick geometry is written as
+     calc(N * var(--su)) multiples of this one token, so the fan overlap and
+     trick placement/sweep distances keep proportion as the game grows. The
+     phone breakpoints all sit below the 900px floor, where --su is exactly
+     1px and every derived size equals its old fixed-px value. */
+  --su: clamp(1px, calc(1px + (100vw - 900px) / 3000), 1.6px);
+
   font: 18px/145% var(--sans);
+  /* Type rides the same viewport ramp, gentler than the geometry (caps at
+     24px around 2560px wide) — rem-based chrome (HUD, badges, bid panel)
+     scales through this. */
+  font-size: clamp(18px, calc(18px + (100vw - 1126px) / 240), 24px);
   letter-spacing: 0.18px;
   color-scheme: light dark;
   color: var(--text);
@@ -69,7 +81,9 @@
 }
 
 #root {
-  width: 1126px;
+  /* App column ceiling scales with the viewport (fh-mwj); 1126px until the
+     900px --su floor is passed. */
+  width: calc(1126 * var(--su));
   max-width: 100%;
   margin: 0 auto;
   text-align: center;

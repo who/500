@@ -1,6 +1,10 @@
 /* Screen + component styles. Colors come from the tokens in index.css
    (light-dark() per scheme); the M8 polish pass added the responsive fixes
-   at 375/768/1280 and the compact card face floor. */
+   at 375/768/1280 and the compact card face floor. Table/card/trick
+   geometry is expressed in calc(N * var(--su)) multiples of the fluid scale
+   unit from index.css (fh-mwj): --su is 1px on <=900px viewports — every
+   derived value equals its old fixed-px size there — and grows with the
+   window so the whole game scales up together on large screens. */
 
 /* Manual scheme toggle (theme.ts), floated clear of every screen's content. */
 .theme-toggle {
@@ -18,7 +22,7 @@
 
 .screen {
   width: 100%;
-  max-width: 640px;
+  max-width: calc(640 * var(--su));
   margin: 0 auto;
   padding: 1.5rem 1rem 3rem;
   display: flex;
@@ -120,7 +124,7 @@ button.primary {
 
 .table-area {
   position: relative;
-  min-height: 380px;
+  min-height: calc(380 * var(--su));
   display: grid;
   grid-template-areas:
     '. top .'
@@ -139,8 +143,8 @@ button.primary {
      sit above it at z-index 1. */
   position: relative;
   z-index: 0;
-  width: 150px;
-  height: 110px;
+  width: calc(150 * var(--su));
+  height: calc(110 * var(--su));
   border-radius: 50%;
   background: radial-gradient(circle at 40% 35%, #2f8f57, #1d6a3e);
   box-shadow: var(--shadow);
@@ -227,7 +231,7 @@ button.primary {
 /* --- Table screen ------------------------------------------------------ */
 
 .table-screen {
-  max-width: 900px;
+  max-width: calc(900 * var(--su));
   gap: 0.75rem;
 }
 
@@ -257,7 +261,7 @@ button.primary {
   gap: 0.5rem;
   align-items: center;
   justify-items: center;
-  min-height: 300px;
+  min-height: calc(300 * var(--su));
 }
 
 .table-seat-top {
@@ -381,14 +385,14 @@ button.primary {
 /* --- Cards -------------------------------------------------------------- */
 
 .card {
-  width: 64px;
-  height: 90px;
+  width: calc(64 * var(--su));
+  height: calc(90 * var(--su));
   display: block;
 }
 
 .card-mini {
-  width: 28px;
-  height: 39px;
+  width: calc(28 * var(--su));
+  height: calc(39 * var(--su));
 }
 
 .card-ground {
@@ -468,8 +472,8 @@ button.primary {
   grid-area: trick;
   position: relative;
   z-index: 0;
-  width: 180px;
-  height: 190px;
+  width: calc(180 * var(--su));
+  height: calc(190 * var(--su));
   border-radius: 16px;
   background: radial-gradient(circle at 45% 40%, #2f8f57, #1d6a3e);
   box-shadow: var(--shadow);
@@ -498,25 +502,25 @@ button.primary {
 }
 
 .trick-card .card {
-  width: 52px;
-  height: 73px;
+  width: calc(52 * var(--su));
+  height: calc(73 * var(--su));
 }
 
 .trick-bottom {
   transform: translate(-50%, -14%);
-  --fly-y: 70px;
+  --fly-y: calc(70 * var(--su));
 }
 .trick-top {
   transform: translate(-50%, -86%);
-  --fly-y: -70px;
+  --fly-y: calc(-70 * var(--su));
 }
 .trick-left {
   transform: translate(-92%, -50%);
-  --fly-x: -70px;
+  --fly-x: calc(-70 * var(--su));
 }
 .trick-right {
   transform: translate(-8%, -50%);
-  --fly-x: 70px;
+  --fly-x: calc(70 * var(--su));
 }
 
 /* Resolved trick: the winning card glows (and pops once) until the next
@@ -544,16 +548,16 @@ button.primary {
    entirely under prefers-reduced-motion, keeping today's instant clear.
    Transition duration must match TRICK_SWEEP_MS in TrickArea.tsx. */
 .sweep-to-bottom {
-  --sweep-y: 120px;
+  --sweep-y: calc(120 * var(--su));
 }
 .sweep-to-top {
-  --sweep-y: -120px;
+  --sweep-y: calc(-120 * var(--su));
 }
 .sweep-to-left {
-  --sweep-x: -120px;
+  --sweep-x: calc(-120 * var(--su));
 }
 .sweep-to-right {
-  --sweep-x: 120px;
+  --sweep-x: calc(120 * var(--su));
 }
 
 .trick-sweeping .trick-card {
@@ -628,8 +632,8 @@ button.primary {
 }
 
 .last-trick-popover li .card {
-  width: 44px;
-  height: 62px;
+  width: calc(44 * var(--su));
+  height: calc(62 * var(--su));
 }
 
 .last-trick-popover li[data-winner] .card {
@@ -928,9 +932,10 @@ button.primary {
   pointer-events: none;
 }
 
-/* Overlap so wide (15/16-card exchange) hands still fit a phone width. */
+/* Overlap so wide (15/16-card exchange) hands still fit a phone width.
+   Scales with the card width so the visible sliver keeps its proportion. */
 .hand-card + .hand-card {
-  margin-left: -34px;
+  margin-left: calc(-34 * var(--su));
 }
 
 /* Phones: the side seats can't flank a full bid panel, so the trick/bid
