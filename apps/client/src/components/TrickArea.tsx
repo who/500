@@ -5,16 +5,44 @@
  * highlighted: the store's linger freeze (`linger`) holds it for a beat even
  * when the next lead has already arrived underneath, and once the linger
  * releases the resolved-trick fallback keeps it visible until the next lead.
- * A joker led under no trump carries its declared suit as a chip on the
- * card face (PRD 6.2) — the named suit is exactly the trick's ledSuit.
+ * The linger's final beat sweeps the cards toward the winning seat (fh-rke)
+ * so the viewer can follow who took the trick; after the sweep the fallback
+ * holds the cleared end state instead of popping the cards back. A joker led
+ * under no trump carries its declared suit as a chip on the card face
+ * (PRD 6.2) — the named suit is exactly the trick's ledSuit.
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { type CurrentTrickView, type Trick, JOKER } from '@five-hundred/engine';
 import { seatPosition } from '../lib/seating.ts';
+import { TRICK_LINGER_MS } from '../store.ts';
 import { CardFace, SUIT_GLYPHS } from './Card.tsx';
 
 const SUIT_NOUNS = ['spades', 'clubs', 'diamonds', 'hearts'] as const;
+
+/**
+ * How long the sweep-to-winner travel takes. It occupies the linger window's
+ * final beat, so the release (and next-trick readiness) keeps today's timing.
+ * Must match the transition duration on .trick-sweeping in App.css.
+ */
+export const TRICK_SWEEP_MS = 400;
+
+function prefersReducedMotion(): boolean {
+  // matchMedia can be absent outside browsers; no preference means animate.
+  try {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Identity of a completed trick across the store's two copies of it — the
+ * linger freeze and view.lastTrick are distinct objects for the same trick.
+ */
+function trickKey(trick: Trick): string {
+  return trick.plays.map((p) => `${p.seat}:${p.card}`).join('|');
+}
 
 export function TrickArea(props: {
   trick: CurrentTrickView | null;
@@ -28,17 +56,51 @@ export function TrickArea(props: {
   trump: number | null;
 }): ReactNode {
   const linger = props.linger ?? null;
+  // Sweep machinery: TRICK_SWEEP_MS before the linger releases, the cards
+  // start travelling toward the winner. `sweptKey` remembers which trick
+  // swept so the post-release fallback renders it at the (cleared) end state
+  // rather than popping the cards back. Reduced-motion viewers skip both and
+  // keep the instant clear.
+  const [sweeping, setSweeping] = useState(false);
+  const [sweptKey, setSweptKey] = useState<string | null>(null);
+  useEffect(() => {
+    if (linger === null || prefersReducedMotion()) return undefined;
+    const key = trickKey(linger);
+    const timer = setTimeout(() => {
+      setSweeping(true);
+      setSweptKey(key);
+    }, TRICK_LINGER_MS - TRICK_SWEEP_MS);
+    return () => {
+      clearTimeout(timer);
+      setSweeping(false);
+    };
+  }, [linger]);
   const inProgress = linger === null && props.trick !== null && props.trick.plays.length > 0;
   const resolved = linger ?? (!inProgress && props.lastTrick !== null ? props.lastTrick : null);
   const plays = inProgress ? (props.trick?.plays ?? []) : (resolved?.plays ?? []);
   const winner = resolved?.winner ?? null;
   const leader = inProgress ? (props.trick?.leader ?? null) : (resolved?.leader ?? null);
   const ledSuit = inProgress ? (props.trick?.ledSuit ?? null) : (resolved?.ledSuit ?? null);
+  const sweepingNow = sweeping && linger !== null;
+  const swept =
+    linger === null && !inProgress && resolved !== null && sweptKey === trickKey(resolved);
+  const sweepTarget =
+    (sweepingNow || swept) && winner !== null ? seatPosition(winner, props.anchor) : null;
+  const areaClasses = [
+    'trick-area',
+    sweepingNow && 'trick-sweeping',
+    swept && 'trick-swept',
+    sweepTarget !== null && `sweep-to-${sweepTarget}`,
+  ]
+    .filter(Boolean)
+    .join(' ');
   return (
     <div
-      className="trick-area"
+      className={areaClasses}
       data-testid="trick-area"
       data-lingering={linger !== null || undefined}
+      data-sweeping={sweepingNow || undefined}
+      data-sweep-target={sweepTarget ?? undefined}
     >
       {plays.map((play) => {
         const won = play.seat === winner;

@@ -516,6 +516,43 @@ button.primary {
   }
 }
 
+/* Trick collection (fh-rke): the linger's final beat sweeps the four cards
+   toward the winning seat — the standalone translate composes with each
+   card's placement transform — with a scale-down/fade so they read as taken.
+   Once the linger releases, .trick-swept holds the resolved-trick fallback at
+   the same end state (still in the DOM, invisible) so nothing pops back
+   before the next lead re-fills the area. TrickArea skips these classes
+   entirely under prefers-reduced-motion, keeping today's instant clear.
+   Transition duration must match TRICK_SWEEP_MS in TrickArea.tsx. */
+.sweep-to-bottom {
+  --sweep-y: 120px;
+}
+.sweep-to-top {
+  --sweep-y: -120px;
+}
+.sweep-to-left {
+  --sweep-x: -120px;
+}
+.sweep-to-right {
+  --sweep-x: 120px;
+}
+
+.trick-sweeping .trick-card {
+  translate: var(--sweep-x, 0px) var(--sweep-y, 0px);
+  scale: 0.55;
+  opacity: 0;
+  transition:
+    translate 400ms ease-in,
+    scale 400ms ease-in,
+    opacity 400ms ease-in;
+}
+
+.trick-swept .trick-card {
+  translate: var(--sweep-x, 0px) var(--sweep-y, 0px);
+  scale: 0.55;
+  opacity: 0;
+}
+
 /* Declared suit of a led joker (NT/nulla), chipped onto the card face. */
 .joker-declares {
   position: absolute;

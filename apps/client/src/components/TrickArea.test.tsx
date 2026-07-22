@@ -14,6 +14,7 @@ import { fireEvent, type RenderResult } from '@testing-library/react';
 import { act } from 'react';
 import { type RedactedView, type Trick, NUM, bid, makeCard } from '@five-hundred/engine';
 import { TRICK_LINGER_MS } from '../store.ts';
+import { TRICK_SWEEP_MS } from './TrickArea.tsx';
 import {
   applyEvent,
   botSeatView,
@@ -299,6 +300,82 @@ describe('linger', () => {
       vi.advanceTimersByTime(TRICK_LINGER_MS);
     });
     expect(app.queryByTestId('hand-end-overlay')).not.toBeNull();
+  });
+});
+
+describe('trick collection sweep', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+  });
+
+  it('sweeps the lingered trick toward the winning seat, then holds the cleared state', () => {
+    const client = makeClient();
+    const app = startLinger(client); // the seat-1 bot wins; viewer at 0 → left
+    expect(app.getByTestId('trick-area').dataset.sweeping).toBeUndefined();
+
+    // The sweep occupies the linger window's final beat.
+    act(() => {
+      vi.advanceTimersByTime(TRICK_LINGER_MS - TRICK_SWEEP_MS);
+    });
+    let area = app.getByTestId('trick-area');
+    expect(area.dataset.lingering).toBe('true');
+    expect(area.dataset.sweeping).toBe('true');
+    expect(area.dataset.sweepTarget).toBe('left');
+    expect(area.classList.contains('trick-sweeping')).toBe(true);
+    expect(area.classList.contains('sweep-to-left')).toBe(true);
+    // All four cards stay mounted while they travel.
+    expect(shownSeats(app)).toEqual(['1', '2', '3', '0']);
+
+    // Release: the fallback keeps the swept trick at its cleared end state
+    // (still in the DOM for the record) instead of popping the cards back.
+    act(() => {
+      vi.advanceTimersByTime(TRICK_SWEEP_MS);
+    });
+    area = app.getByTestId('trick-area');
+    expect(area.dataset.lingering).toBeUndefined();
+    expect(area.dataset.sweeping).toBeUndefined();
+    expect(area.classList.contains('trick-sweeping')).toBe(false);
+    expect(area.classList.contains('trick-swept')).toBe(true);
+    expect(area.classList.contains('sweep-to-left')).toBe(true);
+    expect(shownSeats(app)).toEqual(['1', '2', '3', '0']);
+  });
+
+  it('aims the sweep at whichever seat won', () => {
+    const client = makeClient();
+    const app = startLinger(client, 2); // partner seat wins; viewer at 0 → top
+    act(() => {
+      vi.advanceTimersByTime(TRICK_LINGER_MS - TRICK_SWEEP_MS);
+    });
+    const area = app.getByTestId('trick-area');
+    expect(area.dataset.sweepTarget).toBe('top');
+    expect(area.classList.contains('sweep-to-top')).toBe(true);
+  });
+
+  it('skips the sweep under prefers-reduced-motion', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+    }));
+    const client = makeClient();
+    const app = startLinger(client);
+    act(() => {
+      vi.advanceTimersByTime(TRICK_LINGER_MS - TRICK_SWEEP_MS);
+    });
+    expect(app.getByTestId('trick-area').dataset.sweeping).toBeUndefined();
+    expect(app.getByTestId('trick-area').className).toBe('trick-area');
+
+    // Current behavior end to end: the release leaves the resolved fallback
+    // fully visible (no sweep classes) until the next lead replaces it.
+    act(() => {
+      vi.advanceTimersByTime(TRICK_SWEEP_MS);
+    });
+    expect(app.getByTestId('trick-area').className).toBe('trick-area');
+    expect(shownSeats(app)).toEqual(['1', '2', '3', '0']);
+    expect(winnerSeat(app)).toBe('1');
   });
 });
 
