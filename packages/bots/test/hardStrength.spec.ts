@@ -20,7 +20,11 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { HardPolicy, MediumPolicy, simulateGames } from '../src/index.js';
+// simulateGamesYielding, not simulateGames: each side's 200-game loop runs
+// ~35s, and fully synchronous it starves the vitest worker's RPC channel
+// ('[vitest-worker]: Timeout calling onTaskUpdate' -> exit 1 despite all
+// tests passing, fh-vrj). Same rng stream, so results are bit-identical.
+import { HardPolicy, MediumPolicy, simulateGamesYielding } from '../src/index.js';
 
 const GAMES = 200;
 const SEED = 7;
@@ -36,16 +40,16 @@ const SUITE_BUDGET = {
 const hard = (): HardPolicy => new HardPolicy(SUITE_BUDGET);
 
 describe('Hard-beats-Medium strength gate', () => {
-  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, () => {
+  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, async () => {
     const policies = [hard(), new MediumPolicy(), hard(), new MediumPolicy()];
-    const wins = simulateGames(GAMES, policies, SEED);
+    const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[0] / GAMES).toBeGreaterThanOrEqual(GATE);
   });
 
-  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, () => {
+  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 120_000 }, async () => {
     const policies = [new MediumPolicy(), hard(), new MediumPolicy(), hard()];
-    const wins = simulateGames(GAMES, policies, SEED);
+    const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[1] / GAMES).toBeGreaterThanOrEqual(GATE);
   });

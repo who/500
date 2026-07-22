@@ -10,6 +10,8 @@
  * pure and synchronous — zero timers, zero I/O beyond printStats — so the
  * same driver runs in tests, the CLI, and later inside Hard-bot rollouts
  * and the server's pacing loop (PRD 4.4: pacing skipped in headless mode).
+ * The one exception is simulateGamesYielding, which trades strict synchrony
+ * for an event-loop yield per game so long runs don't starve vitest workers.
  *
  * Known divergences from the oracle, both resolved upstream in the engine:
  * a dead auction rotates the dealer instead of redealing to the same first
@@ -198,6 +200,24 @@ export function simulateHands(n: number, policies: readonly Policy[], seed = 0):
   return stats;
 }
 
+/** Play one full game on the shared rng stream; returns the winning side. */
+function playGame(policies: readonly Policy[], rng: Rng): 0 | 1 {
+  let state = newGame(rng.int(0x100000000));
+  for (;;) {
+    state = driveHand(state, policies, rng);
+    if (state.game.winner !== null) {
+      return state.game.winner === 0 ? 0 : 1;
+    }
+    if (state.handNumber + 1 >= MAX_GAME_HANDS) {
+      // Oracle play_game fallback: most points wins, ties to side 0.
+      return state.game.scores[0] >= state.game.scores[1] ? 0 : 1;
+    }
+    const next = applyAction(state, { type: 'nextHand', seat: 0 });
+    if (!next.ok) throw new Error(`nextHand rejected: ${next.error.message}`);
+    state = next.state;
+  }
+}
+
 /**
  * Play `n` full games and count wins per side (index = seat % 2). First
  * bidder of hand 0 is seat 0 and rotates per hand, like the oracle.
@@ -210,22 +230,27 @@ export function simulateGames(
   const rng = makeRng(seed);
   const wins: [number, number] = [0, 0];
   for (let i = 0; i < n; i++) {
-    let state = newGame(rng.int(0x100000000));
-    for (;;) {
-      state = driveHand(state, policies, rng);
-      if (state.game.winner !== null) {
-        wins[state.game.winner === 0 ? 0 : 1] += 1;
-        break;
-      }
-      if (state.handNumber + 1 >= MAX_GAME_HANDS) {
-        // Oracle play_game fallback: most points wins, ties to side 0.
-        wins[state.game.scores[0] >= state.game.scores[1] ? 0 : 1] += 1;
-        break;
-      }
-      const next = applyAction(state, { type: 'nextHand', seat: 0 });
-      if (!next.ok) throw new Error(`nextHand rejected: ${next.error.message}`);
-      state = next.state;
-    }
+    wins[playGame(policies, rng)] += 1;
+  }
+  return wins;
+}
+
+/**
+ * simulateGames with an event-loop yield between games — bit-identical
+ * results (same rng stream), but safe inside vitest workers, where a
+ * minutes-long fully synchronous loop starves the worker RPC channel until
+ * the run dies with '[vitest-worker]: Timeout calling onTaskUpdate'.
+ */
+export async function simulateGamesYielding(
+  n: number,
+  policies: readonly Policy[],
+  seed = 0,
+): Promise<[number, number]> {
+  const rng = makeRng(seed);
+  const wins: [number, number] = [0, 0];
+  for (let i = 0; i < n; i++) {
+    wins[playGame(policies, rng)] += 1;
+    await new Promise<void>((resolve) => setImmediate(resolve));
   }
   return wins;
 }
