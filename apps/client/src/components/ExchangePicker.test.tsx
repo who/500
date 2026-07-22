@@ -4,6 +4,8 @@ import { fireEvent, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { type RedactedView, NUM, bid, makeCard } from '@five-hundred/engine';
 import type { ClientCommand } from '@five-hundred/protocol';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { ExchangePicker } from './ExchangePicker.tsx';
 import {
   applyEvent,
@@ -192,6 +194,46 @@ describe('ExchangePicker', () => {
     );
     // The viewer's own inert hand still shows.
     expect(app.getByTestId('my-hand').querySelectorAll('[data-card]')).toHaveLength(10);
+  });
+
+  it('stacks the pickup status above the trick felt, not behind it (fh-1dv)', () => {
+    const client = makeClient();
+    const app = renderApp(client);
+    applyEvent(client, env(0, { t: 'roomState', room: ROOM }));
+    applyEvent(
+      client,
+      env(1, {
+        t: 'gameView',
+        view: {
+          view: exchangeView({
+            toAct: 2,
+            declarer: 2,
+            hand: SPADES.slice(0, 10),
+            handCounts: [10, 10, 15, 10],
+          }),
+        },
+      }),
+    );
+
+    // Load the real stylesheet so the stacking contract is asserted against
+    // App.css itself, not a test double (vitest stubs `import x from '*.css'`
+    // to an empty string, so read it off disk).
+    const style = document.createElement('style');
+    style.textContent = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
+    document.head.appendChild(style);
+    try {
+      const status = app.getByTestId('exchange-status');
+      const felt = document.querySelector('.trick-area');
+      expect(felt).not.toBeNull();
+      const statusStyle = getComputedStyle(status);
+      const feltStyle = getComputedStyle(felt as Element);
+      // z-index only wins over the relatively-positioned felt if the status
+      // is itself positioned.
+      expect(statusStyle.position).toBe('relative');
+      expect(Number(statusStyle.zIndex)).toBeGreaterThan(Number(feltStyle.zIndex));
+    } finally {
+      style.remove();
+    }
   });
 
   it('surfaces a server rejection verbatim and unlocks for a retry', () => {

@@ -134,6 +134,11 @@ button.primary {
 
 .table-felt {
   grid-area: felt;
+  /* Same stacking contract as the game table's trick cell (see .trick-area):
+     the felt stays at z-index 0 so any future overlay sharing this cell can
+     sit above it at z-index 1. */
+  position: relative;
+  z-index: 0;
   width: 150px;
   height: 110px;
   border-radius: 50%;
@@ -434,9 +439,16 @@ button.primary {
 
 /* --- Trick area ---------------------------------------------------------- */
 
+/* Stacking contract for the shared 'trick' grid cell: felt layers
+   (.trick-area, .bid-panel) sit at z-index 0; every status/overlay sharing
+   the cell (.exchange-status and friends) sits at z-index 1. Without this,
+   position: relative here paints the felt over static siblings regardless of
+   DOM order — new overlays in this cell must declare z-index 1, not rely on
+   source position. */
 .trick-area {
   grid-area: trick;
   position: relative;
+  z-index: 0;
   width: 180px;
   height: 190px;
   border-radius: 16px;
@@ -589,6 +601,9 @@ button.primary {
 
 .bid-panel {
   grid-area: trick;
+  /* Felt layer of the trick-cell stacking contract (see .trick-area). */
+  position: relative;
+  z-index: 0;
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -1033,9 +1048,13 @@ button.primary {
   cursor: default;
 }
 
-/* Abstract hidden-info status floated over the (empty) trick area. */
+/* Abstract hidden-info status floated over the (empty) trick area.
+   Overlay layer of the trick-cell stacking contract (see .trick-area):
+   z-index 1 keeps it above the felt whatever the DOM order. */
 .exchange-status {
   grid-area: trick;
+  position: relative;
+  z-index: 1;
   justify-self: center;
   max-width: 16rem;
   padding: 0.4rem 0.7rem;
