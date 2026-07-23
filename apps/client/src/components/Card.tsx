@@ -55,14 +55,14 @@ function FoilSheen(props: { card: CardId }): ReactNode {
           spreadMethod="repeat"
         >
           {/* White is the identity color under multiply, so the card body only
-              tints where the iridescent part of the tile passes over it. */}
+              tints where the warm band passes. A single gold/champagne sweep
+              (no rainbow) reads as gilt foil rather than holographic. */}
           <stop offset="0" stopColor="#ffffff" />
-          <stop offset="0.36" stopColor="#ffffff" />
-          <stop offset="0.45" stopColor="#ffd36b" />
-          <stop offset="0.53" stopColor="#ff8ec4" />
-          <stop offset="0.61" stopColor="#7ec8ff" />
-          <stop offset="0.69" stopColor="#8ff0c0" />
-          <stop offset="0.78" stopColor="#ffffff" />
+          <stop offset="0.4" stopColor="#ffffff" />
+          <stop offset="0.47" stopColor="#f6e4b8" />
+          <stop offset="0.53" stopColor="#e4b53f" />
+          <stop offset="0.59" stopColor="#f6e4b8" />
+          <stop offset="0.66" stopColor="#ffffff" />
           <stop offset="1" stopColor="#ffffff" />
         </linearGradient>
         <clipPath id={clipId}>

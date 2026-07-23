@@ -612,9 +612,12 @@ button.primary {
   }
 }
 
-/* A gilt edge on the ground reinforces the foil without touching its size. */
+/* Gold-leaf edge: a thicker, warmer gold stroke than the plain card border,
+   so trump reads as gilded. Stroke is centred on the ground path, so the card
+   keeps its footprint — no layout shift. */
 .card-trump .card-ground {
   stroke: var(--card-foil-edge);
+  stroke-width: 2.5;
 }
 
 /* Reduced motion keeps the foil, drops the travel: the band parks where it
