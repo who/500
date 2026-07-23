@@ -23,8 +23,9 @@ const HOUSE_RULES_URL = 'https://github.com/who/500/blob/main/500-house-rules.md
 
 /**
  * One sentence of "what do I do now" for the state the viewer is in (fh-0nj).
- * Seats are numbered from 1 for people; empty seats become Hard bots on start,
- * which is the only bot choice there is (fh-gpk).
+ * Seats are numbered from 1 for people; empty seats fill with AI players on
+ * start. The prose says "AI players" rather than naming the difficulty tier
+ * (fh-zhw) — under the hood they are still the one Hard bot (fh-gpk).
  */
 function lobbyGuidance(args: {
   mySeat: number | null;
@@ -33,12 +34,12 @@ function lobbyGuidance(args: {
 }): string {
   const { mySeat, isHost, roomCode } = args;
   if (mySeat === null) {
-    return 'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled by Hard bots when the game starts.';
+    return 'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled with AI players when the game starts.';
   }
   if (isHost) {
-    return `You're the host. Share code ${roomCode} for others to join, then press Start game when ready — any empty seats fill with Hard bots.`;
+    return `You're the host. Share code ${roomCode} for others to join, then press Start game when ready — any empty seats fill with AI players.`;
   }
-  return `You're in seat ${mySeat + 1}. The host starts the game when everyone is ready — others can join with room code ${roomCode}, and empty seats become Hard bots.`;
+  return `You're in seat ${mySeat + 1}. The host starts the game when everyone is ready — others can join with room code ${roomCode}, and empty seats become AI players.`;
 }
 
 function shareUrl(roomCode: string): string {

@@ -149,7 +149,7 @@ describe('Lobby', () => {
     const visitorView = renderApp(visitor);
     applyEvent(visitor, env(0, { t: 'roomState', room: anaRoom() }));
     expect(guidance(visitorView)).toBe(
-      'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled by Hard bots when the game starts.',
+      'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled with AI players when the game starts.',
     );
 
     // Seated guest: own seat (1-based), who starts, the code to share.
@@ -166,7 +166,7 @@ describe('Lobby', () => {
     );
     applyEvent(guest, { event: { t: 'seatGranted', seat: 1, token: 'tok-guest' } });
     expect(guidance(guestView)).toBe(
-      "You're in seat 2. The host starts the game when everyone is ready — others can join with room code ABCDE, and empty seats become Hard bots.",
+      "You're in seat 2. The host starts the game when everyone is ready — others can join with room code ABCDE, and empty seats become AI players.",
     );
 
     // Host: how to invite, and how to start.
@@ -174,7 +174,7 @@ describe('Lobby', () => {
     const hostView = renderApp(host);
     seatHost(host);
     expect(guidance(hostView)).toBe(
-      "You're the host. Share code ABCDE for others to join, then press Start game when ready — any empty seats fill with Hard bots.",
+      "You're the host. Share code ABCDE for others to join, then press Start game when ready — any empty seats fill with AI players.",
     );
 
     // AC-2: no copy anywhere in the lobby mentions choosing a difficulty.
