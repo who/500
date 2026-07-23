@@ -383,10 +383,16 @@ export class MediumPolicy implements Policy {
         cardPower(c, trump, ledSuit !== null ? ledSuit : cardSuit(c)),
       );
     }
-    // Declarer-side lead in a trump contract (fh-n2n): draw trump while the
+    // Declarer's lead in a trump contract (fh-n2n): draw trump while the
     // opponents may still hold any, then cash established side winners. The
     // unseen set is everything outside this hand and the played tricks, so
     // it includes the partner's trumps and any buried in the discards.
+    // Only the WINNING BIDDER draws (fh-1em): the DRAW half used to be gated on
+    // the whole declaring side's parity, so the declarer's partner led trump
+    // too — timing the draw is the declarer's job, and a partner who leads
+    // trump is just guessing with the declarer's own suit. The CASHING half
+    // (trump exhausted, so nothing can ruff) stays side-wide: it leads side
+    // cards only, and is the trump-contract twin of the fh-2wt NT branch.
     if (
       trump !== null &&
       ledSuit === null &&
@@ -398,7 +404,7 @@ export class MediumPolicy implements Policy {
       const unseen = DECK.filter((c) => !seen.has(c));
       const outTrumps = unseen.filter((c) => isTrumpCard(c, trump));
       const ownTrumps = sorted.filter((c) => isTrumpCard(c, trump));
-      if (outTrumps.length > 0 && ownTrumps.length > 0) {
+      if (seat === context.declarer && outTrumps.length > 0 && ownTrumps.length > 0) {
         const top = firstMaxBy(ownTrumps, (c) => cardPower(c, trump, null));
         const topPower = cardPower(top, trump, null);
         const boss = outTrumps.every((c) => cardPower(c, trump, null) < topPower);
@@ -485,6 +491,21 @@ export class MediumPolicy implements Policy {
       if (bestSuit >= 0) {
         const inSuit = sorted.filter((c) => cardSuit(c) === bestSuit);
         return firstMaxBy(inSuit, (c) => cardRank(c) as number);
+      }
+    }
+    // Nobody but the declarer voluntarily leads trump (fh-1em). The branch
+    // above hands the declarer its draw; this is the explicit companion rule
+    // for everyone else — the declarer's partner and both defenders. Leading
+    // trump for the declarer pulls the opponents' stoppers out of the way, so
+    // never CHOOSE a trump on lead while a legal side card exists. The power
+    // sort below already picked a side card from a mixed hand (trumps score
+    // 2000+, side cards 0 with no led suit), but that was emergent, not a
+    // rule: a hand short in side suits, or any retune of the lead heuristic,
+    // could still dump a trump. Void-forced trump leads stay legal.
+    if (trump !== null && ledSuit === null && trickPlays.length === 0 && seat !== context.declarer) {
+      const sideCards = sorted.filter((c) => !isTrumpCard(c, trump));
+      if (sideCards.length > 0) {
+        return firstMinBy(sideCards, (c) => cardPower(c, trump, ledSuit));
       }
     }
     const winners = sorted.filter((c) => cardPower(c, trump, ledSuit) > currentMax);

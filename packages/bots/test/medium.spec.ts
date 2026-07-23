@@ -657,10 +657,12 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
     ).toBe(JOKER_CARD);
   });
 
-  it("declarer's partner draws trump too", () => {
+  // fh-1em AC-1: the draw is the WINNING BIDDER's alone. The partner holds the
+  // same joker + right bower here and still must not lead trump.
+  it("declarer's partner does NOT draw trump, even holding the boss trumps", () => {
     expect(
       medium.choosePlay(2, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
-    ).toBe(JOKER_CARD);
+    ).toBe(KING_SPADES);
   });
 
   it('switches to cashing side winners once trump is exhausted', () => {
@@ -732,6 +734,57 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
     expect(
       medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(KING_SPADES);
+  });
+
+  // fh-1em AC-2: the anti-trump-lead rule is explicit for defenders too, not
+  // just an accident of the power sort.
+  it('a defender holding trump and side cards leads a side card', () => {
+    const hand = [JOKER_CARD, RIGHT_BOWER, LEFT_BOWER, makeCard(3, 14), FIVE_CLUBS];
+    const chosen = medium.choosePlay(
+      0,
+      hand,
+      hand,
+      [],
+      HEARTS,
+      null,
+      HEARTS10,
+      DEFENDER_CTX,
+      noRng,
+    );
+    expect(chosen).toBe(FIVE_CLUBS);
+  });
+
+  it('a defender void in side suits is allowed the forced trump lead', () => {
+    const hand = [JOKER_CARD, RIGHT_BOWER, makeCard(3, 4)];
+    const chosen = medium.choosePlay(
+      0,
+      hand,
+      hand,
+      [],
+      HEARTS,
+      null,
+      HEARTS10,
+      DEFENDER_CTX,
+      noRng,
+    );
+    expect(hand).toContain(chosen);
+    expect(chosen).toBe(makeCard(3, 4)); // cheapest trump, not the boss
+  });
+
+  it("the declarer's partner void in side suits may also lead trump", () => {
+    const hand = [makeCard(3, 4), makeCard(3, 5)];
+    const chosen = medium.choosePlay(
+      2,
+      hand,
+      hand,
+      [],
+      HEARTS,
+      null,
+      HEARTS10,
+      { declarer: 0, tricks: [] },
+      noRng,
+    );
+    expect(chosen).toBe(makeCard(3, 4));
   });
 });
 
