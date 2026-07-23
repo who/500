@@ -1,0 +1,281 @@
+{
+  "v": 1,
+  "gameId": "74a62326-cc3c-4969-9962-9d6a57d1a796",
+  "source": "logs/games/games.jsonl (fh-q2m debug-panel flags), human seat 0 vs three Hard bots",
+  "hands": [
+    {
+      "handNumber": 0,
+      "note": "bot 3 should not have played 8S. They should have got all trump out first!",
+      "firstBidder": 0,
+      "deal": {
+        "hands": [
+          [1, 11, 16, 17, 20, 31, 32, 33, 43, 44],
+          [3, 6, 7, 9, 12, 22, 24, 36, 38, 40],
+          [8, 13, 18, 19, 21, 25, 29, 30, 34, 42],
+          [5, 10, 15, 23, 26, 27, 28, 35, 37, 41]
+        ],
+        "middle": [14, 4, 2, 0, 39]
+      },
+      "calls": [
+        {
+          "seat": 0,
+          "bid": {
+            "kind": "PASS",
+            "level": 0,
+            "strain": -1
+          }
+        },
+        {
+          "seat": 1,
+          "bid": {
+            "kind": "NUM",
+            "level": 7,
+            "strain": 0
+          }
+        },
+        {
+          "seat": 2,
+          "bid": {
+            "kind": "NUM",
+            "level": 7,
+            "strain": 1
+          }
+        },
+        {
+          "seat": 3,
+          "bid": {
+            "kind": "PASS",
+            "level": 0,
+            "strain": -1
+          }
+        }
+      ],
+      "declarer": 2,
+      "contract": {
+        "kind": "NUM",
+        "level": 7,
+        "strain": 1
+      },
+      "discards": [25, 29, 30, 34, 39],
+      "tricks": [
+        [
+          [2, 13],
+          [3, 15],
+          [0, 44],
+          [1, 12]
+        ],
+        [
+          [0, 11],
+          [1, 7],
+          [2, 18],
+          [3, 5]
+        ],
+        [
+          [2, 4],
+          [3, 10],
+          [0, 1],
+          [1, 3]
+        ],
+        [
+          [3, 23],
+          [0, 31],
+          [1, 22],
+          [2, 42]
+        ],
+        [
+          [0, 32],
+          [1, 24],
+          [2, 0],
+          [3, 26]
+        ],
+        [
+          [0, 20],
+          [1, 6],
+          [2, 14],
+          [3, 27]
+        ],
+        [
+          [0, 17],
+          [1, 36],
+          [2, 19],
+          [3, 28]
+        ],
+        [
+          [2, 21],
+          [3, 35],
+          [0, 16],
+          [1, 38]
+        ],
+        [
+          [2, 2],
+          [3, 37],
+          [0, 33],
+          [1, 9]
+        ],
+        [
+          [1, 40],
+          [2, 8],
+          [3, 41],
+          [0, 43]
+        ]
+      ],
+      "result": {
+        "contract": {
+          "kind": "NUM",
+          "level": 7,
+          "strain": 1
+        },
+        "declarer": 2,
+        "slam": false,
+        "made": true,
+        "declarerDelta": 160,
+        "defenderDelta": 20,
+        "declarerSideTricks": 8,
+        "defenderSideTricks": 2
+      }
+    },
+    {
+      "handNumber": 4,
+      "note": "bot 3 should not have led a low card in a notrump hand!",
+      "firstBidder": 0,
+      "deal": {
+        "hands": [
+          [0, 14, 16, 17, 24, 32, 36, 39, 40, 41],
+          [4, 5, 9, 11, 19, 21, 22, 27, 43, 44],
+          [3, 10, 13, 15, 18, 25, 26, 28, 30, 35],
+          [2, 7, 12, 20, 23, 29, 31, 34, 37, 38]
+        ],
+        "middle": [1, 42, 33, 6, 8]
+      },
+      "calls": [
+        {
+          "seat": 0,
+          "bid": {
+            "kind": "NUM",
+            "level": 7,
+            "strain": 3
+          }
+        },
+        {
+          "seat": 1,
+          "bid": {
+            "kind": "NUM",
+            "level": 7,
+            "strain": 4
+          }
+        },
+        {
+          "seat": 2,
+          "bid": {
+            "kind": "PASS",
+            "level": 0,
+            "strain": -1
+          }
+        },
+        {
+          "seat": 3,
+          "bid": {
+            "kind": "PASS",
+            "level": 0,
+            "strain": -1
+          }
+        }
+      ],
+      "declarer": 1,
+      "contract": {
+        "kind": "NUM",
+        "level": 7,
+        "strain": 4
+      },
+      "discards": [1, 11, 22, 27, 33],
+      "tricks": [
+        [
+          [1, 8],
+          [2, 3],
+          [3, 2],
+          [0, 0]
+        ],
+        [
+          [1, 9],
+          [2, 10],
+          [3, 7],
+          [0, 36]
+        ],
+        [
+          [2, 25],
+          [3, 29],
+          [0, 32],
+          [1, 44]
+        ],
+        [
+          [1, 21],
+          [2, 13],
+          [3, 12],
+          [0, 14]
+        ],
+        [
+          [1, 43],
+          [2, 35],
+          [3, 34],
+          [0, 39]
+        ],
+        [
+          [1, 42],
+          [2, 15],
+          [3, 37],
+          [0, 40]
+        ],
+        [
+          [1, 6],
+          [2, 18],
+          [3, 38],
+          [0, 16]
+        ],
+        [
+          [1, 5],
+          [2, 26],
+          [3, 20],
+          [0, 24]
+        ],
+        [
+          [1, 19],
+          [2, 28],
+          [3, 23],
+          [0, 17]
+        ],
+        [
+          [1, 4],
+          [2, 30],
+          [3, 31],
+          [0, 41]
+        ]
+      ],
+      "result": {
+        "contract": {
+          "kind": "NUM",
+          "level": 7,
+          "strain": 4
+        },
+        "declarer": 1,
+        "slam": false,
+        "made": true,
+        "declarerDelta": 220,
+        "defenderDelta": 10,
+        "declarerSideTricks": 9,
+        "defenderSideTricks": 1
+      }
+    }
+  ],
+  "flags": [
+    {
+      "hand": 0,
+      "trick": 2,
+      "ply": 0
+    },
+    {
+      "hand": 4,
+      "trick": 2,
+      "ply": 0
+    }
+  ]
+}

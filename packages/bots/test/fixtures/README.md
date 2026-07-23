@@ -23,3 +23,22 @@ its inputs the same way (see `packages/bots/src/medium.ts`).
 `medium.spec.ts` asserts the record count and method coverage, so a
 regenerated fixture that changes them must update the spec in the same
 commit.
+
+## flagged-hands.json
+
+Two hands lifted out of a real game (`74a62326-cc3c-4969-9962-9d6a57d1a796`,
+human seat 0 against three Hard bots) whose play a human flagged through the
+in-game debug panel (fh-q2m). `hardPlay.spec.ts` replays each hand from its
+deal through the engine, stops on the flagged decision, and asserts the bot
+no longer makes the flagged play (fh-4ww).
+
+Copied out of `logs/games/games.jsonl`, which is gitignored and rotates, so
+the fixture is the durable record. Each entry keeps only what a replay needs
+— `deal`, `firstBidder`, the auction `calls`, `declarer`, `discards`, and
+the tricks as `[seat, card]` pairs — plus the human's verbatim `note`. The
+`flags` array carries the flagged `{hand, trick, ply}` coordinates, all
+0-based, exactly as the debug panel recorded them.
+
+Adding a hand: copy the same fields out of a `games.jsonl` record. Nothing
+regenerates this file, and no test asserts its length, so it can grow one
+flagged hand at a time.

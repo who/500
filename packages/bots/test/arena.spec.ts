@@ -22,6 +22,19 @@ import { makeHardMatchRunner, recklessBidParams } from '../src/arena-runner.js';
 // A very small world budget: fast, and plenty for a landslide match-up.
 const run = makeHardMatchRunner({ bidWorlds: 2, keepWorlds: 2, playWorlds: 1 });
 
+/**
+ * SPRT seed budget for the crippled-candidate tests. The reckless side is a
+ * decisive loser but not a landslide one — it wins ~42% of mirrored games
+ * (measured over 500 games at seeds 7 and 21), which the p0=0.5 / p1=0.55 test
+ * needs ~70 seeds on average to reject. The original budget of 80 seeds sat
+ * right on that boundary, so an unrelated play-side change (fh-1em, which
+ * stopped the declarer's partner leading trump) reshuffled the early games and
+ * left the verdict at 'continue' with the win rate still at 42% over a longer
+ * run. The budget is a cap, not a game count — a decisive match still stops as
+ * soon as the llr crosses — so raising it buys headroom for free.
+ */
+const CRIPPLED_MAX_SEEDS = 200;
+
 describe('Hard-vs-Hard arena', () => {
   it('AC-2: a reckless-overbid side loses decisively and is rejected', async () => {
     const crippled = recklessBidParams();
@@ -30,7 +43,7 @@ describe('Hard-vs-Hard arena', () => {
       a: crippled,
       b: DEFAULT_PARAMS,
       run,
-      maxGames: 80,
+      maxGames: CRIPPLED_MAX_SEEDS,
       seed: 7,
       concurrency: 4,
     });
@@ -44,7 +57,7 @@ describe('Hard-vs-Hard arena', () => {
       recklessBidParams(),
       DEFAULT_PARAMS,
       DEFAULT_PARAMS,
-      { run, maxGames: 80, seed: 7, concurrency: 4 },
+      { run, maxGames: CRIPPLED_MAX_SEEDS, seed: 7, concurrency: 4 },
     );
     expect(d.promote).toBe(false);
     expect(d.vsIncumbent.verdict).toBe('accept-h0');

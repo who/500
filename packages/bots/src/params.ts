@@ -123,6 +123,34 @@ export interface HardPlayParams {
   readonly worldsFloor: number;
   /** Most worlds a budget-mode decision samples. */
   readonly worldsCap: number;
+  /**
+   * Secondary reward added to each playout's points delta, per own-side trick
+   * (negated on lose-all contracts, where fewer own tricks is the goal). Gives
+   * the rollout a gradient when the contract result is already decided so the
+   * bot still plays for tricks / damage control (fh-w6c). Kept below the
+   * cheapest contract's make/set swing so it can never prefer a set with more
+   * tricks over a make.
+   */
+  readonly trickWeight: number;
+  /**
+   * Absolute floor, in points, for the margin by which the rollout's best card
+   * must beat Medium's heuristic card before Hard is allowed to prefer it
+   * (fh-vkr/fh-hg4). Inside the floor, play Medium's card: it catches the
+   * decisions the search rates dead level and hands them to a tactically sound
+   * choice. Kept below trickWeight so a pick that truly wins more tricks is
+   * never overridden on the floor alone.
+   */
+  readonly mediumTiebreakEps: number;
+  /**
+   * Standard errors of the paired (best - Medium) rollout difference that the
+   * same margin must ALSO clear (fh-4ww). The absolute floor could not size
+   * itself to the state: at a noisy decision the paired mean's own spread is
+   * tens of points, so noise cleared any floor small enough to be safe
+   * elsewhere and the arg-max shipped a low-card lead. Scaling the gate by the
+   * measured standard error makes it tight where the search separates the
+   * cards and wide where it is guessing. 0 restores the pure-`eps` behaviour.
+   */
+  readonly mediumTiebreakZ: number;
 }
 
 /** Every tunable strategy constant, versioned and deep-mergeable. */

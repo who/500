@@ -439,19 +439,22 @@ export class MediumPolicy implements Policy {
         }
       }
     }
-    // Declarer-side lead in a no-trump NUM contract (fh-2wt): the fh-n2n
-    // branch above is gated on trump !== null and skips NT entirely, so play
-    // used to fall through to firstMinBy and open with the LOWEST card. In NT
-    // nothing ruffs, so cash from the top: lead the joker (it beats any
-    // trick), then unseen-aware side bosses top-down, else lead high from the
-    // longest suit to establish it. isLoseAll returned above, so trump ===
-    // null here means a NUM no-trump contract (nulla/dnulla are lose-all).
-    if (
-      trump === null &&
-      ledSuit === null &&
-      trickPlays.length === 0 &&
-      seat % 2 === context.declarer % 2
-    ) {
+    // Any lead in a no-trump NUM contract (fh-2wt): the fh-n2n branch above is
+    // gated on trump !== null and skips NT entirely, so play used to fall
+    // through to firstMinBy and open with the LOWEST card. In NT nothing ruffs,
+    // so cash from the top: lead the joker (it beats any trick), then
+    // unseen-aware side bosses top-down, else lead high from the longest suit
+    // to establish it. isLoseAll returned above, so trump === null here means a
+    // NUM no-trump contract (nulla/dnulla are lose-all).
+    //
+    // fh-2wt scoped this to the declaring side; fh-4ww widened it to every
+    // seat after game 74a62326 hand 4, where a DEFENDER on lead against 7NT
+    // bled its lowest card. The reasoning never depended on which side bid:
+    // nothing ruffs for anybody, and the defence in a 10-trick game has to
+    // take its tricks before the declarer's length runs. The fh-1em
+    // don't-lead-trump companion below is untouched — it is gated on
+    // trump !== null, which this branch is not.
+    if (trump === null && ledSuit === null && trickPlays.length === 0) {
       // The joker takes any NT trick, subject only to the lead-declares-suit
       // rule, so it is the ultimate cashing lead.
       if (sorted.some((c) => c === JOKER)) return JOKER;

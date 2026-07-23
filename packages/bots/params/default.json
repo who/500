@@ -45,6 +45,9 @@
   },
   "hardPlay": {
     "worldsFloor": 20,
-    "worldsCap": 200
+    "worldsCap": 200,
+    "trickWeight": 8,
+    "mediumTiebreakEps": 5,
+    "mediumTiebreakZ": 2
   }
 }

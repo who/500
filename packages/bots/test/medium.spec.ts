@@ -789,10 +789,12 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// fh-2wt: declarer-side lead in a no-trump contract cashes from the top
+// fh-2wt: a lead in a no-trump contract cashes from the top. fh-4ww widened
+// the branch from the declaring side to every seat — see the defender tests
+// at the bottom of this block.
 // ---------------------------------------------------------------------------
 
-describe('declarer-side no-trump lead (fh-2wt)', () => {
+describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
   const NT_CONTRACT = bid(NUM, 8, 4); // strain 4 = no-trump, so trump === null
   const ACE_SPADES = makeCard(0, 14);
   const KING_SPADES = makeCard(0, 13);
@@ -860,13 +862,37 @@ describe('declarer-side no-trump lead (fh-2wt)', () => {
     expect(card).not.toBe(FIVE_DIAMONDS);
   });
 
-  it('as an NT defender the legacy lead is unchanged (branch is declarer-only)', () => {
+  // fh-4ww: the branch used to be gated on `seat % 2 === declarer % 2`, so a
+  // DEFENDER on lead fell through to firstMinBy and opened with its lowest
+  // card — the misplay flagged in game 74a62326 hand 4 ("bot 3 should not have
+  // led a low card in a notrump hand"). Nothing about "nothing ruffs in NT, so
+  // cash from the top" is specific to the declaring side, and the defence in a
+  // 10-trick game needs its tricks before the declarer's length runs, so the
+  // branch now covers every seat.
+  it('an NT defender cashes the top boss too (fh-4ww)', () => {
+    const hand = [makeCard(0, 5), ACE_CLUBS];
+    expect(
+      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: jokerSeen }, noRng),
+    ).toBe(ACE_CLUBS);
+  });
+
+  it('an NT defender never opens with its lowest card (fh-4ww)', () => {
     const FIVE_SPADES = makeCard(0, 5);
-    const hand = [FIVE_SPADES, ACE_CLUBS];
-    // Declarer would open the ace; a defender keeps the legacy firstMinBy lead.
+    const hand = [FIVE_SPADES, FIVE_DIAMONDS, SIX_DIAMONDS, SEVEN_DIAMONDS];
+    // Joker unseen, so no boss: lead high from the longest suit instead.
     expect(
       medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: [] }, noRng),
-    ).toBe(FIVE_SPADES);
+    ).toBe(SEVEN_DIAMONDS);
+  });
+
+  it('leaves trump contracts alone: a defender still leads low (fh-1em)', () => {
+    // The widened branch is gated on trump === null; with a trump suit the
+    // don't-lead-trump companion rule still opens the cheapest side card.
+    const TRUMP_CONTRACT = bid(NUM, 8, 3); // hearts
+    const hand = [makeCard(0, 5), makeCard(0, 14), makeCard(3, 14)];
+    expect(
+      medium.choosePlay(0, hand, hand, [], 3, null, TRUMP_CONTRACT, { declarer: 1, tricks: [] }, noRng),
+    ).toBe(makeCard(0, 5));
   });
 });
 

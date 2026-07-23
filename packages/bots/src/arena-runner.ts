@@ -48,11 +48,22 @@ function seatPolicy(params: BotParams, opts: HardRunnerOptions): HardPolicy {
  * hand cap without a 500-point winner is resolved by most-points-wins (ties to
  * side 0), so the runner never returns a draw — every game is a decisive SPRT
  * observation.
+ *
+ * The runner yields to the event loop before each game (the same guard
+ * simulateGamesYielding uses). The arena fires a whole batch with
+ * `Promise.all(batch.map(run))`, so a synchronous runner plays every game in a
+ * batch back to back and the awaits between batches only drain microtasks —
+ * minutes of solid CPU with no I/O turn, which starves the vitest worker's RPC
+ * channel until the run dies with '[vitest-worker]: Timeout calling
+ * onTaskUpdate'. One setImmediate per game costs nothing next to a full game
+ * and cannot affect the verdict: the arena folds outcomes in seed-then-leg
+ * order regardless of completion order, and each game still owns its own rng.
  */
 export function makeHardMatchRunner(
   options: HardRunnerOptions = {},
 ): MatchRunner<BotParams> {
-  return (seatParams, seed) => {
+  return async (seatParams, seed) => {
+    await new Promise<void>((resolve) => setImmediate(resolve));
     const policies = [
       seatPolicy(seatParams[0], options),
       seatPolicy(seatParams[1], options),
