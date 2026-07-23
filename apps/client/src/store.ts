@@ -237,9 +237,12 @@ export function createStore(deps: StoreDeps): ClientStore {
       };
       if (event.code === 'badToken' || (event.code === 'badRoomCode' && get().rejoining)) {
         // Invalid token, or the room vanished (server restart / idle GC)
-        // during auto-rejoin: forget the seat and show the home flow.
+        // during auto-rejoin: forget the seat and show the home flow. This is
+        // an expected, self-healing discard of a stale session, so it lands on
+        // a clean Home screen — no error. (A badRoomCode from a code the user
+        // typed themselves is not this branch, and still reports.)
         clearSession(storage);
-        Object.assign(patch, HOME_RESET);
+        Object.assign(patch, HOME_RESET, { lastError: null });
       } else if (event.code === 'seatTaken' && get().seat !== null) {
         // Latest attach wins server-side; this tab lost its seat. Suppress
         // auto-rejoin (it would steal the seat back) until a fresh

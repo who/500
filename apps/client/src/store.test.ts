@@ -203,7 +203,8 @@ describe('auto-rejoin', () => {
     expect(s.seat).toBeNull();
     expect(s.roomView).toBeNull();
     expect(s.seatView).toBeNull();
-    expect(s.lastError?.code).toBe('badToken');
+    // Discarding a stale session is expected housekeeping, not a user error.
+    expect(s.lastError).toBeNull();
     // Next open no longer attempts a rejoin.
     const before = store.getState();
     before.handleSocketOpen();
@@ -217,7 +218,14 @@ describe('auto-rejoin', () => {
       event: { t: 'error', code: 'badRoomCode', message: 'No room with code QWZRT.' },
     });
     expect(storage?.getItem(SESSION_STORAGE_KEY)).toBeNull();
-    expect(store.getState().session).toBeNull();
+    const s = store.getState();
+    expect(s.session).toBeNull();
+    expect(s.roomView).toBeNull();
+    expect(s.seat).toBeNull();
+    expect(s.rejoining).toBe(false);
+    // The room going away under a stored session is expected: land on a clean
+    // Home screen rather than shouting 'No room with code QWZRT.' at launch.
+    expect(s.lastError).toBeNull();
   });
 
   it('keeps the stored session on a badRoomCode outside the rejoin flow', () => {
@@ -228,6 +236,11 @@ describe('auto-rejoin', () => {
     });
     expect(storage?.getItem(SESSION_STORAGE_KEY)).not.toBeNull();
     expect(store.getState().session).toEqual(session);
+    // A code the user typed themselves is a real error: say so.
+    expect(store.getState().lastError).toEqual({
+      code: 'badRoomCode',
+      message: 'No room with code XXXXX.',
+    });
   });
 });
 
