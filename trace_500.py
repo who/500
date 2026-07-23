@@ -7,11 +7,11 @@ parity harness (PRD section 7.2):
 
     python trace_500.py --seed 1 --hands 1000 > traces.jsonl
 
-Schema v1
+Schema v2
 ---------
 Every record carries these common fields:
 
-    v      : 1 (schema version)
+    v      : 2 (schema version; v2 added auction_action.may_dnulla, fh-17b)
     seed   : the --seed argument
     hand   : 0-based hand index
     first  : seat that opens the auction for this hand (hand % 4)
@@ -22,7 +22,9 @@ Record types and their extra fields:
     deal            attempt, hands (4 lists of 10 card ints), middle (5 ints)
     auction_action  attempt, seat, ladder_pos (position BEFORE this action;
                     -1 = no bid yet — implies the legal bid set), may_indicate,
-                    action {kind, level, strain}
+                    may_dnulla (partner already bid NULLA this auction, so
+                    DOUBLE NULLA is in the legal set), action
+                    {kind, level, strain}
     auction_result  attempt, redeal (bool), contract {kind, level, strain,
                     name} or null on redeal, declarer or null,
                     indications [[seat, {kind, level, strain}], ...]
@@ -70,6 +72,8 @@ hands), and RandomPolicy climbs the ladder one rung at a time so it never
 reaches DNULLA either. StressPolicy is a HeuristicPolicy subclass defined
 here (the oracle is untouched) that rarely forces NULLA/DNULLA bids and
 slams probabilistically, exercising every contract kind for parity traces.
+Its DNULLA forcing is gated on may_dnulla, since a double nulla with no
+partner nulla behind it is illegal and would only ever be scored as a pass.
 
 The driver loops below (auction, exchange, trick play) are verbatim copies of
 five_hundred.run_auction / _exchange_middle / play_hand with emit() calls
@@ -109,7 +113,7 @@ from five_hundred import (
     trump_of,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 
 def bid_json(b: Bid) -> dict:
@@ -147,16 +151,21 @@ def traced_auction(hands, policies, first: int, rng, em: Emitter, attempt: int):
     declarer = None
     indications: list[tuple[int, Bid]] = []
     indicated = [False] * 4
+    history: list[tuple[int, Bid]] = []
     for i in range(4):
         p = (first + i) % 4
         may_indicate = declarer is None and not indicated[p]
-        action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng)
+        may_dnulla = any(s == (p + 2) % 4 and b.kind == NULLA for s, b in history)
+        action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng,
+                                        may_dnulla)
         em.emit("auction_action", attempt=attempt, seat=p,
                 ladder_pos=ladder_pos, may_indicate=may_indicate,
-                action=bid_json(action))
+                may_dnulla=may_dnulla, action=bid_json(action))
+        history.append((p, action))
         if action.kind == NUM or action.kind in (NULLA, DNULLA):
             idx = LADDER_INDEX.get(action)
-            if idx is not None and idx > ladder_pos:
+            if (idx is not None and idx > ladder_pos
+                    and (action.kind != DNULLA or may_dnulla)):
                 ladder_pos, declarer = idx, p
             # else: illegal/low bid treated as a pass
         elif action.kind == IND and may_indicate:
@@ -313,13 +322,18 @@ class StressPolicy(HeuristicPolicy):
     slams, so traces exercise every contract kind (see AC-3 note in the
     module docstring). Fully deterministic through the shared rng."""
 
-    def choose_bid(self, hand, ladder_pos, may_indicate, rng):
+    def choose_bid(self, hand, ladder_pos, may_indicate, rng,
+                   may_dnulla=False):
         r = rng.random()
-        if r < 0.02 and LADDER_INDEX[Bid(DNULLA)] > ladder_pos:
+        # DNULLA only answers a partner's NULLA (fh-17b), which is rare
+        # enough that the forcing probability has to be generous to keep
+        # double-nulla contracts in the traces at all.
+        if may_dnulla and r < 0.5 and LADDER_INDEX[Bid(DNULLA)] > ladder_pos:
             return Bid(DNULLA)
         if r < 0.05 and LADDER_INDEX[Bid(NULLA)] > ladder_pos:
             return Bid(NULLA)
-        return super().choose_bid(hand, ladder_pos, may_indicate, rng)
+        return super().choose_bid(hand, ladder_pos, may_indicate, rng,
+                                  may_dnulla)
 
     def consider_slam(self, hand15, contract, rng):
         return contract.kind == NUM and rng.random() < 0.2

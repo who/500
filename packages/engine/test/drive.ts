@@ -3,11 +3,23 @@
  * drives a full game through applyAction only, with a deterministic policy —
  * the hand's first bidder makes the scenario's contract bid, everyone else
  * passes, discards keep the 10 lowest held cards, and play always takes the
- * first legal action. Every reachable state is collected for the specs.
+ * first legal action. (A DNULLA scenario needs two bidders: the first bidder
+ * opens NULLA so their partner may legally answer with the double.) Every
+ * reachable state is collected for the specs.
  */
 
 import type { Action, Bid, GameState } from '../src/index.js';
-import { PASS, applyAction, bid, legalActions, newGame, toActSeat } from '../src/index.js';
+import {
+  DNULLA,
+  NULLA,
+  PASS,
+  applyAction,
+  bid,
+  legalActions,
+  newGame,
+  partnerOf,
+  toActSeat,
+} from '../src/index.js';
 
 export interface Scenario {
   /** Bid the first bidder of every hand makes. */
@@ -27,6 +39,16 @@ export function chooseAction(state: GameState, scenario: Scenario): Action {
     case 'auction': {
       if (seat === null || state.auction === null) throw new Error('auction without a turn');
       const firstBidder = (state.dealer + 1) % 4;
+      // A double nulla is legal only for a seat whose partner already bid
+      // nulla (fh-17b), so that scenario is opened by the first bidder's
+      // NULLA and won by their partner two calls later.
+      if (scenario.contract.kind === DNULLA) {
+        if (seat === firstBidder) return { type: 'bid', seat, bid: bid(NULLA) };
+        if (seat === partnerOf(firstBidder)) {
+          return { type: 'bid', seat, bid: scenario.contract };
+        }
+        return { type: 'bid', seat, bid: bid(PASS) };
+      }
       if (seat === firstBidder && state.auction.declarer === null) {
         return { type: 'bid', seat, bid: scenario.contract };
       }

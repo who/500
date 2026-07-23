@@ -12,8 +12,9 @@
  *   - Candidates: each strain at the minimum currently-available level, plus
  *     one level up when the Medium max-level formula says the hand is strong;
  *     strains hopeless by that formula (min level > maxLevel + 1) are pruned.
- *     NULLA / DNULLA are gated on own-hand lowness — there is no partner
- *     signaling model, so DNULLA never triggers off a partner's bid.
+ *     NULLA / DNULLA are gated on own-hand lowness, and DNULLA additionally
+ *     on the engine's legality precondition — the partner must already have
+ *     bid regular NULLA this auction (fh-17b, BidContext.mayDoubleNulla).
  *   - Rollout proxy: the declarer's keeps use Medium's chooseKeeps (cheap
  *     proxy bounding cost); all four seats play with Medium policies.
  *   - Pass baseline: ONE shared world played out with this seat passing and
@@ -54,6 +55,7 @@ import {
   cardRank,
   initHandFromDeal,
   ladderIndex,
+  mayDoubleNulla,
   partnerOf,
 } from '@five-hundred/engine';
 import { MediumPolicy, endgameHeadroom } from '../medium.js';
@@ -225,11 +227,22 @@ export function sideZeroGameValue(
   return Math.max(-GAME_WIN_VALUE, Math.min(GAME_WIN_VALUE, diff));
 }
 
+/**
+ * Seat that opens a scripted rollout auction for `contract`. Normally ME,
+ * who simply bids it; a double nulla only answers a partner's nulla
+ * (fh-17b), so those worlds are dealt with ME's partner opening — the seat
+ * order is fully scripted either way, and ME still ends up the declarer.
+ */
+export function scriptedOpener(contract: Bid): number {
+  return contract.kind === DNULLA ? partnerOf(ME) : ME;
+}
+
 /** Assemble a rollout deal: my cards at seat 0, the world's hands elsewhere. */
 export function worldDeal(
   myTen: readonly Card[],
   world: SampledWorld,
   middle: readonly Card[],
+  first: number = ME,
 ): GameState {
   const hands = [
     [...myTen],
@@ -237,14 +250,26 @@ export function worldDeal(
     [...(world.hands[2] as readonly Card[])],
     [...(world.hands[3] as readonly Card[])],
   ];
-  return initHandFromDeal(hands, middle, ME);
+  return initHandFromDeal(hands, middle, first);
 }
 
-/** Script the auction so seat 0 wins `winning` unopposed. */
+/**
+ * Script the auction so seat 0 wins `winning` unopposed: everyone else
+ * passes, except that a DNULLA is set up by ME's partner opening NULLA —
+ * the only call sequence in which a double nulla is legal (fh-17b). Deal
+ * such a world with `scriptedOpener(winning)` as the first bidder.
+ */
 export function scriptAuction(state: GameState, winning: Bid): GameState {
-  state = mustApply(state, { type: 'bid', seat: ME, bid: winning });
-  for (const seat of [1, 2, 3]) {
-    state = mustApply(state, { type: 'bid', seat, bid: bid(PASS) });
+  const opener = state.auction?.turn ?? ME;
+  for (let i = 0; i < 4; i++) {
+    const seat = (opener + i) % 4;
+    const call =
+      seat === ME
+        ? winning
+        : winning.kind === DNULLA && seat === partnerOf(ME)
+          ? bid(NULLA)
+          : bid(PASS);
+    state = mustApply(state, { type: 'bid', seat, bid: call });
   }
   return state;
 }
@@ -262,7 +287,10 @@ function rolloutContract(
   scores: readonly [number, number],
   params: BotParams = DEFAULT_PARAMS,
 ): number {
-  let st = scriptAuction(worldDeal(myTen, world, world.dead), candidate);
+  let st = scriptAuction(
+    worldDeal(myTen, world, world.dead, scriptedOpener(candidate)),
+    candidate,
+  );
   st = driveHand(st, rolloutPolicies(false, params), rng);
   return sideZeroGameValue(st, scores);
 }
@@ -299,6 +327,7 @@ function rolloutPass(
             seat,
             indications: auction.indications,
             scores,
+            mayDoubleNulla: mayDoubleNulla(auction, seat),
           });
     if (
       auction.declarer === null &&
@@ -322,6 +351,8 @@ function rolloutPass(
  * the own hand passes the lowness gates. Every candidate is a legal raise.
  * A partner-indicated strain is never pruned (fh-zpg): the rollout over
  * indication-conditioned worlds, not the own-hand formula, judges it.
+ * DNULLA is offered only when `mayDoubleNulla` says the partner already bid
+ * regular nulla — the engine refuses it otherwise (fh-17b).
  */
 export function candidateBids(
   hand: readonly Card[],
@@ -329,6 +360,7 @@ export function candidateBids(
   indicatedStrain: number | null = null,
   extraHeadroom = 0,
   params: BotParams = DEFAULT_PARAMS,
+  mayDoubleNulla = false,
 ): Bid[] {
   const opponent = new MediumPolicy(params);
   const sorted = [...hand].sort(ascending);
@@ -362,7 +394,7 @@ export function candidateBids(
     if (lowness >= hb.nullaCandLowness && maxRank <= hb.nullaCandMaxRank) {
       if ((ladderIndex(bid(NULLA)) as number) > ladderPos) candidates.push(bid(NULLA));
     }
-    if (lowness >= hb.dnullaCandLowness && maxRank <= hb.dnullaCandMaxRank) {
+    if (mayDoubleNulla && lowness >= hb.dnullaCandLowness && maxRank <= hb.dnullaCandMaxRank) {
       if ((ladderIndex(bid(DNULLA)) as number) > ladderPos) candidates.push(bid(DNULLA));
     }
   }
@@ -417,7 +449,14 @@ export function chooseBidByRollout(
   };
 
   const stretch = endgameHeadroom(context, params);
-  const candidates = candidateBids(sorted, ladderPos, partnerStrain, stretch, params);
+  const candidates = candidateBids(
+    sorted,
+    ladderPos,
+    partnerStrain,
+    stretch,
+    params,
+    context.mayDoubleNulla === true,
+  );
   // From a DESPERATE losing endgame (opponents go out on defender tricks, so
   // failing a denial bid costs nothing extra), also offer each strain's
   // cheapest GAME-WINNING level and let the rollout decide whether the
@@ -505,7 +544,10 @@ function rolloutSlamVariant(
   rng: Rng,
   params: BotParams = DEFAULT_PARAMS,
 ): number {
-  let st = scriptAuction(worldDeal(my15.slice(0, 10), world, my15.slice(10)), contract);
+  let st = scriptAuction(
+    worldDeal(my15.slice(0, 10), world, my15.slice(10), scriptedOpener(contract)),
+    contract,
+  );
   st = driveHand(st, rolloutPolicies(slam, params), rng);
   return sideZeroDelta(st);
 }

@@ -81,10 +81,12 @@ describe('auction termination (single round of four calls)', () => {
   });
 
   it('ranks NULLA and DNULLA on the ladder like the oracle', () => {
-    const state = play(initAuction(0), [NULLA], [DNULLA], PASS_BID, PASS_BID);
+    // Seat 2 answers its partner's (seat 0) nulla — the only shape in which
+    // a double nulla is legal at all (fh-17b).
+    const state = play(initAuction(0), [NULLA], PASS_BID, [DNULLA], PASS_BID);
     expect(auctionResult(state)).toEqual({
       contract: bid(DNULLA),
-      declarer: 1,
+      declarer: 2,
       indications: [],
     });
   });
@@ -169,7 +171,65 @@ describe('legalBids', () => {
 
   it('always includes every remaining ladder bid plus PASS', () => {
     const state = initAuction(0);
-    expect(legalBids(state, 0)).toHaveLength(LADDER.length + 5 + 1);
+    // Everything but DNULLA, which the opener's partner has not enabled.
+    expect(legalBids(state, 0)).toHaveLength(LADDER.length - 1 + 5 + 1);
+  });
+});
+
+describe('double nulla precondition (fh-17b)', () => {
+  const isDnulla = (b: { kind: string }) => b.kind === DNULLA;
+
+  it('offers DNULLA only after the partner bid NULLA', () => {
+    const afterPartnerNulla = play(initAuction(0), [NULLA], PASS_BID);
+    expect(legalBids(afterPartnerNulla, 2).some(isDnulla)).toBe(true);
+  });
+
+  it('withholds DNULLA when the partner passed, indicated, or bid something else', () => {
+    const partnerCalls: Parameters<typeof bid>[] = [PASS_BID, [IND, 6, 1], [NUM, 7, 0]];
+    for (const partnerCall of partnerCalls) {
+      const state = play(initAuction(0), partnerCall, PASS_BID);
+      expect(legalBids(state, 2).some(isDnulla)).toBe(false);
+    }
+  });
+
+  it("withholds DNULLA on an opponent's nulla", () => {
+    const state = play(initAuction(0), [NULLA]);
+    expect(legalBids(state, 1).some(isDnulla)).toBe(false);
+  });
+
+  it('never offers DNULLA to the two seats whose partner calls after them', () => {
+    // Single round: seats 0 and 1 (from a first bidder of 0) call before
+    // their partners, so no history can ever enable them.
+    expect(legalBids(initAuction(0), 0).some(isDnulla)).toBe(false);
+    expect(legalBids(play(initAuction(0), [NULLA]), 1).some(isDnulla)).toBe(false);
+  });
+
+  it('scores an illegal DNULLA as a pass, like a too-low bid', () => {
+    // Seat 1's partner (seat 3) has not called, so this dnulla is not a bid.
+    const state = play(initAuction(0), PASS_BID, [DNULLA], PASS_BID, PASS_BID);
+    expect(state.ladderPos).toBe(-1);
+    expect(state.declarer).toBeNull();
+    expect(auctionResult(state)?.contract).toBeNull(); // redeal
+    expect(state.history[1]).toEqual({ seat: 1, bid: bid(DNULLA) });
+  });
+
+  it('accepts a DNULLA that answers the partner and outranks the high bid', () => {
+    const state = play(initAuction(0), [NULLA], [NUM, 10, 2], [DNULLA], PASS_BID);
+    expect(auctionResult(state)).toEqual({
+      contract: bid(DNULLA),
+      declarer: 2,
+      indications: [],
+    });
+  });
+
+  it('still rejects a legal-by-partner DNULLA that is too low', () => {
+    // 10H outranks double nulla, so seat 2's answer is scored as a pass.
+    const state = play(initAuction(0), [NULLA], [NUM, 10, 3], [DNULLA], PASS_BID);
+    expect(auctionResult(state)).toEqual({
+      contract: bid(NUM, 10, 3),
+      declarer: 1,
+      indications: [],
+    });
   });
 });
 

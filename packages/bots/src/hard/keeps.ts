@@ -56,7 +56,14 @@ import { MediumPolicy } from '../medium.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
-import { ME, mustApply, scriptAuction, sideZeroDelta, worldDeal } from './bidding.js';
+import {
+  ME,
+  mustApply,
+  scriptAuction,
+  scriptedOpener,
+  sideZeroDelta,
+  worldDeal,
+} from './bidding.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
 
@@ -211,7 +218,10 @@ export function playoutKeeps(
     st = mustApply(st, { type: 'declareSlam', seat: ME });
     st = mustApply(st, { type: 'giveCard', seat: partner, card: give });
   } else {
-    st = scriptAuction(worldDeal(sorted.slice(0, 10), world, sorted.slice(10)), contract);
+    st = scriptAuction(
+      worldDeal(sorted.slice(0, 10), world, sorted.slice(10), scriptedOpener(contract)),
+      contract,
+    );
     if (contract.kind === NUM) st = mustApply(st, { type: 'declineSlam', seat: ME });
   }
   st = mustApply(st, { type: 'discardKeeps', seat: ME, keeps: [...keeps] });

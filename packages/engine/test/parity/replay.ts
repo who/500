@@ -1,16 +1,17 @@
 /**
  * Streaming parity replayer (fh-gty.2, PRD section 7.2) — the port
- * acceptance gate. Feeds Python-oracle traces (trace_500.py schema v1) into
+ * acceptance gate. Feeds Python-oracle traces (trace_500.py schema v2) into
  * the TS engine through applyAction only and asserts every intermediate
  * observable matches the recording:
  *
  *   deal            reconstructs the hand via initHandFromDeal (rng bypassed)
- *   auction_action  turn, ladder position, indication right, and the full
- *                   legal bid set implied by ladder_pos/may_indicate; oracle
- *                   actions the TS engine (correctly) refuses to offer —
- *                   too-low bids, repeat indications — must be absent from
- *                   the TS legal set and replay as the PASS the oracle
- *                   scored them as
+ *   auction_action  turn, ladder position, indication right, double-nulla
+ *                   right, and the full legal bid set implied by
+ *                   ladder_pos/may_indicate/may_dnulla; oracle actions the
+ *                   TS engine (correctly) refuses to offer — too-low bids,
+ *                   repeat indications, a double nulla with no partner
+ *                   nulla behind it — must be absent from the TS legal set
+ *                   and replay as the PASS the oracle scored them as
  *   auction_result  contract, declarer, indications; on a dead auction the
  *                   engine must have auto-redealt into a fresh auction
  *   exchange        pickup contents, slam flag, give-card, DNULLA pass-
@@ -40,11 +41,12 @@ import {
   ladderIndex,
   legalActions,
   legalPlaysFor,
+  mayDoubleNulla,
   partnerOf,
   playToAct,
 } from '../../src/index.js';
 
-const SCHEMA_VERSION = 1;
+const SCHEMA_VERSION = 2;
 
 interface BidJson {
   readonly kind: string;
@@ -221,7 +223,7 @@ class Replayer {
       case 'hand_result':
         return this.onHandResult(rec);
       default:
-        this.diverge(null, 'record type', 'a schema v1 record type', rec.type);
+        this.diverge(null, 'record type', 'a schema v2 record type', rec.type);
     }
   }
 
@@ -250,10 +252,14 @@ class Replayer {
     );
     const mayIndicate = auction.declarer === null && !auction.indicated[seat];
     this.check(mayIndicate === rec.may_indicate, seat, 'may_indicate', rec.may_indicate, mayIndicate);
+    const mayDnulla = mayDoubleNulla(auction, seat);
+    this.check(mayDnulla === rec.may_dnulla, seat, 'may_dnulla', rec.may_dnulla, mayDnulla);
 
-    // The recorded ladder_pos + may_indicate imply the oracle's legal bid
-    // set; the engine's legalActions must offer exactly that set.
-    const expectedKeys = LADDER.slice((rec.ladder_pos as number) + 1).map(bidKey);
+    // The recorded ladder_pos + may_indicate + may_dnulla imply the oracle's
+    // legal bid set; the engine's legalActions must offer exactly that set.
+    const expectedKeys = LADDER.slice((rec.ladder_pos as number) + 1)
+      .filter((b) => rec.may_dnulla === true || b.kind !== DNULLA)
+      .map(bidKey);
     if (rec.may_indicate) {
       for (let s = 0; s < 5; s++) expectedKeys.push(bidKey(bid(IND, 6, s)));
     }
@@ -284,6 +290,7 @@ class Replayer {
       const passLike =
         ((recorded.kind === NUM || recorded.kind === NULLA || recorded.kind === DNULLA) &&
           (idx === undefined || idx <= auction.ladderPos)) ||
+        (recorded.kind === DNULLA && !mayDnulla) ||
         (recorded.kind === IND && !mayIndicate);
       this.check(passLike, seat, 'recorded action legality', 'a pass-scored action', rec.action);
       action = bid(PASS);
@@ -538,7 +545,7 @@ class Replayer {
 }
 
 /**
- * Replay a schema-v1 trace, line by line. Accepts any (async) iterable of
+ * Replay a schema-v2 trace, line by line. Accepts any (async) iterable of
  * lines so the 10k CLI can stream from disk while tests pass string arrays.
  * Returns run stats; throws ParityError on the first divergence.
  */

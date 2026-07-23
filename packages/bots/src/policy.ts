@@ -24,11 +24,15 @@ import { cardPower, cardSuit, trumpOf } from '@five-hundred/engine';
  * `scores` is the cumulative game score per side (index = seat % 2) so a
  * policy can weigh the auction against the game state (fh-e52) — e.g. bid a
  * longshot rather than hand the opponents a game-winning contract.
+ * `mayDoubleNulla` mirrors the engine's precondition (fh-17b): DOUBLE NULLA
+ * is a legal call only once the partner has bid regular NULLA this auction.
+ * Absent (the default) means no — a policy must never propose one.
  */
 export interface BidContext {
   readonly seat: number;
   readonly indications: readonly Indication[];
   readonly scores: readonly [number, number];
+  readonly mayDoubleNulla?: boolean;
 }
 
 /**

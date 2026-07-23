@@ -192,7 +192,12 @@ def legal_plays(hand: Sequence[int], trump: Optional[int],
 class Policy:
     """Interface for a player's decisions. Override to build strategies."""
 
-    def choose_bid(self, hand, ladder_pos, may_indicate, rng) -> Bid:
+    def choose_bid(self, hand, ladder_pos, may_indicate, rng,
+                   may_dnulla=False) -> Bid:
+        """`may_dnulla` is True only when this seat's partner already bid
+        regular NULLA in this auction; DOUBLE NULLA is illegal otherwise
+        (500-house-rules.md, Double Nulla) and run_auction scores it as a
+        pass."""
         raise NotImplementedError
 
     def choose_keeps(self, cards, contract, rng) -> list[int]:
@@ -222,8 +227,12 @@ class RandomPolicy(Policy):
         self.bid_prob = bid_prob
         self.indicate_prob = indicate_prob
 
-    def choose_bid(self, hand, ladder_pos, may_indicate, rng):
+    def choose_bid(self, hand, ladder_pos, may_indicate, rng,
+                   may_dnulla=False):
         nxt = ladder_pos + 1
+        # Lowest legal raise: DNULLA is skipped unless partner bid NULLA.
+        while nxt < len(LADDER) and LADDER[nxt].kind == DNULLA and not may_dnulla:
+            nxt += 1
         if nxt < len(LADDER) and rng.random() < self.bid_prob:
             return LADDER[nxt]
         if may_indicate and rng.random() < self.indicate_prob:
@@ -275,7 +284,8 @@ class HeuristicPolicy(Policy):
         vals = [0 if c == JOKER else 15 - card_rank(c) for c in hand]
         return sum(vals) / len(vals)
 
-    def choose_bid(self, hand, ladder_pos, may_indicate, rng):
+    def choose_bid(self, hand, ladder_pos, may_indicate, rng,
+                   may_dnulla=False):
         # Lose-all option: uniformly low hand, no joker, nothing above a jack.
         if (JOKER not in hand and self._lowness(hand) >= 8.6
                 and max(card_rank(c) for c in hand) <= 11):
@@ -385,18 +395,27 @@ def run_auction(hands, policies, first: int, rng) -> AuctionResult:
     """Single round of exactly four calls (500-house-rules.md, Bidding):
     one call per player starting at `first` (left of the dealer), the dealer
     calling last. No winning bid after the fourth call means a redeal — the
-    dealer's pass in that spot IS the throw-in choice."""
+    dealer's pass in that spot IS the throw-in choice.
+
+    Double nulla is legal only when this seat's partner already bid regular
+    NULLA earlier in the auction (500-house-rules.md, Double Nulla); one
+    that fails the precondition is scored as a pass, like a too-low bid."""
     ladder_pos = -1
     declarer = None
     indications: list[tuple[int, Bid]] = []
     indicated = [False] * 4
+    history: list[tuple[int, Bid]] = []
     for i in range(4):
         p = (first + i) % 4
         may_indicate = declarer is None and not indicated[p]
-        action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng)
+        may_dnulla = any(s == (p + 2) % 4 and b.kind == NULLA for s, b in history)
+        action = policies[p].choose_bid(hands[p], ladder_pos, may_indicate, rng,
+                                        may_dnulla)
+        history.append((p, action))
         if action.kind == NUM or action.kind in (NULLA, DNULLA):
             idx = LADDER_INDEX.get(action)
-            if idx is not None and idx > ladder_pos:
+            if (idx is not None and idx > ladder_pos
+                    and (action.kind != DNULLA or may_dnulla)):
                 ladder_pos, declarer = idx, p
             # else: illegal/low bid treated as a pass
         elif action.kind == IND and may_indicate:

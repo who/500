@@ -6,7 +6,8 @@
  *       phase, and expected vs actual values.
  *
  * The fixture (see fixtures/README.md for the exact regeneration command)
- * was seed-picked (re-picked for the one-pass auction, fh-8i7) to cover every packet edge case: redeal-only auctions,
+ * was seed-picked (re-picked for the one-pass auction, fh-8i7; counts
+ * refreshed for the double-nulla precondition, fh-17b) to cover every packet edge case: redeal-only auctions,
  * NULLA sit-outs, DNULLA pass-through, 16-card slam keeps, oracle bids the
  * TS engine scores as passes, and a joker led to a no-trump-type trick.
  */
@@ -45,8 +46,8 @@ describe('parity fixture (AC-1)', () => {
     const text = fixtureLines().join('\n');
     const count = (re: RegExp) => (text.match(re) ?? []).length;
     expect(count(/"redeal":true/g)).toBe(581);
-    expect(count(/"type":"auction_result".*?"kind":"NULLA"/g)).toBe(84);
-    expect(count(/"type":"auction_result".*?"kind":"DNULLA"/g)).toBe(60);
+    expect(count(/"type":"auction_result".*?"kind":"NULLA"/g)).toBe(108);
+    expect(count(/"type":"auction_result".*?"kind":"DNULLA"/g)).toBe(36);
     expect(count(/"type":"exchange".*?"slam":true/g)).toBe(10);
     expect(count(/"named_suit":[0-9]/g)).toBe(1);
   });

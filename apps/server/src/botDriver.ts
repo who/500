@@ -18,6 +18,7 @@ import {
   JOKER,
   legalPlaysFor,
   makeRng,
+  mayDoubleNulla,
   toActSeat,
   type Action,
   type ApplyResult,
@@ -248,7 +249,12 @@ export class BotDriver {
             hand,
             auction.ladderPos,
             mayIndicate,
-            { seat, indications: auction.indications, scores: state.game.scores },
+            {
+              seat,
+              indications: auction.indications,
+              scores: state.game.scores,
+              mayDoubleNulla: mayDoubleNulla(auction, seat),
+            },
             rng,
           ),
         };

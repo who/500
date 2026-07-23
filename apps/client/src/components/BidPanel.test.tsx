@@ -116,19 +116,25 @@ function sentBids(client: TestClient): ClientCommand[] {
 describe('BidPanel', () => {
   it('enables exactly the server-sent legal bids, each with its avondale value (AC-1)', () => {
     // 8♥ has been bid; the viewer holds the turn. Legal: everything above
-    // 8H on the ladder, plus Pass — and no indications, since a winning bid
+    // 8H on the ladder except double nulla (the viewer's partner has not bid
+    // nulla, fh-17b), plus Pass — and no indications, since a winning bid
     // exists (the engine stops offering IND, so the cells stay disabled).
     const at8H = ladderIndex(bid(NUM, 8, 3)) as number;
     const { app } = renderAuction(auctionAt(at8H, 0));
 
-    const expected = new Set([...LADDER.slice(at8H + 1).map(bidKey), bidKey(bid(PASS))]);
+    const expected = new Set([
+      ...LADDER.slice(at8H + 1)
+        .filter((b) => b.kind !== 'DNULLA')
+        .map(bidKey),
+      bidKey(bid(PASS)),
+    ]);
     expect(enabledKeys(app)).toEqual(expected);
 
     // Outbid cells stay in the grid, disabled — spatial stability.
     expect(cellFor(app, bid(NUM, 7, 0)).disabled).toBe(true);
     expect(cellFor(app, bid(NUM, 8, 3)).disabled).toBe(true);
     expect(cellFor(app, bid(NULLA)).disabled).toBe(true);
-    expect(cellFor(app, bid(DNULLA)).disabled).toBe(false);
+    expect(cellFor(app, bid(DNULLA)).disabled).toBe(true);
 
     // Values from the avondale table on the cells themselves.
     expect(cellFor(app, bid(NUM, 8, NT)).textContent).toBe('8NT320');
@@ -144,6 +150,16 @@ describe('BidPanel', () => {
 
     // The panel replaces the trick area during the auction.
     expect(app.queryByTestId('trick-area')).toBeNull();
+  });
+
+  it('enables the double nulla cell once the partner has bid nulla (fh-17b)', () => {
+    // Same 8♥ position, but the viewer's partner opened the auction with
+    // NULLA, so the engine now offers the double and the cell unlocks.
+    const at8H = ladderIndex(bid(NUM, 8, 3)) as number;
+    const { app } = renderAuction(
+      auctionAt(at8H, 0, { history: [{ seat: 2, bid: bid(NULLA) }] }),
+    );
+    expect(cellFor(app, bid(DNULLA)).disabled).toBe(false);
   });
 
   it('offers only 10♥, 10NT, and Pass once double nulla is bid (ladder-top edge)', () => {
@@ -198,7 +214,7 @@ describe('BidPanel', () => {
     // legal set carries all 5 IND bids, so every indication cell enables.
     const { client, app } = renderAuction(auctionAt(-1, 0));
     const expected = new Set([
-      ...LADDER.map(bidKey),
+      ...LADDER.filter((b) => b.kind !== 'DNULLA').map(bidKey),
       ...[0, 1, 2, 3, NT].map((s) => bidKey(bid(IND, 6, s))),
       bidKey(bid(PASS)),
     ]);

@@ -28,6 +28,7 @@ import {
   bidName,
   legalPlaysFor,
   makeRng,
+  mayDoubleNulla,
   newGame,
   toActSeat,
 } from '@five-hundred/engine';
@@ -78,7 +79,12 @@ export function policyAction(
           hand,
           auction.ladderPos,
           mayIndicate,
-          { seat, indications: auction.indications, scores: state.game.scores },
+          {
+            seat,
+            indications: auction.indications,
+            scores: state.game.scores,
+            mayDoubleNulla: mayDoubleNulla(auction, seat),
+          },
           rng,
         ),
       };

@@ -23,11 +23,14 @@ import {
   NULLA,
   NUM,
   PASS,
+  applyAuctionAction,
   bid,
   bidKey,
+  initAuction,
   ladderIndex,
   legalBids,
   makeRng,
+  mayDoubleNulla,
 } from '@five-hundred/engine';
 import type { ObservedConstraints } from '../src/index.js';
 import {
@@ -240,11 +243,38 @@ describe('edge cases', () => {
   });
 
   it('never proposes dnulla without an extremely low own hand', () => {
-    // Own-hand gate only (no partner signaling model): a hand with a queen
-    // may reach the nulla candidate but never the dnulla one.
+    // Own-hand gate: a hand with a queen may reach the nulla candidate but
+    // never the dnulla one, even with the partner's nulla behind it.
     const queenHigh = [S(4), S(5), S(12), C(4), C(5), C(6), D(4), D(5), H(4), H(5)];
-    const kinds = candidateBids(queenHigh, -1).map((c) => c.kind);
+    const kinds = candidateBids(queenHigh, -1, null, 0, undefined, true).map((c) => c.kind);
     expect(kinds).not.toContain('DNULLA');
+  });
+
+  it('proposes dnulla only when the partner already bid nulla (fh-17b)', () => {
+    // LOW_NULLA passes both lowness gates, so only the legality flag can be
+    // keeping DNULLA out of the candidate set.
+    const withoutPartner = candidateBids(LOW_NULLA, -1).map((c) => c.kind);
+    expect(withoutPartner).toContain('NULLA');
+    expect(withoutPartner).not.toContain('DNULLA');
+    const withPartner = candidateBids(LOW_NULLA, -1, null, 0, undefined, true).map((c) => c.kind);
+    expect(withPartner).toContain('DNULLA');
+  });
+
+  it('every Hard bid stays legal in a real partner-nulla auction (fh-17b)', () => {
+    // Seat 0 opens NULLA, seat 1 passes: seat 2 is the one seat that may
+    // legally double, and its choice must be in the engine's legal set.
+    let auction = initAuction(0);
+    auction = applyAuctionAction(auction, 0, bid(NULLA));
+    auction = applyAuctionAction(auction, 1, bid(PASS));
+    const legal = legalBids(auction, 2);
+    expect(legal.some((b) => b.kind === 'DNULLA')).toBe(true);
+    const chosen = chooseBidByRollout(LOW_NULLA, auction.ladderPos, false, {
+      seat: 2,
+      indications: [],
+      scores: [0, 0],
+      mayDoubleNulla: mayDoubleNulla(auction, 2),
+    }, makeRng(53), { worlds: 4 });
+    expect(legal.some((b) => bidKey(b) === bidKey(chosen)) || chosen.kind === PASS).toBe(true);
   });
 });
 

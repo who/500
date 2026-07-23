@@ -70,9 +70,11 @@ class RecordingPolicy(HeuristicPolicy):
     def __init__(self, records: list[dict]):
         self.records = records
 
-    def choose_bid(self, hand, ladder_pos, may_indicate, rng):
+    def choose_bid(self, hand, ladder_pos, may_indicate, rng,
+                   may_dnulla=False):
         hand = sorted(hand)
-        action = super().choose_bid(hand, ladder_pos, may_indicate, rng)
+        action = super().choose_bid(hand, ladder_pos, may_indicate, rng,
+                                    may_dnulla)
         self.records.append({
             "method": "choose_bid", "hand": hand, "ladder_pos": ladder_pos,
             "may_indicate": may_indicate, "result": bid_json(action),

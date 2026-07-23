@@ -39,6 +39,7 @@ A bid names a number of tricks and a trump suit (or no-trump), or is a special b
 
 **Double Nulla — 500 points.** *Both* partners contract to lose every trick, played **2-v-2** against the opponents — no one sits out.
 - **Ranks near the top of the ladder:** the only two bids that beat it are **10♥ and 10 NT**. It outranks everything else, including 10♠, 10♣, and 10♦.
+- **Precondition — partner must have bid Nulla first.** Double nulla is legal only if your **partner already bid regular Nulla earlier in this auction**. Because bidding goes around once (partner calls before you unless you are the dealer's partner acting after them), this means your partner's immediately-relevant call was Nulla. If your partner passed, indicated, or made any other bid, you **may not** bid double nulla.
 
 ## The middle (kitty)
 

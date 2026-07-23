@@ -5,6 +5,10 @@
  * calling last. Bids climb the ladder; a player may indicate while no
  * winning bid exists. No winning bid after the fourth call means a redeal —
  * the dealer's pass in that spot IS the throw-in choice.
+ *
+ * Double nulla carries one extra precondition (fh-17b): it is legal only
+ * when the seat's partner already bid regular NULLA earlier in this
+ * auction. See mayDoubleNulla.
  */
 
 import {
@@ -18,6 +22,7 @@ import {
   bid,
   ladderIndex,
 } from './bids.js';
+import { partnerOf } from './exchange.js';
 
 export interface Indication {
   readonly seat: number;
@@ -65,13 +70,27 @@ function mayIndicate(state: AuctionState, seat: number): boolean {
 }
 
 /**
+ * Whether the seat may bid DOUBLE NULLA: only after its partner has already
+ * bid regular NULLA earlier in this auction (500-house-rules.md, Double
+ * Nulla). Since the auction is a single round, the first two callers can
+ * never satisfy this — their partner has not spoken yet — which is exactly
+ * the intent: double nulla answers a partner's nulla, never opens.
+ */
+export function mayDoubleNulla(state: AuctionState, seat: number): boolean {
+  const partner = partnerOf(seat);
+  return state.history.some((e) => e.seat === partner && e.bid.kind === NULLA);
+}
+
+/**
  * Bids the seat may legally make right now: every ladder bid strictly above
- * ladderPos, an indication in each strain while indicating is allowed, and
- * PASS. Empty when the auction is over or it is not the seat's turn.
+ * ladderPos (minus DNULLA unless the partner already bid NULLA), an
+ * indication in each strain while indicating is allowed, and PASS. Empty
+ * when the auction is over or it is not the seat's turn.
  */
 export function legalBids(state: AuctionState, seat: number): Bid[] {
   if (state.done || seat !== state.turn) return [];
-  const legal: Bid[] = LADDER.slice(state.ladderPos + 1);
+  const dnulla = mayDoubleNulla(state, seat);
+  const legal: Bid[] = LADDER.slice(state.ladderPos + 1).filter((b) => dnulla || b.kind !== DNULLA);
   if (mayIndicate(state, seat)) {
     for (let s = 0; s < 5; s++) legal.push(bid(IND, 6, s));
   }
@@ -91,11 +110,13 @@ export function applyAuctionAction(state: AuctionState, seat: number, action: Bi
   let { ladderPos, declarer, indications, indicated } = state;
   if (action.kind === NUM || action.kind === NULLA || action.kind === DNULLA) {
     const idx = ladderIndex(action);
-    if (idx !== undefined && idx > ladderPos) {
+    const allowed = action.kind !== DNULLA || mayDoubleNulla(state, seat);
+    if (idx !== undefined && idx > ladderPos && allowed) {
       ladderPos = idx;
       declarer = seat;
     }
-    // else: illegal/low bid treated as a pass
+    // else: illegal/low bid (including a dnulla with no partner nulla behind
+    // it) treated as a pass
   } else if (action.kind === IND && mayIndicate(state, seat)) {
     indicated = indicated.map((f, i) => (i === seat ? true : f));
     indications = [...indications, { seat, bid: action }];

@@ -251,17 +251,19 @@ describe('§7.1 redeal', () => {
 
 describe('§7.1 double-nulla pass-through exchange', () => {
   it('the declarer keeps 10 of 15 and the exact 5 discards travel to the partner, all seats active', () => {
-    let state = auctionSteps(newGame(7), [bid(DNULLA), pass, pass, pass]);
+    // Double nulla only answers a partner's nulla (fh-17b): seat 0 opens
+    // NULLA, seat 2 raises it to DNULLA and becomes the declarer.
+    let state = auctionSteps(newGame(7), [bid(NULLA), pass, bid(DNULLA), pass]);
     expect(state.phase).toBe('middleExchange'); // no slam offer on a lose-all contract
-    expect(state.declarer).toBe(0);
-    expect(state.hands[0]).toHaveLength(15); // middle picked up
+    expect(state.declarer).toBe(2);
+    expect(state.hands[2]).toHaveLength(15); // middle picked up
 
-    const declarerHeld = [...state.hands[0]!];
+    const declarerHeld = [...state.hands[2]!];
     const keeps = declarerHeld.slice(0, 10);
     const passedOn = declarerHeld.slice(10);
-    state = step(state, { type: 'discardKeeps', seat: 0, keeps });
+    state = step(state, { type: 'discardKeeps', seat: 2, keeps });
 
-    const partner = partnerOf(0);
+    const partner = partnerOf(2);
     expect(state.phase).toBe('middleExchange'); // now the partner's discard
     expect(toActSeat(state)).toBe(partner);
     expect(state.hands[partner]).toHaveLength(15); // 10 + the 5 passed discards

@@ -1,7 +1,7 @@
 """Smoke tests for trace_500.py (stdlib unittest only — no pytest).
 
 Traces a handful of hands in-process and asserts:
-  * every emitted line parses as JSON and carries the v1 common fields,
+  * every emitted line parses as JSON and carries the v2 common fields,
   * per-type records carry their documented schema fields,
   * two identical runs are byte-identical,
   * traced HandResults aggregate to the same stats as a direct
@@ -22,7 +22,7 @@ COMMON_FIELDS = {"v", "seed", "hand", "first", "type"}
 TYPE_FIELDS = {
     "deal": {"attempt", "hands", "middle"},
     "auction_action": {"attempt", "seat", "ladder_pos", "may_indicate",
-                       "action"},
+                       "may_dnulla", "action"},
     "auction_result": {"attempt", "redeal", "contract", "declarer",
                        "indications"},
     "exchange": {"declarer", "contract", "slam", "give_card", "active",
@@ -54,11 +54,11 @@ class TraceSmokeTest(unittest.TestCase):
             self.assertTrue(line.strip(), "no blank lines expected")
             json.loads(line)
 
-    def test_v1_common_fields_on_every_record(self):
+    def test_v2_common_fields_on_every_record(self):
         for rec in self.records:
             self.assertEqual(COMMON_FIELDS - rec.keys(), set(),
                              f"missing common fields in {rec}")
-            self.assertEqual(rec["v"], 1)
+            self.assertEqual(rec["v"], 2)
             self.assertEqual(rec["seed"], 1)
             self.assertIn(rec["first"], range(4))
             self.assertEqual(rec["first"], rec["hand"] % 4)

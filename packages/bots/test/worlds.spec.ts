@@ -75,11 +75,20 @@ const CRAFTED_HANDS: Card[][] = [
 const CRAFTED_MIDDLE: Card[] = [S(14), C(11), D(14), H(14), JOKER];
 const CRAFTED_KEEPS: Card[] = [S(6), S(7), S(8), S(9), S(10), S(11), S(12), S(13), S(14), JOKER];
 
-/** Seat 0 wins a scripted auction with `winning`, others pass. */
+/**
+ * Seat 0 wins a scripted auction with `winning`, others pass — except for a
+ * double nulla, which is legal only as an answer to the partner's nulla
+ * (fh-17b), so that deal opens with seat 2 and its NULLA.
+ */
 function craftedAuction(winning: ReturnType<typeof bid>): GameState {
-  let st = initHandFromDeal(CRAFTED_HANDS, CRAFTED_MIDDLE, 0);
-  st = apply(st, { type: 'bid', seat: 0, bid: winning });
-  for (const seat of [1, 2, 3]) st = apply(st, { type: 'bid', seat, bid: bid(PASS) });
+  const dnulla = winning.kind === DNULLA;
+  const first = dnulla ? 2 : 0;
+  let st = initHandFromDeal(CRAFTED_HANDS, CRAFTED_MIDDLE, first);
+  for (let i = 0; i < 4; i++) {
+    const seat = (first + i) % 4;
+    const call = seat === 0 ? winning : dnulla && seat === 2 ? bid(NULLA) : bid(PASS);
+    st = apply(st, { type: 'bid', seat, bid: call });
+  }
   return st;
 }
 
