@@ -1,9 +1,11 @@
 // @vitest-environment jsdom
 
+import { act } from 'react';
 import { fireEvent } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type RedactedView, DNULLA, JOKER, NULLA, NUM, bid, makeCard } from '@five-hundred/engine';
 import { cardLabel } from '../components/Card.tsx';
+import { CONTRACT_TOAST_MS } from '../components/ContractToast.tsx';
 import {
   applyEvent,
   botSeatView,
@@ -21,6 +23,10 @@ import {
 beforeEach(() => {
   installFakeLocalStorage();
   history.replaceState(null, '', '/');
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 /** Seat the four names used across the specs: you, right, partner, left. */
@@ -335,5 +341,152 @@ describe('Table', () => {
     );
     expect(app.getByTestId('exchange-picker').querySelectorAll('[data-card]')).toHaveLength(15);
     expect(app.getByTestId('hud-contract').textContent).toBe('8H by Bot 1');
+  });
+});
+
+/**
+ * Mount mid-auction (no contract yet), then land the view the server sends
+ * the instant the auction resolves — `contract` going null -> set is exactly
+ * what the announcement watches.
+ */
+function winAuction(
+  seat: number,
+  resolved: Partial<RedactedView>,
+): { client: TestClient; app: ReturnType<typeof renderApp> } {
+  const client = makeClient();
+  const app = renderApp(client);
+  applyEvent(client, env(0, { t: 'roomState', room: NAMES_ROOM }));
+  applyEvent(client, env(1, { t: 'gameView', view: gameViewFixture(seat, { toAct: 1 }) }));
+  applyEvent(client, env(2, { t: 'gameView', view: gameViewFixture(seat, resolved) }));
+  return { client, app };
+}
+
+/** A NUM contract lands in the slam offer first (engine initExchange). */
+const WON_8D = {
+  phase: 'slamDecision',
+  contract: bid(NUM, 8, 2),
+  declarer: 3,
+  toAct: 3,
+  handCounts: [10, 10, 10, 15],
+} as const;
+
+describe('contract-won announcement (fh-8kz)', () => {
+  it('announces the winner and contract for a bot declarer and for you (AC-1)', () => {
+    // A bot wins: the human is a defender and would otherwise see nothing but
+    // the bot's silent middle exchange before trick 1.
+    const bot = winAuction(0, WON_8D);
+    expect(bot.app.getByTestId('contract-toast').textContent).toBe(
+      'Bot 4 won the bid — 8 Diamonds (280 at stake)',
+    );
+    bot.app.unmount();
+
+    // The viewer wins: named as "You", never by their own seat name.
+    const you = winAuction(0, { ...WON_8D, declarer: 0, toAct: 0, handCounts: [15, 10, 10, 10] });
+    expect(you.app.getByTestId('contract-toast').textContent).toBe(
+      'You won the bid — 8 Diamonds (280 at stake)',
+    );
+    you.app.unmount();
+
+    // A reconnect re-baselining mid-hand has no auction to announce: the
+    // contract was already there, so nothing "just happened".
+    const { app } = renderTable(midTrickView());
+    expect(app.queryByTestId('contract-toast')).toBeNull();
+  });
+
+  it('spells out nulla, double nulla, and a slam declared after the win (AC-2)', () => {
+    const nulla = winAuction(0, {
+      phase: 'middleExchange',
+      contract: bid(NULLA),
+      declarer: 1,
+      toAct: 1,
+      activeSeats: [0, 1, 2],
+    });
+    expect(nulla.app.getByTestId('contract-toast').textContent).toBe(
+      'Ben won the bid — Nulla (250 at stake)',
+    );
+    nulla.app.unmount();
+
+    const dnulla = winAuction(0, {
+      phase: 'middleExchange',
+      contract: bid(DNULLA),
+      declarer: 2,
+      toAct: 2,
+    });
+    expect(dnulla.app.getByTestId('contract-toast').textContent).toBe(
+      'Cleo won the bid — Double Nulla (500 at stake)',
+    );
+    dnulla.app.unmount();
+
+    // 10S by Cleo, who then declares the slam while the toast is still up:
+    // the announcement reads the live view, so the stake follows (+250).
+    const slam = winAuction(0, {
+      phase: 'slamDecision',
+      contract: bid(NUM, 10, 0),
+      declarer: 2,
+      toAct: 2,
+    });
+    expect(slam.app.getByTestId('contract-toast').textContent).toBe(
+      'Cleo won the bid — 10 Spades (440 at stake)',
+    );
+    applyEvent(
+      slam.client,
+      env(3, {
+        t: 'gameView',
+        view: gameViewFixture(0, {
+          phase: 'partnerCard',
+          contract: bid(NUM, 10, 0),
+          declarer: 2,
+          toAct: 0,
+          slam: true,
+        }),
+      }),
+    );
+    expect(slam.app.getByTestId('contract-toast').textContent).toBe(
+      'Cleo won the bid — Slam 10 Spades (690 at stake)',
+    );
+  });
+
+  it('a dead auction toasts the redeal instead, and never both at once (AC-2)', () => {
+    const client = makeClient();
+    const app = renderApp(client);
+    applyEvent(client, env(0, { t: 'roomState', room: NAMES_ROOM }));
+    applyEvent(client, env(1, { t: 'gameView', view: gameViewFixture(0, { toAct: 1 }) }));
+
+    // Nobody bid: the redeal toast, and no false "won the bid".
+    applyEvent(
+      client,
+      env(2, { t: 'gameView', view: gameViewFixture(0, { redeals: 1, dealer: 0, toAct: 1 }) }),
+    );
+    expect(app.queryByTestId('contract-toast')).toBeNull();
+    expect(app.getByTestId('redeal-toast').textContent).toBe(
+      'No winning bid — redealing. Ana deals.',
+    );
+
+    // The re-dealt auction produces a contract: the announcement takes over
+    // and the stale redeal toast goes, so the two never stack.
+    applyEvent(
+      client,
+      env(3, { t: 'gameView', view: gameViewFixture(0, { ...WON_8D, redeals: 1, dealer: 0 }) }),
+    );
+    expect(app.queryByTestId('redeal-toast')).toBeNull();
+    expect(app.getByTestId('contract-toast').textContent).toBe(
+      'Bot 4 won the bid — 8 Diamonds (280 at stake)',
+    );
+  });
+
+  it('sits clear of the felt and dismisses itself (AC-3)', () => {
+    vi.useFakeTimers();
+    const { app } = winAuction(0, WON_8D);
+    const toast = app.getByTestId('contract-toast');
+
+    // Fixed to the top of the screen, outside the felt's grid entirely: it
+    // cannot occlude the trick area or the first lead (fh-1dv stacking).
+    expect(toast.closest('.game-table')).toBeNull();
+    expect(app.getByTestId('trick-area')).not.toBeNull();
+
+    act(() => {
+      vi.advanceTimersByTime(CONTRACT_TOAST_MS);
+    });
+    expect(app.queryByTestId('contract-toast')).toBeNull();
   });
 });

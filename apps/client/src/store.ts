@@ -133,6 +133,14 @@ export interface ClientState {
    * `count` keys the toast so back-to-back redeals replace, never queue.
    */
   redealNotice: { readonly dealer: number; readonly count: number } | null;
+  /**
+   * Latest won contract (fh-8kz), detected when a gameView first carries a
+   * contract — the auction just resolved. `declarer` is the winning seat;
+   * `count` (the hand number) keys the toast so a new hand replaces it. The
+   * announcement text reads the live view, so a slam declared while it is up
+   * shows through.
+   */
+  contractNotice: { readonly declarer: number; readonly count: number } | null;
   gameOver: Pick<GameOverEvent, 'winner' | 'scores'> | null;
   lastError: Pick<ProtocolErrorEvent, 'code' | 'message'> | null;
   seat: number | null;
@@ -159,6 +167,8 @@ export interface ClientActions {
   clearError(): void;
   /** Dismiss the redeal toast (auto-called by its timer). */
   clearRedealNotice(): void;
+  /** Dismiss the contract-won toast (auto-called by its timer). */
+  clearContractNotice(): void;
   /** Forget the stored seat and return to the home flow. */
   leaveSession(): void;
 }
@@ -180,6 +190,7 @@ const HOME_RESET: Partial<ClientState> = {
   pendingActions: null,
   lingerTrick: null,
   redealNotice: null,
+  contractNotice: null,
   rejoining: false,
   seatLost: false,
 };
@@ -261,6 +272,19 @@ export function createStore(deps: StoreDeps): ClientStore {
         if (prev !== undefined && next.redeals > prev.redeals) {
           patch.redealNotice = { dealer: next.dealer, count: next.redeals };
         }
+        // The auction resolving is exactly `contract` going null -> set (the
+        // engine fills contract+declarer in the same step it leaves the
+        // auction phase). Announce the win, and drop any redeal toast still
+        // up from an earlier dead auction so the two never stack.
+        if (
+          prev !== undefined &&
+          prev.contract === null &&
+          next.contract !== null &&
+          next.declarer !== null
+        ) {
+          patch.contractNotice = { declarer: next.declarer, count: next.handNumber };
+          patch.redealNotice = null;
+        }
         // A rebaseline (reconnect resend / gap recovery) wins immediately:
         // whatever trick was frozen belongs to a timeline the viewer left.
         if (lastSeq === null || recovering) {
@@ -322,6 +346,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       handResult: null,
       readySeats: [],
       redealNotice: null,
+      contractNotice: null,
       gameOver: null,
       lastError: null,
       seat: null,
@@ -373,6 +398,10 @@ export function createStore(deps: StoreDeps): ClientStore {
 
       clearRedealNotice(): void {
         set({ redealNotice: null });
+      },
+
+      clearContractNotice(): void {
+        set({ contractNotice: null });
       },
 
       leaveSession(): void {

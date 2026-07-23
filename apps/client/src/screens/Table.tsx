@@ -10,7 +10,10 @@
  * During the auction the bid panel replaces the trick area (PRD 6.1), legal
  * cells taken straight from the server's actionRequest, each seat's badge
  * carries its ordered bid-history chips, and a dead auction raises the
- * redeal toast (PRD 6.2) via the store's redeals-counter watch.
+ * redeal toast (PRD 6.2) via the store's redeals-counter watch. A won auction
+ * raises the contract announcement (fh-8kz) from the same idiom — the store
+ * watches `contract` going null -> set — so the transition into trick play
+ * gets its own beat instead of sliding silently into the middle exchange.
  *
  * Lose-all contracts (PRD 6.2): the nulla partner's badge carries a
  * "(nulla)" sitting-out reason, and the double-nulla pass-through mounts
@@ -51,6 +54,7 @@ import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
 import { BidPanel, bidLegality } from '../components/BidPanel.tsx';
+import { ContractToast } from '../components/ContractToast.tsx';
 import { DebugPanel } from '../components/DebugPanel.tsx';
 import { ExchangePicker } from '../components/ExchangePicker.tsx';
 import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
@@ -87,6 +91,8 @@ export function Table(): ReactNode {
   const lingerTrick = useStore(client.store, (s) => s.lingerTrick);
   const redealNotice = useStore(client.store, (s) => s.redealNotice);
   const clearRedealNotice = useStore(client.store, (s) => s.clearRedealNotice);
+  const contractNotice = useStore(client.store, (s) => s.contractNotice);
+  const clearContractNotice = useStore(client.store, (s) => s.clearContractNotice);
   // The actionRequest a submission was made against; while it is still the
   // current one the hand stays locked (a gameView clears pendingActions, so
   // the reference changing is exactly "the next view arrived"). A fresh
@@ -188,6 +194,17 @@ export function Table(): ReactNode {
           dealerName={seatName(room, redealNotice.dealer)}
           count={redealNotice.count}
           onDismiss={clearRedealNotice}
+        />
+      )}
+      {/* The auction->play beat (fh-8kz): who won, and at what. */}
+      {contractNotice !== null && view.contract !== null && (
+        <ContractToast
+          contract={view.contract}
+          declarerName={seatName(room, contractNotice.declarer)}
+          isYou={contractNotice.declarer === me}
+          slam={view.slam}
+          count={contractNotice.count}
+          onDismiss={clearContractNotice}
         />
       )}
       <div className="game-table">

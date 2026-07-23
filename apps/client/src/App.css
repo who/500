@@ -954,9 +954,15 @@ button.primary {
   cursor: pointer;
 }
 
-/* --- Redeal toast --------------------------------------------------------- */
+/* --- Table toasts (redeal, contract won) ---------------------------------- */
 
-.redeal-toast {
+/* Both float over the top of the screen rather than the felt, so neither can
+   occlude the trick area or the first lead (the felt's own overlay layer is
+   the trick-cell stacking contract; see .trick-area). They are mutually
+   exclusive by construction — a redeal means no contract — and static, so
+   prefers-reduced-motion needs nothing disabled. */
+.redeal-toast,
+.contract-toast {
   position: fixed;
   top: 0.75rem;
   left: 50%;
@@ -968,6 +974,13 @@ button.primary {
   color: var(--bg);
   font-weight: 600;
   box-shadow: var(--shadow);
+}
+
+/* The won-contract announcement (fh-8kz) reads as an event, not a warning:
+   the accent border separates it from the neutral redeal toast. */
+.contract-toast {
+  border: 2px solid var(--accent);
+  text-align: center;
 }
 
 /* --- Your seat + hand ---------------------------------------------------- */
