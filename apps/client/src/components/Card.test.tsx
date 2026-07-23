@@ -57,4 +57,29 @@ describe('CardFace / CardBack foil class', () => {
     expect(svg?.classList.contains('card-back')).toBe(true);
     expect(svg?.classList.contains('card-trump')).toBe(false);
   });
+
+  /* The sheen only paints if it sits between the ground and the glyphs and is
+     clipped to the card outline; CSS alone can't put it there, so pin the
+     markup. Ids are per-card so two faces on screen can't share a url(#…). */
+  it('paints the sheen over the ground, under the glyphs, clipped to the card', () => {
+    const face = render(<CardFace card={AH} className={trumpFaceClass(AH, HEARTS)} />);
+    const svg = face.container.querySelector('svg.card') as SVGElement;
+    const foil = svg.querySelector('.card-foil') as SVGElement;
+    expect(foil.getAttribute('clip-path')).toBe(`url(#foil-clip-${AH})`);
+    expect(svg.querySelector(`#foil-clip-${AH}`)).not.toBeNull();
+    expect(svg.querySelector('.card-foil-sheen')?.getAttribute('fill')).toBe(`url(#foil-${AH})`);
+
+    const painted = [...svg.children].map((el) => el.getAttribute('class') ?? el.tagName);
+    expect(painted.indexOf('card-foil')).toBeGreaterThan(painted.indexOf('card-ground'));
+    expect(painted.indexOf('card-foil')).toBeLessThan(painted.indexOf('card-corner-rank'));
+  });
+
+  it('gives a non-trump face the same inert sheen markup', () => {
+    const face = render(<CardFace card={KS} className={trumpFaceClass(KS, HEARTS)} />);
+    const svg = face.container.querySelector('svg.card') as SVGElement;
+    // Present but unmarked: the CSS keys the sheen off .card-trump, so an
+    // untrumped face renders identically without a second code path.
+    expect(svg.querySelector('.card-foil')).not.toBeNull();
+    expect(svg.classList.contains('card-trump')).toBe(false);
+  });
 });

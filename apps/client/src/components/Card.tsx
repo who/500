@@ -28,6 +28,64 @@ function isRed(suit: number): boolean {
 }
 
 /**
+ * The foil sheen for a trump face (fh-wye). It paints over the card ground and
+ * under the rank/pips, so trump reads as a moving holographic band while the
+ * suit glyphs keep full contrast. Inert until the svg carries .card-trump —
+ * CSS hides the group otherwise, so a non-trump face renders identically.
+ *
+ * The band is one repeating gradient tile 63 user units wide (the card's own
+ * width) laid on an oversized rect, rotated inside a clip of the rounded card
+ * outline. Sweeping the rect by exactly one tile therefore loops seamlessly
+ * and never spills past the card's corners. Ids are per-card so two faces on
+ * screen at once can't collide on url(#…).
+ */
+function FoilSheen(props: { card: CardId }): ReactNode {
+  const gradientId = `foil-${props.card}`;
+  const clipId = `foil-clip-${props.card}`;
+  return (
+    <>
+      <defs>
+        <linearGradient
+          id={gradientId}
+          gradientUnits="userSpaceOnUse"
+          x1="0"
+          y1="0"
+          x2="63"
+          y2="0"
+          spreadMethod="repeat"
+        >
+          {/* White is the identity color under multiply, so the card body only
+              tints where the iridescent part of the tile passes over it. */}
+          <stop offset="0" stopColor="#ffffff" />
+          <stop offset="0.36" stopColor="#ffffff" />
+          <stop offset="0.45" stopColor="#ffd36b" />
+          <stop offset="0.53" stopColor="#ff8ec4" />
+          <stop offset="0.61" stopColor="#7ec8ff" />
+          <stop offset="0.69" stopColor="#8ff0c0" />
+          <stop offset="0.78" stopColor="#ffffff" />
+          <stop offset="1" stopColor="#ffffff" />
+        </linearGradient>
+        <clipPath id={clipId}>
+          <rect x="1" y="1" width="62" height="88" rx="7" />
+        </clipPath>
+      </defs>
+      <g className="card-foil" clipPath={`url(#${clipId})`}>
+        <g transform="rotate(-24 32 45)">
+          <rect
+            className="card-foil-sheen"
+            x="-100"
+            y="-45"
+            width="300"
+            height="180"
+            fill={`url(#${gradientId})`}
+          />
+        </g>
+      </g>
+    </>
+  );
+}
+
+/**
  * One card face. The joker gets its own purple star design. `compact` is the
  * small-size variant (PRD 6.3): corner rank/suit grow to a legibility floor
  * and the mirrored bottom corner is dropped — CSS keys off .card-compact.
@@ -51,6 +109,7 @@ export function CardFace(props: {
         data-card={card}
       >
         <rect x="1" y="1" width="62" height="88" rx="7" className="card-ground" />
+        <FoilSheen card={card} />
         <text x="32" y="34" textAnchor="middle" className="card-joker-star">
           ★
         </text>
@@ -72,6 +131,7 @@ export function CardFace(props: {
       data-card={card}
     >
       <rect x="1" y="1" width="62" height="88" rx="7" className="card-ground" />
+      <FoilSheen card={card} />
       <text x="7" y="20" className="card-corner-rank">
         {rank}
       </text>
