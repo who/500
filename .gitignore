@@ -56,3 +56,6 @@ node_modules/
 dist/
 build/
 target/
+
+# grind harness lock (local only)
+.beads/*.flock
