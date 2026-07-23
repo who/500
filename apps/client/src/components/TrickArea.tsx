@@ -10,6 +10,10 @@
  * holds the cleared end state instead of popping the cards back. A joker led
  * under no trump carries its declared suit as a chip on the card face
  * (PRD 6.2) — the named suit is exactly the trick's ledSuit.
+ *
+ * When the bidding side is set (fh-d2d) the felt takes a reddish border and
+ * a banner names it; the caller owns the predicate (lib/biddersSet.ts) so the
+ * HUD reads the same state.
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -54,6 +58,8 @@ export function TrickArea(props: {
   anchor: number;
   /** Trump suit of the contract; null for NT/nulla (joker chip contexts). */
   trump: number | null;
+  /** The declaring side can no longer make it (lib/biddersSet.ts). */
+  biddersSet?: boolean;
 }): ReactNode {
   const linger = props.linger ?? null;
   // Sweep machinery: TRICK_SWEEP_MS before the linger releases, the cards
@@ -86,58 +92,68 @@ export function TrickArea(props: {
     linger === null && !inProgress && resolved !== null && sweptKey === trickKey(resolved);
   const sweepTarget =
     (sweepingNow || swept) && winner !== null ? seatPosition(winner, props.anchor) : null;
+  const biddersSet = props.biddersSet === true;
   const areaClasses = [
     'trick-area',
     sweepingNow && 'trick-sweeping',
     swept && 'trick-swept',
     sweepTarget !== null && `sweep-to-${sweepTarget}`,
+    biddersSet && 'bidders-set',
   ]
     .filter(Boolean)
     .join(' ');
   return (
-    <div
-      className={areaClasses}
-      data-testid="trick-area"
-      data-lingering={linger !== null || undefined}
-      data-sweeping={sweepingNow || undefined}
-      data-sweep-target={sweepTarget ?? undefined}
-    >
-      {plays.map((play) => {
-        const won = play.seat === winner;
-        // Only a LED joker under no trump named a suit; played to a led
-        // trick it silently follows, and in trump contracts it is trump.
-        const declared =
-          play.card === JOKER && play.seat === leader && props.trump === null && ledSuit !== null
-            ? ledSuit
-            : null;
-        const classes = [
-          'trick-card',
-          `trick-${seatPosition(play.seat, props.anchor)}`,
-          won && 'trick-winner',
-        ]
-          .filter(Boolean)
-          .join(' ');
-        return (
-          <div
-            key={play.seat}
-            className={classes}
-            data-seat={play.seat}
-            data-winner={won || undefined}
-          >
-            <CardFace card={play.card} />
-            {declared !== null && (
-              <span
-                className="joker-declares"
-                data-testid="joker-declares"
-                data-suit={declared}
-                title={`Joker declares ${SUIT_NOUNS[declared]}`}
-              >
-                declares {SUIT_GLYPHS[declared]}
-              </span>
-            )}
-          </div>
-        );
-      })}
-    </div>
+    <>
+      <div
+        className={areaClasses}
+        data-testid="trick-area"
+        data-lingering={linger !== null || undefined}
+        data-sweeping={sweepingNow || undefined}
+        data-sweep-target={sweepTarget ?? undefined}
+        data-bidders-set={biddersSet || undefined}
+      >
+        {plays.map((play) => {
+          const won = play.seat === winner;
+          // Only a LED joker under no trump named a suit; played to a led
+          // trick it silently follows, and in trump contracts it is trump.
+          const declared =
+            play.card === JOKER && play.seat === leader && props.trump === null && ledSuit !== null
+              ? ledSuit
+              : null;
+          const classes = [
+            'trick-card',
+            `trick-${seatPosition(play.seat, props.anchor)}`,
+            won && 'trick-winner',
+          ]
+            .filter(Boolean)
+            .join(' ');
+          return (
+            <div
+              key={play.seat}
+              className={classes}
+              data-seat={play.seat}
+              data-winner={won || undefined}
+            >
+              <CardFace card={play.card} />
+              {declared !== null && (
+                <span
+                  className="joker-declares"
+                  data-testid="joker-declares"
+                  data-suit={declared}
+                  title={`Joker declares ${SUIT_NOUNS[declared]}`}
+                >
+                  declares {SUIT_GLYPHS[declared]}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      {biddersSet && (
+        <div className="bidders-set-banner" role="status" data-testid="bidders-set-banner">
+          Bidders have been set!
+        </div>
+      )}
+    </>
   );
 }

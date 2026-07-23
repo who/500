@@ -296,6 +296,16 @@ button.primary {
   color: var(--text-h);
 }
 
+/* The trick counter carries the set state too (fh-d2d) — same predicate as
+   the felt's reddish border, so the two can never disagree. */
+.hud-cell.hud-set {
+  color: var(--danger);
+}
+
+.hud-cell .hud-set-tag {
+  color: var(--danger);
+}
+
 .game-table {
   position: relative;
   display: grid;
@@ -526,6 +536,39 @@ button.primary {
   border-radius: 16px;
   background: radial-gradient(circle at 45% 40%, #2f8f57, #1d6a3e);
   box-shadow: var(--shadow);
+}
+
+/* Set state (fh-d2d): the felt turns reddish the moment the bidding side can
+   no longer make the contract — mid-hand once that is certain, and through
+   hand end. Purely static (a border recolor, no flash or pulse), so
+   prefers-reduced-motion needs nothing disabled here. */
+.trick-area.bidders-set {
+  border: 2px solid var(--danger);
+  /* Box-sizing is border-box globally, so the felt keeps its size; the halo
+     is spread outside it, which never moves the cards. */
+  box-shadow:
+    0 0 0 4px var(--danger-bg),
+    var(--shadow);
+}
+
+/* Overlay layer of the trick-cell stacking contract (see .trick-area):
+   z-index 1 keeps the banner above the felt whatever the DOM order (fh-1dv).
+   It straddles the felt's top edge so it never covers the played cards. */
+.bidders-set-banner {
+  grid-area: trick;
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  justify-self: center;
+  margin-top: -0.7rem;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--danger);
+  background: var(--danger);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-align: center;
 }
 
 .trick-card {

@@ -201,8 +201,9 @@ describe('Table', () => {
     expect(app.getByTestId('hud-contract').textContent).toBe(
       'Nulla 250 by Ben — must lose every trick',
     );
+    // That forced trick already sets a nulla, so the counter says so (fh-d2d).
     expect(app.getByTestId('hud-tricks').textContent).toBe(
-      'Tricks taken by bidders: 1 — they want 0',
+      'Tricks taken by bidders: 1 — they want 0 — bidders set',
     );
     expect(app.getByTestId('hud-stake').textContent).toBe('At stake: 250');
   });

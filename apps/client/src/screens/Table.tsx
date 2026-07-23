@@ -30,12 +30,18 @@
  * pre-suggested while everyone else sees abstract wait copy; after a slam
  * the partner's badge shows sitting-out (slam) and the declarer's discard
  * picker runs in 16-keep-10 mode.
+ *
+ * Set state (fh-d2d): one predicate (lib/biddersSet.ts) decides whether the
+ * declaring side has already failed — mid-hand once it is mathematically
+ * certain, and at hand end from the scored result — and both the felt and the
+ * HUD render from it.
  */
 
 import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { type Bid, type Card, DNULLA, NULLA, partnerOf, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
+import { biddersAreSet } from '../lib/biddersSet.ts';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
@@ -198,6 +204,7 @@ export function Table(): ReactNode {
               linger={lingerTrick}
               anchor={me}
               trump={view.contract === null ? null : trumpOf(view.contract)}
+              biddersSet={biddersAreSet(view)}
             />
             <LastTrickPeek trick={view.lastTrick} names={names} />
           </>

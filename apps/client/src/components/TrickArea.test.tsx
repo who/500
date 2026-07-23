@@ -9,10 +9,20 @@
  * the bots manage inside the window.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent, type RenderResult } from '@testing-library/react';
 import { act } from 'react';
-import { type RedactedView, type Trick, NUM, bid, makeCard } from '@five-hundred/engine';
+import {
+  type HandResult,
+  type RedactedView,
+  type Trick,
+  NULLA,
+  NUM,
+  bid,
+  makeCard,
+} from '@five-hundred/engine';
 import { TRICK_LINGER_MS } from '../store.ts';
 import { TRICK_SWEEP_MS } from './TrickArea.tsx';
 import {
@@ -214,7 +224,7 @@ describe('linger', () => {
     expect(winnerSeat(app)).toBe('3');
   });
 
-  it('keeps the viewer\'s own next play live under the linger', () => {
+  it("keeps the viewer's own next play live under the linger", () => {
     const client = makeClient();
     const app = startLinger(client, 0); // the viewer wins T1 and leads next
     applyEvent(
@@ -376,6 +386,150 @@ describe('trick collection sweep', () => {
     expect(app.getByTestId('trick-area').className).toBe('trick-area');
     expect(shownSeats(app)).toEqual(['1', '2', '3', '0']);
     expect(winnerSeat(app)).toBe('1');
+  });
+});
+
+/**
+ * The set state (fh-d2d): the felt goes reddish and banners "Bidders have
+ * been set!" the moment the declaring side can no longer make it — mid-hand
+ * where that is mathematically certain — and holds it through hand end.
+ */
+describe('bidders set', () => {
+  /** Render the room, then one mid-play view; returns the mounted app. */
+  function renderView(overrides: Partial<RedactedView>): RenderResult {
+    const client = makeClient();
+    const app = renderApp(client);
+    applyEvent(client, env(1, { t: 'roomState', room: ROOM }));
+    applyEvent(
+      client,
+      env(2, { t: 'gameView', view: { view: playView({ toAct: 2, ...overrides }) } }),
+    );
+    return app;
+  }
+
+  function isSet(app: RenderResult): boolean {
+    return app.getByTestId('trick-area').classList.contains('bidders-set');
+  }
+
+  it('AC-1: turns the felt red mid-hand once a numbered contract cannot be made', () => {
+    // 8H by seat 1, so the defenders are side 0. Two of their tricks leave a
+    // ceiling of exactly 8 — still makeable, nothing shown.
+    const still = renderView({ sideTricks: [2, 0], tricksPlayed: 2 });
+    expect(isSet(still)).toBe(false);
+    expect(still.queryByTestId('bidders-set-banner')).toBeNull();
+    still.unmount();
+
+    // The third defender trick caps them at 7 against a bid of 8: set, and
+    // said so with six tricks still to play.
+    const app = renderView({ sideTricks: [3, 0], tricksPlayed: 3 });
+    expect(isSet(app)).toBe(true);
+    expect(app.getByTestId('trick-area').dataset.biddersSet).toBe('true');
+    expect(app.getByTestId('bidders-set-banner').textContent).toBe('Bidders have been set!');
+  });
+
+  it('AC-2: shows it the instant a lose-all bidder is forced to take a trick', () => {
+    const clear = renderView({ contract: bid(NULLA), sideTricks: [4, 0], tricksPlayed: 4 });
+    expect(isSet(clear)).toBe(false);
+    clear.unmount();
+
+    const app = renderView({ contract: bid(NULLA), sideTricks: [4, 1], tricksPlayed: 5 });
+    expect(isSet(app)).toBe(true);
+    expect(app.queryByTestId('bidders-set-banner')).not.toBeNull();
+  });
+
+  it('AC-3: sets a declared slam on the first defender trick', () => {
+    const clear = renderView({ slam: true, sideTricks: [0, 2], tricksPlayed: 2 });
+    expect(isSet(clear)).toBe(false);
+    clear.unmount();
+
+    const app = renderView({ slam: true, sideTricks: [1, 1], tricksPlayed: 2 });
+    expect(isSet(app)).toBe(true);
+  });
+
+  it('AC-1: holds the mid-hand set state through the scored hand', () => {
+    const made: HandResult = {
+      contract: bid(NUM, 8, 3),
+      declarer: 1,
+      slam: false,
+      made: false,
+      declarerDelta: -220,
+      defenderDelta: 40,
+      declarerSideTricks: 6,
+      defenderSideTricks: 4,
+    };
+    const app = renderView({
+      phase: 'handScored',
+      toAct: null,
+      hand: [],
+      handCounts: [0, 0, 0, 0],
+      trick: null,
+      lastTrick: T1,
+      tricksPlayed: 10,
+      sideTricks: [4, 6],
+      handResult: made,
+    });
+    expect(isSet(app)).toBe(true);
+    expect(app.queryByTestId('bidders-set-banner')).not.toBeNull();
+  });
+
+  it('AC-4: shows nothing for a made hand and clears on the next deal', () => {
+    const client = makeClient();
+    const app = renderApp(client);
+    applyEvent(client, env(1, { t: 'roomState', room: ROOM }));
+    // A set hand, scored.
+    applyEvent(
+      client,
+      env(2, {
+        t: 'gameView',
+        view: {
+          view: playView({ toAct: 2, sideTricks: [4, 0], tricksPlayed: 4 }),
+        },
+      }),
+    );
+    expect(isSet(app)).toBe(true);
+
+    // The next deal opens its auction: contract and counts reset, so the set
+    // state goes with them (the auction replaces the felt with the bid panel).
+    applyEvent(
+      client,
+      env(3, {
+        t: 'gameView',
+        view: {
+          view: gameViewFixture(0, { handNumber: 1, toAct: 0, hand: [makeCard(1, 13)] }).view,
+        },
+      }),
+    );
+    expect(app.queryByTestId('bidders-set-banner')).toBeNull();
+
+    // …and play in the new hand starts clean, then makes it.
+    applyEvent(
+      client,
+      env(4, {
+        t: 'gameView',
+        view: { view: playView({ toAct: 2, sideTricks: [1, 3], tricksPlayed: 4 }) },
+      }),
+    );
+    expect(isSet(app)).toBe(false);
+    expect(app.queryByTestId('bidders-set-banner')).toBeNull();
+  });
+
+  it('AC-4: banners above the felt, per the trick-cell stacking contract', () => {
+    const app = renderView({ sideTricks: [3, 0], tricksPlayed: 3 });
+    // Assert against the real App.css (vitest stubs CSS imports to '').
+    const css = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
+    const style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+    try {
+      const banner = getComputedStyle(app.getByTestId('bidders-set-banner'));
+      const felt = getComputedStyle(app.getByTestId('trick-area'));
+      expect(banner.position).toBe('relative');
+      expect(Number(banner.zIndex)).toBeGreaterThan(Number(felt.zIndex));
+    } finally {
+      style.remove();
+    }
+    // The set felt is bordered in the danger red (var(), so not computable).
+    expect(css).toMatch(/\.trick-area\.bidders-set \{[^}]*border: 2px solid var\(--danger\)/);
   });
 });
 
