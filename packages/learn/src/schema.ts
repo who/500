@@ -103,6 +103,24 @@ export interface HandRecord {
 }
 
 /**
+ * The single play a marker points at (fh-g4g): the last card down in the
+ * flagged trick as of the click, which is the decision the flagger was
+ * reacting to.
+ *
+ * `seat` is the 0-based engine seat, like every other seat number in this
+ * schema. That matters because the table UI labels seats "Bot 1..4" from 1,
+ * so a note typed off the screen calls engine seat 2 "bot 3" — this field,
+ * not the prose, is the authority on who played.
+ */
+export interface FlaggedPlay {
+  /** 0-based index of the play within the trick's `plays`. */
+  readonly ply: number;
+  /** 0-based engine seat that played the card. */
+  readonly seat: number;
+  readonly card: Card;
+}
+
+/**
  * A human-placed pin on one trick (fh-q2m): a player hit "flag this trick" in
  * the table's debug panel because something there looked wrong — usually a bot
  * misplay worth coming back to. Markers are pure annotation; nothing in the
@@ -114,8 +132,15 @@ export interface GameMarker {
   readonly hand: number;
   /** 0-based index into that hand's `tricks` — the trick that was on screen. */
   readonly trick: number;
-  /** The seat whose viewpoint flagged it (whoever clicked). */
+  /** The seat whose viewpoint flagged it (whoever clicked) — 0-based. */
   readonly seat: number;
+  /**
+   * The play the flag points at (fh-g4g), stamped by the server from live
+   * state so the marker names the culprit without a replay. Absent on markers
+   * written before this field existed and on flags that land on a trick with
+   * no card in it yet.
+   */
+  readonly flaggedPlay?: FlaggedPlay;
   /** Optional free-text note typed alongside the flag. */
   readonly note?: string;
   /**

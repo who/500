@@ -86,10 +86,21 @@ function validateHand(h: unknown, where: string): HandRecord {
   return h as unknown as HandRecord;
 }
 
+/** Shape check for the optional {@link FlaggedPlay} on a marker (fh-g4g). */
+function isFlaggedPlay(x: unknown): boolean {
+  return (
+    isObject(x) &&
+    Number.isInteger(x.ply) &&
+    Number.isInteger(x.seat) &&
+    Number.isInteger(x.card)
+  );
+}
+
 /**
  * Markers are optional and purely additive (fh-q2m): absent is legal at every
  * version, so only their shape is checked when they are there. `heldCards`
- * (fh-9f2) is likewise optional — older markers simply do not carry it.
+ * (fh-9f2) and `flaggedPlay` (fh-g4g) are likewise optional — older markers
+ * simply do not carry them.
  */
 function validateMarkers(x: unknown, where: string): void {
   if (!Array.isArray(x)) throw new GameRecordError(`${where}: markers is not an array`);
@@ -101,7 +112,8 @@ function validateMarkers(x: unknown, where: string): void {
       !Number.isInteger(m.seat) ||
       typeof m.at !== 'string' ||
       (m.note !== undefined && typeof m.note !== 'string') ||
-      (m.heldCards !== undefined && !isIntArray(m.heldCards))
+      (m.heldCards !== undefined && !isIntArray(m.heldCards)) ||
+      (m.flaggedPlay !== undefined && !isFlaggedPlay(m.flaggedPlay))
     ) {
       throw new GameRecordError(`${where}.markers[${i}]: bad marker`);
     }

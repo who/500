@@ -1417,6 +1417,14 @@ button.primary {
   gap: 0.3rem;
 }
 
+/* What a flag would pin right now, in the log's own 0-based seat terms
+   (fh-g4g) — so a note typed below names the same seat the marker records. */
+.debug-target {
+  margin: 0;
+  font-family: var(--mono);
+  opacity: 0.75;
+}
+
 .debug-note {
   display: flex;
   gap: 0.4rem;

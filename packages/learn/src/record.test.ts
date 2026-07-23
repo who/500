@@ -193,6 +193,45 @@ describe('flagged-trick markers (fh-q2m)', () => {
       expect(() => validateGameRecord({ ...record, markers: bad })).toThrow(GameRecordError);
     });
   });
+
+  describe('the flagged play (fh-g4g)', () => {
+    const PLAYED: GameMarker[] = [
+      {
+        hand: 0,
+        trick: 3,
+        seat: 0,
+        flaggedPlay: { ply: 2, seat: 2, card: 17 },
+        note: 'bot 3 ruffed its partner',
+        at: '2026-07-23T10:00:00.000Z',
+      },
+    ];
+
+    it('round-trips the flagged play through serialize -> parse -> validate', () => {
+      const { record } = playRecordedGame(19, PLAYED);
+      const [back] = parseGameRecords(serializeGameRecord(record));
+      // The note says "bot 3" because that is what the table showed; the
+      // field says seat 2, which is what the rest of the corpus means.
+      expect(gameMarkers(back!)[0]?.flaggedPlay).toEqual({ ply: 2, seat: 2, card: 17 });
+    });
+
+    it('accepts markers without a flagged play (older records)', () => {
+      const { record } = playRecordedGame(20, MARKERS);
+      expect(() => validateGameRecord(record)).not.toThrow();
+      expect(gameMarkers(record).every((m) => m.flaggedPlay === undefined)).toBe(true);
+    });
+
+    it('rejects a malformed flagged play', () => {
+      const { record } = playRecordedGame(21);
+      const missingSeat = [{ ...PLAYED[0]!, flaggedPlay: { ply: 2, card: 17 } }];
+      expect(() => validateGameRecord({ ...record, markers: missingSeat })).toThrow(
+        GameRecordError,
+      );
+      const notAnObject = [{ ...PLAYED[0]!, flaggedPlay: 'seat 2 played 8S' }];
+      expect(() => validateGameRecord({ ...record, markers: notAnObject })).toThrow(
+        GameRecordError,
+      );
+    });
+  });
 });
 
 describe('validation rejects malformed records', () => {

@@ -18,6 +18,7 @@ import { MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
 import { applyGameAction } from '../src/game.js';
 import {
   driveOpeningTrick,
+  driveUntil,
   setupGame,
   startTestApp,
   stopTestApp,
@@ -163,7 +164,62 @@ describe('flagged tricks (fh-q2m)', () => {
       if (play.seat === 0) remaining.delete(play.card);
     }
     expect(markers[0]?.heldCards).toEqual([...remaining].sort((a, b) => a - b));
+    // fh-g4g: the marker names the play it points at — the last card down in
+    // the flagged trick — with a 0-based ENGINE seat, so the record does not
+    // depend on prose typed off a UI that calls seat 2 "Bot 3".
+    const lastPlay = flagged.tricks[0]!.plays.at(-1)!;
+    expect(markers[0]?.flaggedPlay).toEqual({
+      ply: flagged.tricks[0]!.plays.length - 1,
+      seat: lastPlay.seat,
+      card: lastPlay.card,
+    });
     expect(() => validateGameRecord(records[0])).not.toThrow();
+  });
+
+  /**
+   * AC-1/AC-2 (fh-g4g). Two things are pinned here at once, because they are
+   * the same claim from opposite ends: `hand`/`trick` still mean what they
+   * always meant — 0-based indices addressing the record's own arrays — and
+   * `flaggedPlay.seat` is likewise an engine seat, resolvable straight out of
+   * the trick the marker points at with no off-by-one correction.
+   */
+  it('stamps the engine seat of the play a flag points at, on the trick in progress (AC-1/AC-2)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-flag-seat-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: true, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    // A trick in progress with at least one card down: the live plays array,
+    // not a completed trick, is what the flag has to resolve against.
+    await driveUntil(fx, (s) => (s.play?.tricks.length ?? 0) >= 1 && (s.play?.plays.length ?? 0) >= 1);
+    const state = fx.session.state;
+    const hand = state.handNumber;
+    const trick = state.play!.tricks.length;
+    const played = state.play!.plays.at(-1)!;
+    fx.ann.send({ t: 'flagTrick', hand, trick, note: `bot ${played.seat + 1} looked wrong` });
+    await settle(fx);
+
+    driveToGameOver(fx);
+
+    const marker = gameMarkers(readGameRecordsSync(join(dir, 'games.jsonl'))[0]!)[0]!;
+    expect(marker.flaggedPlay).toEqual({
+      ply: state.play!.plays.length - 1,
+      seat: played.seat,
+      card: played.card,
+    });
+    // The note is the human's 1-based wording; the field is the engine's.
+    // They disagree by one, and that disagreement is the whole point.
+    expect(marker.note).toBe(`bot ${played.seat + 1} looked wrong`);
+    expect(marker.flaggedPlay?.seat).toBe(played.seat);
+
+    // AC-2: hand/trick stay 0-based indices into the record's own arrays, so
+    // the flagged play is reachable by plain indexing.
+    const records = readGameRecordsSync(join(dir, 'games.jsonl'));
+    const handRecord = records[0]!.hands.find((h) => h.handNumber === marker.hand)!;
+    const recorded = handRecord.tricks[marker.trick]!.plays[marker.flaggedPlay!.ply]!;
+    expect(recorded).toEqual({ seat: played.seat, card: played.card });
   });
 
   it('is a silent no-op when logging is disabled', async () => {

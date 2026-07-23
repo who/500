@@ -38,6 +38,7 @@ import type {
   FlagTrickCommand,
   StateBearingEvent,
 } from '@five-hundred/protocol';
+import type { FlaggedPlay } from '@five-hundred/learn';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
 import { createGameLogger, resolveGameLogConfig, type GameLogConfig, type GameLogger } from './gameLog.js';
 import { DEFAULT_DIFFICULTY, isPaused, roomView, type Room, type RoomClient } from './rooms.js';
@@ -388,7 +389,34 @@ export function handleFlagTrick(client: RoomClient, cmd: FlagTrickCommand): void
     seat,
     note: cmd.note,
     heldCards: heldCardsAt(session.state, seat),
+    flaggedPlay: flaggedPlayAt(session.state, cmd.hand, cmd.trick),
   });
+}
+
+/**
+ * The play a flag on `hand`/`trick` points at (fh-g4g): the last card down in
+ * that trick as of the click. That is the decision the human was reacting to,
+ * and stamping it here — from live engine state, in 0-based seat terms — is
+ * what keeps the marker from depending on prose typed off a UI that labels
+ * seat 2 "Bot 3".
+ *
+ * The trick is either already complete (the felt still shows it) or the one in
+ * progress; anything else — a different hand, a trick not started, an empty
+ * trick — has no play to name, so the field is simply omitted.
+ */
+function flaggedPlayAt(state: GameState, hand: number, trick: number): FlaggedPlay | undefined {
+  const play = state.play;
+  if (play == null || state.handNumber !== hand || trick < 0) return undefined;
+  const plays =
+    trick < play.tricks.length
+      ? play.tricks[trick]?.plays
+      : trick === play.tricks.length
+        ? play.plays
+        : undefined;
+  if (plays === undefined || plays.length === 0) return undefined;
+  const ply = plays.length - 1;
+  const last = plays[ply];
+  return last === undefined ? undefined : { ply, seat: last.seat, card: last.card };
 }
 
 /**

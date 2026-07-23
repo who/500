@@ -84,10 +84,12 @@ export class GameLogger {
   flagTrick(flag: Omit<GameMarker, 'at'>): void {
     const note = flag.note?.trim().slice(0, MAX_MARKER_NOTE);
     const held = flag.heldCards;
+    const played = flag.flaggedPlay;
     this.recorder.addMarker({
       hand: flag.hand,
       trick: flag.trick,
       seat: flag.seat,
+      ...(played === undefined ? {} : { flaggedPlay: { ...played } }),
       ...(note === undefined || note === '' ? {} : { note }),
       ...(held === undefined || held.length === 0 ? {} : { heldCards: [...held] }),
       at: new Date().toISOString(),

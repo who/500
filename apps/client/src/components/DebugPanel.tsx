@@ -12,6 +12,7 @@
  */
 
 import { useState, type ReactNode } from 'react';
+import { cardName } from '@five-hundred/engine';
 import type { FlagTarget } from '../lib/flagTarget.ts';
 
 export interface DebugPanelProps {
@@ -27,6 +28,24 @@ interface FlaggedEntry extends FlagTarget {
 /** Human wording for a marker: tricks and hands count from 1 on screen. */
 export function flagLabel(target: FlagTarget): string {
   return `hand ${target.hand + 1}, trick ${target.trick + 1}`;
+}
+
+/**
+ * The play the flag lands on, worded the way the log words it (fh-g4g): a
+ * 0-based *engine* seat, deliberately not the felt's 1-based "Bot N". The one
+ * place in the UI that speaks the corpus's dialect, so a note typed here is
+ * about the same seat the marker records. Empty when the trick has no card in
+ * it yet.
+ */
+export function flagPlayLabel(target: FlagTarget): string {
+  const play = target.play;
+  return play === undefined ? '' : `seat ${play.seat} played ${cardName(play.card)}`;
+}
+
+/** `flagLabel`, with the flagged play appended when there is one. */
+function flagFullLabel(target: FlagTarget): string {
+  const play = flagPlayLabel(target);
+  return play === '' ? flagLabel(target) : `${flagLabel(target)} — ${play}`;
 }
 
 export function DebugPanel(props: DebugPanelProps): ReactNode {
@@ -53,7 +72,9 @@ export function DebugPanel(props: DebugPanelProps): ReactNode {
           data-testid="flag-trick"
           disabled={target === null}
           title={
-            target === null ? 'Nothing to flag until a card is played' : `Flag ${flagLabel(target)}`
+            target === null
+              ? 'Nothing to flag until a card is played'
+              : `Flag ${flagFullLabel(target)}`
           }
           onClick={flag}
         >
@@ -70,10 +91,13 @@ export function DebugPanel(props: DebugPanelProps): ReactNode {
         </button>
       </div>
       <p className="debug-status" role="status" data-testid="flag-status">
-        {last === undefined ? '' : `Flagged ${flagLabel(last)}`}
+        {last === undefined ? '' : `Flagged ${flagFullLabel(last)}`}
       </p>
       {open && (
         <div className="debug-drawer">
+          <p className="debug-target" data-testid="flag-target">
+            {target === null ? 'Nothing to flag yet' : flagFullLabel(target)}
+          </p>
           <label className="debug-note">
             Note
             <input
@@ -88,7 +112,7 @@ export function DebugPanel(props: DebugPanelProps): ReactNode {
           <ul className="debug-flag-list" data-testid="flag-list">
             {flagged.map((f, i) => (
               <li key={`${f.hand}-${f.trick}-${i}`}>
-                {flagLabel(f)}
+                {flagFullLabel(f)}
                 {f.note === undefined ? '' : ` — ${f.note}`}
               </li>
             ))}

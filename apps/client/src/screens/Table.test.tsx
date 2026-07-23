@@ -316,7 +316,11 @@ describe('Table', () => {
     expect(client.sent).toEqual([
       { t: 'flagTrick', hand: 2, trick: 5, note: 'bot ducked its ace' },
     ]);
-    expect(app.getByTestId('flag-status').textContent).toBe('Flagged hand 3, trick 6');
+    // fh-g4g: the confirmation names the play in 0-based engine seats, which
+    // is how the log records it — never the felt's 1-based "Bot N" label.
+    expect(app.getByTestId('flag-status').textContent).toBe(
+      'Flagged hand 3, trick 6 — seat 3 played 5S',
+    );
   });
 
   it('fans an unnamed room with bot fallbacks and a 15-card exchange pick', () => {
