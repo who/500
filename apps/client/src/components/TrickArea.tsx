@@ -19,6 +19,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { type CurrentTrickView, type Trick, JOKER } from '@five-hundred/engine';
 import { seatPosition } from '../lib/seating.ts';
+import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { TRICK_LINGER_MS } from '../store.ts';
 import { CardFace, SUIT_GLYPHS } from './Card.tsx';
 
@@ -134,7 +135,7 @@ export function TrickArea(props: {
               data-seat={play.seat}
               data-winner={won || undefined}
             >
-              <CardFace card={play.card} />
+              <CardFace card={play.card} className={trumpFaceClass(play.card, props.trump)} />
               {declared !== null && (
                 <span
                   className="joker-declares"

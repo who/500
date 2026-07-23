@@ -578,6 +578,62 @@ button.primary {
   fill: none;
 }
 
+/* Foil sheen on trump faces (fh-wye). In a trump contract every card that
+   counts as trump — natural trumps, the left bower, and the joker — takes a
+   slow holographic sweep, on the viewer's own hand and on the cards played to
+   the middle alike, so trump reads at a glance. The sheen is painted as the
+   svg's own background with the ground rect turned translucent over it, which
+   keeps it strictly a paint effect (no size, border, or transform change), so
+   nothing shifts layout; rank, pips, and the joker star still paint at full
+   opacity on top, so suit contrast is untouched. Face-down backs never carry
+   the class, so hidden cards give nothing away. */
+.card-trump {
+  /* Matches the rx=7 of .card-ground in the 64-wide viewBox, so the sheen
+     stops at the rounded card edge instead of squaring off the corners. */
+  border-radius: calc(7 * var(--su));
+  background-color: var(--card-ground);
+  /* One band, centred in the (3x wide) image so the static reduced-motion
+     park at 50% lands it across the card. */
+  background-image: linear-gradient(
+    115deg,
+    rgba(255, 255, 255, 0) 28%,
+    rgba(255, 206, 105, 0.75) 36%,
+    rgba(255, 138, 190, 0.7) 43%,
+    rgba(110, 200, 255, 0.75) 50%,
+    rgba(140, 245, 190, 0.7) 57%,
+    rgba(255, 255, 255, 0) 66%
+  );
+  background-size: 300% 100%;
+  /* Travel is 6x the card width = exactly two image widths, so the repeat
+     loops without a visible jump at the restart. */
+  animation: card-foil-sweep 5.5s linear infinite;
+}
+
+@keyframes card-foil-sweep {
+  from {
+    background-position: 150% 0;
+  }
+  to {
+    background-position: -150% 0;
+  }
+}
+
+.card-trump .card-ground {
+  /* Translucent ground lets the sheen through; the stroke width is unchanged
+     (a gilt recolor only) so the face keeps its exact painted footprint. */
+  fill-opacity: 0.4;
+  stroke: var(--card-foil-edge);
+}
+
+/* Reduced motion keeps the foil, drops the sweep: the gradient parks with its
+   band across the card so trump still reads as foil, just static. */
+@media (prefers-reduced-motion: reduce) {
+  .card-trump {
+    animation: none;
+    background-position: 50% 0;
+  }
+}
+
 /* --- Trick area ---------------------------------------------------------- */
 
 /* Stacking contract for the shared 'trick' grid cell: felt layers
@@ -682,6 +738,23 @@ button.primary {
   outline-offset: 1px;
   border-radius: 8px;
   animation: trick-winner-pop 240ms ease-out;
+}
+
+/* A trump card that wins the trick runs both: the one-shot pop and the foil
+   sweep (fh-wye). Without this the more specific winner rule would replace
+   the sweep outright and the winning trump would stop shimmering. */
+.trick-winner .card-trump {
+  animation:
+    trick-winner-pop 240ms ease-out,
+    card-foil-sweep 5.5s linear infinite;
+}
+
+/* Same static foil as elsewhere; this rule has to sit after the composed one
+   above to win the cascade (a media query adds no specificity). */
+@media (prefers-reduced-motion: reduce) {
+  .trick-winner .card-trump {
+    animation: none;
+  }
 }
 
 @keyframes trick-winner-pop {

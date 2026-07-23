@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { act } from 'react';
-import { fireEvent } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type Action,
@@ -14,7 +14,7 @@ import {
 } from '@five-hundred/engine';
 import type { ClientCommand } from '@five-hundred/protocol';
 import { JOKER_SLUFF_REASON, playLegality } from '../lib/playLegality.ts';
-import { LONG_PRESS_MS } from './Hand.tsx';
+import { Hand, LONG_PRESS_MS } from './Hand.tsx';
 import { THINKING_DELAY_MS } from './SeatBadge.tsx';
 import {
   applyEvent,
@@ -329,5 +329,43 @@ describe('playLegality', () => {
     expect(result.reasons.get(AH)).toBe('You must follow clubs (♣).');
     // 7♣ follows clubs but sits outside the (fixture) legal set → generic.
     expect(result.reasons.get(SEVEN_C)).toBe('Not legal right now.');
+  });
+});
+
+/**
+ * Foil marking on the viewer's own hand (fh-wye). Rendered directly: the
+ * sheen is CSS, so the observable surface is which faces carry .card-trump.
+ */
+describe('trump foil on the hand (fh-wye)', () => {
+  const HEARTS = 3;
+  const CARDS = [AH, JD, KS, JOKER]; // A♥, J♦ (left bower), K♠, joker
+
+  function handProps(trump: number | null) {
+    return {
+      cards: CARDS,
+      active: false,
+      legal: new Set<number>(),
+      needsSuit: new Set<number>(),
+      reasons: new Map<number, string>(),
+      locked: false,
+      trump,
+      onPlay: () => {},
+    };
+  }
+
+  /** Foil flag per rendered face, in hand order. */
+  function foiled(trump: number | null): boolean[] {
+    const hand = render(<Hand {...handProps(trump)} />);
+    return [...hand.container.querySelectorAll('svg.card')].map((face) =>
+      face.classList.contains('card-trump'),
+    );
+  }
+
+  it('foils the trumps, the left bower, and the joker under a trump contract', () => {
+    expect(foiled(HEARTS)).toEqual([true, true, false, true]);
+  });
+
+  it('foils nothing under NT/nulla', () => {
+    expect(foiled(null)).toEqual([false, false, false, false]);
   });
 });

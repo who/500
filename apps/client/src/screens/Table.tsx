@@ -324,6 +324,7 @@ export function Table(): ReactNode {
             needsSuit={legality.needsSuit}
             reasons={legality.reasons}
             locked={locked}
+            trump={view.contract === null ? null : trumpOf(view.contract)}
             onPlay={playCard}
           />
         )}

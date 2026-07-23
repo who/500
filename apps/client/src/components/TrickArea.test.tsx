@@ -12,19 +12,20 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { fireEvent, type RenderResult } from '@testing-library/react';
+import { fireEvent, render, type RenderResult } from '@testing-library/react';
 import { act } from 'react';
 import {
   type HandResult,
   type RedactedView,
   type Trick,
+  JOKER,
   NULLA,
   NUM,
   bid,
   makeCard,
 } from '@five-hundred/engine';
 import { TRICK_LINGER_MS } from '../store.ts';
-import { TRICK_SWEEP_MS } from './TrickArea.tsx';
+import { TRICK_SWEEP_MS, TrickArea } from './TrickArea.tsx';
 import {
   applyEvent,
   botSeatView,
@@ -580,5 +581,43 @@ describe('last-trick peek', () => {
 
     fireEvent.click(app.getByTestId('last-trick-toggle'));
     expect(app.queryByTestId('last-trick-popover')).toBeNull();
+  });
+});
+
+/**
+ * Foil marking in the middle (fh-wye): a trump card played to the trick takes
+ * the same .card-trump face class the hand uses, joker included, and nothing
+ * is marked under NT/nulla.
+ */
+describe('trump foil in the middle (fh-wye)', () => {
+  const HEARTS = 3;
+  /** Hearts led; a heart, the left bower, an off-suit club, and the joker. */
+  const TRICK = {
+    leader: 0,
+    ledSuit: HEARTS,
+    plays: [
+      { seat: 0, card: makeCard(HEARTS, 10) },
+      { seat: 1, card: makeCard(2, 11) }, // J♦: left bower under hearts
+      { seat: 2, card: makeCard(1, 9) }, // 9♣: off-suit
+      { seat: 3, card: JOKER },
+    ],
+  };
+
+  /** Foil flag per played face, in play order. */
+  function foiled(trump: number | null): boolean[] {
+    const area = render(
+      <TrickArea trick={TRICK} lastTrick={null} linger={null} anchor={0} trump={trump} />,
+    );
+    return [...area.container.querySelectorAll('svg.card')].map((face) =>
+      face.classList.contains('card-trump'),
+    );
+  }
+
+  it('foils trump cards on the felt, joker included', () => {
+    expect(foiled(HEARTS)).toEqual([true, true, false, true]);
+  });
+
+  it('foils nothing under NT/nulla', () => {
+    expect(foiled(null)).toEqual([false, false, false, false]);
   });
 });

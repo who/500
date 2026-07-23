@@ -12,6 +12,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { Card as CardId } from '@five-hundred/engine';
 import { GENERIC_REASON } from '../lib/playLegality.ts';
+import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { CardFace, cardLabel } from './Card.tsx';
 import { JokerSuitPicker } from './JokerSuitPicker.tsx';
 
@@ -30,6 +31,8 @@ export interface HandProps {
   reasons: ReadonlyMap<CardId, string>;
   /** True between submitting a play and the next gameView. */
   locked: boolean;
+  /** Trump suit of the contract; trump faces take the foil sheen (fh-wye). */
+  trump?: number | null;
   onPlay(card: CardId, jokerSuit?: number): void;
 }
 
@@ -121,7 +124,11 @@ export function Hand(props: HandProps): ReactNode {
             onTouchMove={endPress}
             onTouchCancel={endPress}
           >
-            <CardFace card={card} compact={compact} />
+            <CardFace
+              card={card}
+              compact={compact}
+              className={trumpFaceClass(card, props.trump ?? null)}
+            />
           </button>
         );
       })}
