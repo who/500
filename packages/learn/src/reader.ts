@@ -88,7 +88,8 @@ function validateHand(h: unknown, where: string): HandRecord {
 
 /**
  * Markers are optional and purely additive (fh-q2m): absent is legal at every
- * version, so only their shape is checked when they are there.
+ * version, so only their shape is checked when they are there. `heldCards`
+ * (fh-9f2) is likewise optional — older markers simply do not carry it.
  */
 function validateMarkers(x: unknown, where: string): void {
   if (!Array.isArray(x)) throw new GameRecordError(`${where}: markers is not an array`);
@@ -99,7 +100,8 @@ function validateMarkers(x: unknown, where: string): void {
       !Number.isInteger(m.trick) ||
       !Number.isInteger(m.seat) ||
       typeof m.at !== 'string' ||
-      (m.note !== undefined && typeof m.note !== 'string')
+      (m.note !== undefined && typeof m.note !== 'string') ||
+      (m.heldCards !== undefined && !isIntArray(m.heldCards))
     ) {
       throw new GameRecordError(`${where}.markers[${i}]: bad marker`);
     }

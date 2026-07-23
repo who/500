@@ -169,6 +169,30 @@ describe('flagged-trick markers (fh-q2m)', () => {
     );
     expect(() => validateGameRecord({ ...record, markers: 'nope' })).toThrow(GameRecordError);
   });
+
+  describe("the flagger's held cards (fh-9f2)", () => {
+    const HELD: GameMarker[] = [
+      { hand: 0, trick: 3, seat: 2, heldCards: [4, 17, 44], at: '2026-07-23T10:00:00.000Z' },
+    ];
+
+    it('round-trips held cards through serialize -> parse -> validate', () => {
+      const { record } = playRecordedGame(16, HELD);
+      const [back] = parseGameRecords(serializeGameRecord(record));
+      expect(gameMarkers(back!)[0]?.heldCards).toEqual([4, 17, 44]);
+    });
+
+    it('accepts markers without held cards (older records)', () => {
+      const { record } = playRecordedGame(17, MARKERS);
+      expect(() => validateGameRecord(record)).not.toThrow();
+      expect(gameMarkers(record).every((m) => m.heldCards === undefined)).toBe(true);
+    });
+
+    it('rejects held cards that are not an integer array', () => {
+      const { record } = playRecordedGame(18);
+      const bad = [{ ...HELD[0]!, heldCards: 'AS KS' }];
+      expect(() => validateGameRecord({ ...record, markers: bad })).toThrow(GameRecordError);
+    });
+  });
 });
 
 describe('validation rejects malformed records', () => {

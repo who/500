@@ -26,6 +26,7 @@ import {
   toActSeat,
   type Action,
   type ApplyResult,
+  type Card,
   type EngineErrorCode,
   type GameState,
 } from '@five-hundred/engine';
@@ -381,7 +382,26 @@ export function handleFlagTrick(client: RoomClient, cmd: FlagTrickCommand): void
     return;
   }
   room.lastActivity = Date.now();
-  session.logger?.flagTrick({ hand: cmd.hand, trick: cmd.trick, seat, note: cmd.note });
+  session.logger?.flagTrick({
+    hand: cmd.hand,
+    trick: cmd.trick,
+    seat,
+    note: cmd.note,
+    heldCards: heldCardsAt(session.state, seat),
+  });
+}
+
+/**
+ * The cards `seat` is still holding right now (fh-9f2), sorted ascending so
+ * the snapshot reads suit by suit. Taken from the live play sub-state, not
+ * `state.hands`, so it is the remaining hand at the flagged trick rather than
+ * the original deal — that is what makes a marker judgeable without a replay.
+ * Outside play (auction, exchange, between hands) there is nothing meaningful
+ * to snapshot, so the field is simply omitted.
+ */
+function heldCardsAt(state: GameState, seat: number): readonly Card[] | undefined {
+  const hand = state.play?.hands[seat];
+  return hand === undefined ? undefined : [...hand].sort((a, b) => a - b);
 }
 
 /**

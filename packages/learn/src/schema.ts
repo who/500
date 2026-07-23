@@ -118,6 +118,13 @@ export interface GameMarker {
   readonly seat: number;
   /** Optional free-text note typed alongside the flag. */
   readonly note?: string;
+  /**
+   * The cards `seat` still held at the moment of the flag (fh-9f2), sorted
+   * ascending so the group reads suit by suit. Only the flagger's own hand is
+   * captured. Absent on markers written before this field existed, and on
+   * flags that arrive outside the play phase — readers must tolerate both.
+   */
+  readonly heldCards?: readonly Card[];
   /** ISO-8601 wall-clock time of the click. */
   readonly at: string;
 }

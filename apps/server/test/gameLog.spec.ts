@@ -127,6 +127,10 @@ describe('flagged tricks (fh-q2m)', () => {
 
     await driveOpeningTrick(fx);
     const hand = fx.session.state.handNumber;
+    // What seat 0 is holding as the flag goes out (fh-9f2): the marker should
+    // carry exactly this, not the pristine deal.
+    const held = [...(fx.session.state.play?.hands[0] ?? [])].sort((a, b) => a - b);
+    expect(held.length).toBeGreaterThan(0);
     const note = 'x'.repeat(MAX_MARKER_NOTE + 50);
     fx.ann.send({ t: 'flagTrick', hand, trick: 0, note });
     await settle(fx);
@@ -144,6 +148,21 @@ describe('flagged tricks (fh-q2m)', () => {
     expect(markers[0]).toMatchObject({ hand, trick: 0, seat: 0 });
     expect(markers[0]?.note).toHaveLength(MAX_MARKER_NOTE); // over-long note truncated
     expect(typeof markers[0]?.at).toBe('string');
+    // fh-9f2: the flagger's remaining hand at the flag, not the whole deal.
+    expect(markers[0]?.heldCards).toEqual(held);
+    // ...and that hand reconstructs from the record itself — the deal (plus
+    // the middle, less the discards, if seat 0 declared) minus what seat 0 had
+    // already played by the end of the flagged trick.
+    const flagged = records[0]!.hands.find((h) => h.handNumber === hand)!;
+    const remaining = new Set(flagged.deal.hands[0]!);
+    if (flagged.auction.declarer === 0) {
+      for (const c of flagged.deal.middle) remaining.add(c);
+      for (const c of flagged.discards) remaining.delete(c);
+    }
+    for (const play of flagged.tricks[0]!.plays) {
+      if (play.seat === 0) remaining.delete(play.card);
+    }
+    expect(markers[0]?.heldCards).toEqual([...remaining].sort((a, b) => a - b));
     expect(() => validateGameRecord(records[0])).not.toThrow();
   });
 
