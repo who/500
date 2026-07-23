@@ -4,16 +4,26 @@
  * logging is off unless explicitly enabled. The game is driven headlessly
  * through the same validated applyGameAction path human commands use, so no ws
  * choreography is needed to reach gameOver.
+ *
+ * Trick markers (fh-q2m) are the exception: they arrive as a real ws command
+ * from a seated client, so those cases go over the socket.
  */
 import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { legalActions, toActSeat, type Action, type GameState } from '@five-hundred/engine';
-import { readGameRecordsSync, validateGameRecord } from '@five-hundred/learn';
-import { resolveGameLogConfig } from '../src/gameLog.js';
+import { gameMarkers, readGameRecordsSync, validateGameRecord } from '@five-hundred/learn';
+import { MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
 import { applyGameAction } from '../src/game.js';
-import { setupGame, startTestApp, stopTestApp, type GameFixture, type TestApp } from './harness.js';
+import {
+  driveOpeningTrick,
+  setupGame,
+  startTestApp,
+  stopTestApp,
+  type GameFixture,
+  type TestApp,
+} from './harness.js';
 
 const apps: TestApp[] = [];
 const dirs: string[] = [];
@@ -96,16 +106,77 @@ describe('opt-in game logging', () => {
   });
 });
 
-describe('game-log config resolution (AC-3: off by default)', () => {
-  it('is disabled with an empty environment', () => {
-    expect(resolveGameLogConfig({}).enabled).toBe(false);
+/**
+ * A same-socket round trip: ws messages are processed in order, so a
+ * requestState answered means the flagTrick sent before it has been handled.
+ */
+async function settle(fx: GameFixture): Promise<void> {
+  fx.ann.send({ t: 'requestState' });
+  await fx.ann.next('gameView');
+}
+
+describe('flagged tricks (fh-q2m)', () => {
+  it('carries a flagged trick into the finished record, and only then (AC-2/AC-3)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-flag-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: true, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+    const path = join(dir, 'games.jsonl');
+
+    await driveOpeningTrick(fx);
+    const hand = fx.session.state.handNumber;
+    const note = 'x'.repeat(MAX_MARKER_NOTE + 50);
+    fx.ann.send({ t: 'flagTrick', hand, trick: 0, note });
+    await settle(fx);
+
+    // Held in the live recorder — nothing is written until the game ends.
+    expect(fx.session.logger?.markers).toHaveLength(1);
+    expect(existsSync(path)).toBe(false);
+
+    driveToGameOver(fx);
+
+    const records = readGameRecordsSync(path);
+    expect(records).toHaveLength(1);
+    const markers = gameMarkers(records[0]!);
+    expect(markers).toHaveLength(1);
+    expect(markers[0]).toMatchObject({ hand, trick: 0, seat: 0 });
+    expect(markers[0]?.note).toHaveLength(MAX_MARKER_NOTE); // over-long note truncated
+    expect(typeof markers[0]?.at).toBe('string');
+    expect(() => validateGameRecord(records[0])).not.toThrow();
   });
 
-  it('enables only on an explicit truthy flag', () => {
+  it('is a silent no-op when logging is disabled', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-flag-off-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: false, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    await driveOpeningTrick(fx);
+    fx.ann.send({ t: 'flagTrick', hand: fx.session.state.handNumber, trick: 0 });
+    await settle(fx);
+
+    expect(fx.session.logger).toBeNull();
+    expect(fx.ann.received.some((e) => e.event.t === 'error')).toBe(false);
+    driveToGameOver(fx);
+    expect(existsSync(join(dir, 'games.jsonl'))).toBe(false);
+  });
+});
+
+describe('game-log config resolution (on by default, opt-out)', () => {
+  it('is enabled with an empty environment', () => {
+    expect(resolveGameLogConfig({}).enabled).toBe(true);
+  });
+
+  it('disables only on an explicit off flag', () => {
+    expect(resolveGameLogConfig({ FH_GAME_LOG: '0' }).enabled).toBe(false);
+    expect(resolveGameLogConfig({ FH_GAME_LOG: 'false' }).enabled).toBe(false);
     expect(resolveGameLogConfig({ FH_GAME_LOG: '1' }).enabled).toBe(true);
     expect(resolveGameLogConfig({ FH_GAME_LOG: 'true' }).enabled).toBe(true);
-    expect(resolveGameLogConfig({ FH_GAME_LOG: '0' }).enabled).toBe(false);
-    expect(resolveGameLogConfig({ FH_GAME_LOG: 'yes' }).enabled).toBe(false);
+    expect(resolveGameLogConfig({ FH_GAME_LOG: 'yes' }).enabled).toBe(true);
   });
 
   it('honours dir/file overrides', () => {

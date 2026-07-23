@@ -7,8 +7,9 @@
  * children (fh-sja.3/.4/.5) read this corpus; nothing here interprets it.
  *
  * Versioning: {@link SCHEMA_VERSION} is stamped into every record's `v` field.
- * A reader rejects records whose `v` it does not understand (see reader.ts),
- * so a schema change bumps this constant and the readers that must migrate.
+ * A reader rejects records whose `v` it does not understand (see reader.ts) —
+ * {@link SUPPORTED_SCHEMA_VERSIONS} is that accepted set, so a purely additive
+ * change bumps the write version while old corpora keep parsing.
  *
  * Cards are engine card ids (integers 0..44; 44 = joker); bids are the engine
  * {@link Bid} object verbatim — both are already plain JSON, so a record is a
@@ -17,8 +18,14 @@
 
 import type { Bid, Card } from '@five-hundred/engine';
 
-/** Bumped whenever the record shape changes in a non-backward-compatible way. */
-export const SCHEMA_VERSION = 1;
+/** Bumped whenever the record shape changes. Stamped into every write. */
+export const SCHEMA_VERSION = 2;
+
+/**
+ * Every version this build can read. v1 is v2 without {@link GameRecord.markers}
+ * (fh-q2m) — the field is optional, so a v1 line validates unchanged.
+ */
+export const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
 
 /** How a seat was played. Bot tiers mirror protocol BotDifficulty. */
 export type PolicyKind = 'human' | 'easy' | 'medium' | 'hard';
@@ -95,6 +102,26 @@ export interface HandRecord {
   readonly scoresAfter: readonly [number, number];
 }
 
+/**
+ * A human-placed pin on one trick (fh-q2m): a player hit "flag this trick" in
+ * the table's debug panel because something there looked wrong — usually a bot
+ * misplay worth coming back to. Markers are pure annotation; nothing in the
+ * record's own consistency depends on them, and a corpus reader may ignore
+ * them entirely.
+ */
+export interface GameMarker {
+  /** {@link HandRecord.handNumber} of the flagged hand. */
+  readonly hand: number;
+  /** 0-based index into that hand's `tricks` — the trick that was on screen. */
+  readonly trick: number;
+  /** The seat whose viewpoint flagged it (whoever clicked). */
+  readonly seat: number;
+  /** Optional free-text note typed alongside the flag. */
+  readonly note?: string;
+  /** ISO-8601 wall-clock time of the click. */
+  readonly at: string;
+}
+
 /** One finished game: the JSONL line unit. */
 export interface GameRecord {
   /** Schema version; always {@link SCHEMA_VERSION} on write. */
@@ -111,4 +138,10 @@ export interface GameRecord {
   readonly hands: readonly HandRecord[];
   readonly winner: number | null;
   readonly finalScores: readonly [number, number];
+  /**
+   * Tricks a player flagged while the game ran (fh-q2m), in click order.
+   * Omitted entirely when nothing was flagged — which is every v1 record and
+   * most v2 ones, so absent and empty mean the same thing.
+   */
+  readonly markers?: readonly GameMarker[];
 }

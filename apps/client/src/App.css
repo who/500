@@ -1349,6 +1349,86 @@ button.primary {
   z-index: 10;
 }
 
+/* --- Debug tools strip (fh-q2m) ------------------------------------------ */
+
+/* Deliberately un-felt-like: small, muted, and outside the play chrome, so
+   it reads as instrumentation rather than as part of the game. */
+.debug-panel {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.15rem;
+  width: 100%;
+  font-size: 0.72rem;
+  color: var(--text);
+  opacity: 0.75;
+}
+
+.debug-panel:hover,
+.debug-panel:focus-within {
+  opacity: 1;
+}
+
+.debug-tools {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.debug-panel button {
+  padding: 0.15rem 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-family: var(--mono);
+  cursor: pointer;
+}
+
+.debug-panel button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.debug-status {
+  margin: 0;
+  min-height: 1em;
+  font-family: var(--mono);
+}
+
+.debug-drawer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.debug-note {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.debug-note input {
+  padding: 0.15rem 0.4rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+  font: inherit;
+  width: 14rem;
+  max-width: 60vw;
+}
+
+.debug-flag-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  text-align: center;
+}
+
 /* --- Game-end screen ---------------------------------------------------- */
 
 .game-end-screen {

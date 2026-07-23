@@ -14,6 +14,7 @@
 import { drawDeal, type GameState } from '@five-hundred/engine';
 import {
   SCHEMA_VERSION,
+  type GameMarker,
   type GameRecord,
   type HandRecord,
   type PlayerMeta,
@@ -90,6 +91,7 @@ export function buildHandRecord(state: GameState, priorDealsDrawn = 0): HandReco
  */
 export class GameRecorder {
   private readonly hands: HandRecord[] = [];
+  private readonly markers: GameMarker[] = [];
   private dealsDrawn = 0;
 
   constructor(private readonly meta: GameRecorderMeta) {}
@@ -100,14 +102,28 @@ export class GameRecorder {
     this.dealsDrawn = state.dealsDrawn;
   }
 
+  /**
+   * Pin a trick the player flagged mid-game (fh-q2m). The marker is held
+   * until {@link finish} — a live game has no record on disk yet, so the flag
+   * rides out with the finished one rather than provoking a partial write.
+   */
+  addMarker(marker: GameMarker): void {
+    this.markers.push(marker);
+  }
+
   /** Number of hands captured so far. */
   get handCount(): number {
     return this.hands.length;
   }
 
+  /** Markers flagged so far, in click order. */
+  get flaggedMarkers(): readonly GameMarker[] {
+    return this.markers;
+  }
+
   /** Assemble the record from the terminal (or last-seen) game state. */
   finish(state: GameState): GameRecord {
-    return {
+    const record: GameRecord = {
       v: SCHEMA_VERSION,
       source: this.meta.source,
       gameId: this.meta.gameId,
@@ -118,5 +134,7 @@ export class GameRecorder {
       winner: state.game.winner,
       finalScores: [state.game.scores[0], state.game.scores[1]],
     };
+    // Absent means "nothing flagged": the common line stays exactly as v1.
+    return this.markers.length === 0 ? record : { ...record, markers: [...this.markers] };
   }
 }

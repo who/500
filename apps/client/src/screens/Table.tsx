@@ -35,6 +35,10 @@
  * declaring side has already failed — mid-hand once it is mathematically
  * certain, and at hand end from the scored result — and both the felt and the
  * HUD render from it.
+ *
+ * Debug tools (fh-q2m): a muted strip under the hand carries the flag-this-
+ * trick marker button, which pins the trick on screen (lib/flagTarget.ts)
+ * into the server's end-of-game JSONL record.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -42,10 +46,12 @@ import { useStore } from 'zustand';
 import { type Bid, type Card, DNULLA, NULLA, partnerOf, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
 import { biddersAreSet } from '../lib/biddersSet.ts';
+import { flagTarget, type FlagTarget } from '../lib/flagTarget.ts';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
 import { BidPanel, bidLegality } from '../components/BidPanel.tsx';
+import { DebugPanel } from '../components/DebugPanel.tsx';
 import { ExchangePicker } from '../components/ExchangePicker.tsx';
 import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
 import { Hand } from '../components/Hand.tsx';
@@ -146,6 +152,15 @@ export function Table(): ReactNode {
     if (pendingActions === null) return;
     client.send({ t: 'giveCard', card });
     setLockedOn({ req: pendingActions, err: lastError });
+  }
+
+  /** Debug tools (fh-q2m): pin this trick into the server's game log. */
+  function flagTrick(target: FlagTarget, note?: string): void {
+    client.send(
+      note === undefined
+        ? { t: 'flagTrick', hand: target.hand, trick: target.trick }
+        : { t: 'flagTrick', hand: target.hand, trick: target.trick, note },
+    );
   }
 
   function badge(seat: number): ReactNode {
@@ -288,6 +303,7 @@ export function Table(): ReactNode {
             onPlay={playCard}
           />
         )}
+        <DebugPanel target={flagTarget(view)} onFlag={flagTrick} />
       </div>
       {/* The overlay waits out a linger so a hand-ending trick gets its beat. */}
       {view.phase === 'handScored' && view.handResult !== null && lingerTrick === null && (

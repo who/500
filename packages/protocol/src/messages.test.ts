@@ -31,6 +31,9 @@ const validCommands: Record<string, unknown> = {
   nextHand: { t: 'nextHand' },
   rematch: { t: 'rematch' },
   requestState: { t: 'requestState' },
+  // fh-q2m: the debug panel's trick marker; the note is optional.
+  flagTrick: { t: 'flagTrick', hand: 2, trick: 5 },
+  flagTrickNoted: { t: 'flagTrick', hand: 0, trick: 0, note: 'bot ducked its ace' },
 };
 
 /** Malformed samples per command type: wrong, missing, or out-of-range fields. */
@@ -62,6 +65,11 @@ const malformedCommands: Record<string, unknown> = {
   playCardMissing: { t: 'playCard' },
   playCardBadJokerSuit: { t: 'playCard', card: 44, jokerSuit: 4 },
   playCardFraction: { t: 'playCard', card: 7.5 },
+  flagTrickMissingTrick: { t: 'flagTrick', hand: 1 },
+  flagTrickNegativeTrick: { t: 'flagTrick', hand: 1, trick: -1 },
+  flagTrickStringHand: { t: 'flagTrick', hand: '1', trick: 0 },
+  flagTrickFractionTrick: { t: 'flagTrick', hand: 1, trick: 2.5 },
+  flagTrickNumericNote: { t: 'flagTrick', hand: 1, trick: 0, note: 7 },
 };
 
 const validEvents: Record<string, unknown> = {

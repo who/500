@@ -18,12 +18,13 @@ import {
 import { GameRecorder } from './record.js';
 import {
   GameRecordError,
+  gameMarkers,
   parseGameRecords,
   validateGameRecord,
 } from './reader.js';
 import { serializeGameRecord, writeGameRecordsSync } from './writer.js';
 import { readGameRecordsSync } from './reader.js';
-import { SCHEMA_VERSION, type PlayerMeta } from './schema.js';
+import { SCHEMA_VERSION, type GameMarker, type PlayerMeta } from './schema.js';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -49,8 +50,12 @@ function firstAction(state: GameState): Action {
 }
 
 /** Drive a full game with the recorder observing each scored hand. */
-function playRecordedGame(seed: number): { record: ReturnType<GameRecorder['finish']> } {
+function playRecordedGame(
+  seed: number,
+  markers: readonly GameMarker[] = [],
+): { record: ReturnType<GameRecorder['finish']> } {
   const recorder = new GameRecorder({ source: 'sim', gameId: `seed-${seed}`, seed, players: PLAYERS });
+  for (const m of markers) recorder.addMarker(m);
   let state = newGame(seed);
   for (let guard = 0; guard < 100_000; guard++) {
     if (state.phase === 'gameOver') break;
@@ -119,6 +124,50 @@ describe('game-log round-trip (AC-1)', () => {
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  });
+});
+
+describe('flagged-trick markers (fh-q2m)', () => {
+  const MARKERS: GameMarker[] = [
+    { hand: 0, trick: 3, seat: 2, note: 'bot trumped its partner', at: '2026-07-23T10:00:00.000Z' },
+    { hand: 1, trick: 9, seat: 2, at: '2026-07-23T10:04:00.000Z' },
+  ];
+
+  it('carries markers added mid-game into the finished record', () => {
+    const { record } = playRecordedGame(11, MARKERS);
+    expect(record.markers).toEqual(MARKERS);
+    // Markers are annotation only: the hands they point at are unchanged.
+    expect(record.hands.length).toBeGreaterThan(1);
+    expect(record.hands[0]!.tricks).toHaveLength(10);
+  });
+
+  it('round-trips a marked record through serialize -> parse -> validate', () => {
+    const { record } = playRecordedGame(12, MARKERS);
+    const [back] = parseGameRecords(serializeGameRecord(record));
+    expect(back).toEqual(record);
+    expect(gameMarkers(back!)).toEqual(MARKERS);
+  });
+
+  it('omits the field entirely when nothing was flagged', () => {
+    const { record } = playRecordedGame(13);
+    expect(record.markers).toBeUndefined();
+    expect('markers' in record).toBe(false);
+    expect(gameMarkers(record)).toEqual([]);
+  });
+
+  it('still reads pre-marker (v1) records', () => {
+    const { record } = playRecordedGame(14);
+    const legacy = { ...record, v: 1 };
+    expect(() => validateGameRecord(legacy)).not.toThrow();
+    expect(gameMarkers(validateGameRecord(legacy))).toEqual([]);
+  });
+
+  it('rejects a malformed marker', () => {
+    const { record } = playRecordedGame(15);
+    expect(() => validateGameRecord({ ...record, markers: [{ hand: 0 }] })).toThrow(
+      GameRecordError,
+    );
+    expect(() => validateGameRecord({ ...record, markers: 'nope' })).toThrow(GameRecordError);
   });
 });
 

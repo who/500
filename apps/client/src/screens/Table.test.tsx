@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { fireEvent } from '@testing-library/react';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { type RedactedView, DNULLA, JOKER, NULLA, NUM, bid, makeCard } from '@five-hundred/engine';
 import { cardLabel } from '../components/Card.tsx';
@@ -290,6 +291,26 @@ describe('Table', () => {
     expect(defender.app.getByTestId('exchange-status').textContent).toBe(
       'Cleo passed 5 cards to Ana, who is discarding…',
     );
+  });
+
+  it('flags the trick on screen from the debug panel below the hand (fh-q2m)', () => {
+    // The mid-trick fixture is hand 2, trick index 5 (5 tricks already played
+    // and one in progress) — exactly what the marker must carry.
+    const { client, app } = renderTable(midTrickView());
+
+    const panel = app.getByTestId('debug-panel');
+    expect(app.getByTestId('my-hand').compareDocumentPosition(panel)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+
+    fireEvent.click(app.getByTestId('debug-toggle'));
+    fireEvent.change(app.getByTestId('flag-note'), { target: { value: 'bot ducked its ace' } });
+    fireEvent.click(app.getByTestId('flag-trick'));
+
+    expect(client.sent).toEqual([
+      { t: 'flagTrick', hand: 2, trick: 5, note: 'bot ducked its ace' },
+    ]);
+    expect(app.getByTestId('flag-status').textContent).toBe('Flagged hand 3, trick 6');
   });
 
   it('fans an unnamed room with bot fallbacks and a 15-card exchange pick', () => {

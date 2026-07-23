@@ -13,10 +13,14 @@ import type { GameState } from '@five-hundred/engine';
 import {
   GameRecorder,
   appendGameRecordSync,
+  type GameMarker,
   type PlayerMeta,
   type PolicyKind,
 } from '@five-hundred/learn';
 import type { Room } from './rooms.js';
+
+/** Longest note a trick flag may carry; anything longer is truncated. */
+export const MAX_MARKER_NOTE = 200;
 
 export interface GameLogConfig {
   readonly enabled: boolean;
@@ -25,12 +29,14 @@ export interface GameLogConfig {
 }
 
 /**
- * Resolve logging config from the environment. Logging is DISABLED unless
- * `FH_GAME_LOG` is `1`/`true`; the directory and filename have safe defaults.
+ * Resolve logging config from the environment. Logging is ON by default so a
+ * game corpus accumulates for the learning pipeline (fh-sja); set
+ * `FH_GAME_LOG` to `0`/`false` to opt out. The directory and filename have
+ * safe defaults.
  */
 export function resolveGameLogConfig(env: NodeJS.ProcessEnv = process.env): GameLogConfig {
   const flag = env.FH_GAME_LOG;
-  const enabled = flag === '1' || flag === 'true';
+  const enabled = flag !== '0' && flag !== 'false';
   return {
     enabled,
     dir: env.FH_GAME_LOG_DIR ?? 'logs/games',
@@ -67,6 +73,28 @@ export class GameLogger {
 
   recordHand(state: GameState): void {
     this.recorder.recordHand(state);
+  }
+
+  /**
+   * Pin a trick a player flagged (fh-q2m). Held in the in-progress recorder
+   * and written with the finished record — never appended mid-game, which
+   * would leave a partial duplicate line in the corpus. The wall clock lives
+   * here because the recorder itself is pure.
+   */
+  flagTrick(flag: Omit<GameMarker, 'at'>): void {
+    const note = flag.note?.trim().slice(0, MAX_MARKER_NOTE);
+    this.recorder.addMarker({
+      hand: flag.hand,
+      trick: flag.trick,
+      seat: flag.seat,
+      ...(note === undefined || note === '' ? {} : { note }),
+      at: new Date().toISOString(),
+    });
+  }
+
+  /** Markers flagged so far this game (test/inspection hook). */
+  get markers(): readonly GameMarker[] {
+    return this.recorder.flaggedMarkers;
   }
 
   /** Append the finished game to the corpus (best-effort; logs on failure). */

@@ -11,7 +11,13 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { SCHEMA_VERSION, type GameRecord, type HandRecord } from './schema.js';
+import {
+  SCHEMA_VERSION,
+  SUPPORTED_SCHEMA_VERSIONS,
+  type GameMarker,
+  type GameRecord,
+  type HandRecord,
+} from './schema.js';
 
 export class GameRecordError extends Error {
   constructor(message: string) {
@@ -81,15 +87,36 @@ function validateHand(h: unknown, where: string): HandRecord {
 }
 
 /**
+ * Markers are optional and purely additive (fh-q2m): absent is legal at every
+ * version, so only their shape is checked when they are there.
+ */
+function validateMarkers(x: unknown, where: string): void {
+  if (!Array.isArray(x)) throw new GameRecordError(`${where}: markers is not an array`);
+  x.forEach((m, i) => {
+    if (
+      !isObject(m) ||
+      !Number.isInteger(m.hand) ||
+      !Number.isInteger(m.trick) ||
+      !Number.isInteger(m.seat) ||
+      typeof m.at !== 'string' ||
+      (m.note !== undefined && typeof m.note !== 'string')
+    ) {
+      throw new GameRecordError(`${where}.markers[${i}]: bad marker`);
+    }
+  });
+}
+
+/**
  * Validate one parsed object as a {@link GameRecord}, throwing a
  * {@link GameRecordError} on any structural or version mismatch. Returns the
  * same object, narrowed, on success.
  */
 export function validateGameRecord(obj: unknown, where = 'record'): GameRecord {
   if (!isObject(obj)) throw new GameRecordError(`${where}: not an object`);
-  if (obj.v !== SCHEMA_VERSION) {
+  if (typeof obj.v !== 'number' || !SUPPORTED_SCHEMA_VERSIONS.includes(obj.v)) {
     throw new GameRecordError(
-      `${where}: unsupported schema version ${String(obj.v)} (this build reads v${SCHEMA_VERSION})`,
+      `${where}: unsupported schema version ${String(obj.v)} ` +
+        `(this build reads v${SUPPORTED_SCHEMA_VERSIONS.join(', v')}; writes v${SCHEMA_VERSION})`,
     );
   }
   if (obj.source !== 'server' && obj.source !== 'sim') {
@@ -120,7 +147,13 @@ export function validateGameRecord(obj: unknown, where = 'record'): GameRecord {
   if (!isIntArray(obj.finalScores) || (obj.finalScores as number[]).length !== 2) {
     throw new GameRecordError(`${where}: bad finalScores`);
   }
+  if (obj.markers !== undefined) validateMarkers(obj.markers, where);
   return obj as unknown as GameRecord;
+}
+
+/** A record's markers, with absent normalized to empty (fh-q2m). */
+export function gameMarkers(record: GameRecord): readonly GameMarker[] {
+  return record.markers ?? [];
 }
 
 /** Parse and validate every non-blank line of a JSONL corpus. */

@@ -126,6 +126,21 @@ export interface RequestStateCommand {
   readonly t: 'requestState';
 }
 
+/**
+ * Debug tooling (fh-q2m): pin the trick on the sender's screen so it can be
+ * found again in the game-log corpus. `hand` is the view's handNumber and
+ * `trick` the 0-based index of the trick within that hand. The marker is
+ * annotation only — it changes no game state, consumes no seq, and is
+ * silently dropped when the server is not logging games.
+ */
+export interface FlagTrickCommand {
+  readonly t: 'flagTrick';
+  readonly hand: number;
+  readonly trick: number;
+  /** Optional free-text note; the server truncates over-long ones. */
+  readonly note?: string;
+}
+
 export type ClientCommand =
   | CreateRoomCommand
   | JoinRoomCommand
@@ -142,7 +157,8 @@ export type ClientCommand =
   | PlayCardCommand
   | NextHandCommand
   | RematchCommand
-  | RequestStateCommand;
+  | RequestStateCommand
+  | FlagTrickCommand;
 
 export type CommandType = ClientCommand['t'];
 

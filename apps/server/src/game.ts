@@ -34,6 +34,7 @@ import type {
   ConvertSeatToBotCommand,
   Envelope,
   ErrorCode,
+  FlagTrickCommand,
   StateBearingEvent,
 } from '@five-hundred/protocol';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
@@ -354,6 +355,33 @@ export function handleGameCommand(client: RoomClient, cmd: GameCommand): void {
       }
     }
   }
+}
+
+/**
+ * Debug-panel command (fh-q2m): pin the trick the sender is looking at into
+ * the room's in-progress game record. Pure annotation — no engine action, no
+ * state change, no seq — so it is a silent no-op when the room is not logging
+ * games. The hand/trick pair comes from the sender's own view; the server
+ * trusts it and only stamps the seat and the clock.
+ */
+export function handleFlagTrick(client: RoomClient, cmd: FlagTrickCommand): void {
+  const room = client.room;
+  if (room === null) {
+    sendError(client, 'badCommand', 'Not in a room.');
+    return;
+  }
+  const session = room.game;
+  if (!isGameSession(session)) {
+    sendError(client, 'badCommand', 'The game has not started.');
+    return;
+  }
+  const seat = client.seat;
+  if (seat === null) {
+    sendError(client, 'badToken', 'No seat is bound to this connection.');
+    return;
+  }
+  room.lastActivity = Date.now();
+  session.logger?.flagTrick({ hand: cmd.hand, trick: cmd.trick, seat, note: cmd.note });
 }
 
 /**

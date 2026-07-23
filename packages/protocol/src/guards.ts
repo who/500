@@ -41,6 +41,11 @@ function isNonEmptyString(x: unknown): boolean {
   return typeof x === 'string' && x.length > 0;
 }
 
+/** A non-negative array index (hand numbers, trick indices). */
+function isIndex(x: unknown): boolean {
+  return typeof x === 'number' && Number.isInteger(x) && x >= 0;
+}
+
 const BID_KINDS: readonly string[] = ['NUM', 'NULLA', 'DNULLA', 'IND', 'PASS'];
 
 function isBid(x: unknown): boolean {
@@ -148,6 +153,8 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   nextHand: () => true,
   rematch: () => true,
   requestState: () => true,
+  flagTrick: (m) =>
+    isIndex(m.hand) && isIndex(m.trick) && (m.note === undefined || typeof m.note === 'string'),
 };
 
 const EVENT_CHECKS: Record<ServerEvent['t'], (m: Rec) => boolean> = {

@@ -9,7 +9,13 @@
 import type { Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isCommand, type ClientCommand, type Envelope } from '@five-hundred/protocol';
-import { createGameSession, handleConvertSeatToBot, handleGameCommand, resumeView } from './game.js';
+import {
+  createGameSession,
+  handleConvertSeatToBot,
+  handleFlagTrick,
+  handleGameCommand,
+  resumeView,
+} from './game.js';
 import { RoomStore, type Room, type RoomClient } from './rooms.js';
 
 /**
@@ -73,6 +79,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
       return;
     case 'convertSeatToBot':
       handleConvertSeatToBot(client, cmd);
+      return;
+    case 'flagTrick':
+      handleFlagTrick(client, cmd);
       return;
     case 'bid':
     case 'discardKeeps':
