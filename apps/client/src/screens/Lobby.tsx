@@ -94,12 +94,6 @@ export function Lobby(): ReactNode {
           {seat.occupant === 'bot' && <strong>Bot</strong>}
           {seat.occupant === 'empty' && <em>Open seat</em>}
         </div>
-        {/* Bots are always Hard; an open seat becomes one when the game starts. */}
-        {seat.occupant !== 'human' && (
-          <p className="bot-tier" data-testid={`bot-tier-${seat.seat}`}>
-            Hard bot
-          </p>
-        )}
         {seat.occupant === 'empty' && !isYou && (
           <button type="button" onClick={() => handleSit(seat.seat)}>
             {mySeat === null ? 'Sit here' : 'Move here'}

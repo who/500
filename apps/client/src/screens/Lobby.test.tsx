@@ -117,7 +117,7 @@ describe('Lobby', () => {
     expect(guestScoped.getByText(/Waiting for the host/)).toBeTruthy();
   });
 
-  it('has no difficulty control: every non-human seat just says Hard bot (fh-gpk AC-1)', () => {
+  it('has no difficulty control and no tier label on non-human seats (fh-gpk AC-1, fh-ehj AC-1)', () => {
     const host = makeClient();
     const hostView = renderApp(host);
     seatHost(
@@ -130,11 +130,15 @@ describe('Lobby', () => {
     // The selector is gone for everyone, host included...
     expect(scoped.queryAllByRole('combobox')).toEqual([]);
     expect(hostView.container.querySelector('[data-testid="difficulty-1"]')).toBeNull();
-    // ...and each bot/empty seat states the tier it will play at.
+    // ...and so is the tier label: bots read as "Bot", open seats as "Open seat".
     for (const seat of [1, 2, 3]) {
-      expect(within(seatElement(hostView, seat)).getByTestId(`bot-tier-${seat}`).textContent).toBe(
-        'Hard bot',
-      );
+      const scopedSeat = within(seatElement(hostView, seat));
+      expect(scopedSeat.queryByTestId(`bot-tier-${seat}`)).toBeNull();
+      expect(scopedSeat.queryByText(/Hard bot/)).toBeNull();
+    }
+    expect(within(seatElement(hostView, 3)).getByText('Bot')).toBeTruthy();
+    for (const seat of [1, 2]) {
+      expect(within(seatElement(hostView, seat)).getByText('Open seat')).toBeTruthy();
     }
     // Rendering the lobby never sends a bot-configuration command.
     expect(host.sent.filter((c) => c.t === 'configureBots')).toEqual([]);

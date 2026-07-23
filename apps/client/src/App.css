@@ -214,13 +214,6 @@ button.primary {
   color: var(--text-h);
 }
 
-/* Bots are always Hard (fh-gpk): a static note where the tier picker was. */
-.bot-tier {
-  margin: 0;
-  font-size: 0.8rem;
-  opacity: 0.75;
-}
-
 .tag {
   font-size: 0.7rem;
   padding: 0.1rem 0.4rem;
