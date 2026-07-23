@@ -2,12 +2,12 @@
  * Bot turn driver (PRD sections 4.4 "pacing" and 5 "game loop"): after every
  * state advance, if the acting seat is a bot, invoke its policy and apply the
  * result through the same validated path as human commands — never bypassing
- * validation — after a randomized human-pacing delay (uniform 500–1500ms,
+ * validation — after a randomized human-pacing delay (uniform 400–1100ms,
  * overridable to 0 in tests). Chained bot turns each get their own delay.
  *
  * Easy/Medium decisions are microsecond-fast and run on the event loop; Hard
  * seats route through the async decide seam to the worker-thread pool
- * (workers/hardPool.ts), so their ~1s rollout budget never blocks the loop.
+ * (workers/hardPool.ts), so their rollout budget never blocks the loop.
  * A pool failure (worker crashed twice, spawn failure) degrades that one
  * decision to the seat's synchronous Medium fallback with an error log — a
  * weaker move beats a stuck room.
@@ -30,8 +30,16 @@ import type { BotDifficulty } from '@five-hundred/protocol';
 import type { Room } from './rooms.js';
 import { getSharedHardPool, type HardDecider } from './workers/hardPool.js';
 
-export const BOT_DELAY_MIN_MS = 500;
-export const BOT_DELAY_MAX_MS = 1500;
+/**
+ * Pacing window (fh-x25: was 500–1500ms). Every product seat is Hard, and a
+ * Hard decision now spends up to DEFAULT_HARD_BUDGET_MS thinking before this
+ * delay's timer even matters — so the old window was stacking a fake pause
+ * on top of a real one. Trimmed so the total per-move wait lands about where
+ * it did before the budget went up, while an Easy/Medium seat (fallbacks,
+ * the sim) still reads as considering its move rather than snapping.
+ */
+export const BOT_DELAY_MIN_MS = 400;
+export const BOT_DELAY_MAX_MS = 1100;
 
 /** Production pacing: uniform in [BOT_DELAY_MIN_MS, BOT_DELAY_MAX_MS). */
 export function defaultBotDelayMs(): number {

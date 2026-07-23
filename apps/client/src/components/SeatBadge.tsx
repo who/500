@@ -1,7 +1,8 @@
 /**
  * One seat's nameplate on the table: name, dealer chip, turn highlight,
- * hidden-hand backs with a card count, the delayed "thinking…" pulse for an
- * acting bot (PRD 4.3), and the sitting-out ribbon (nulla / slam partner). The viewer's own seat uses it too, minus the backs — their
+ * hidden-hand backs with a card count, the delayed ActivityCard "thinking"
+ * ring for an acting bot (PRD 4.3), and the sitting-out ribbon (nulla / slam
+ * partner). The viewer's own seat uses it too, minus the backs — their
  * actual hand renders below it. During the auction the badge also carries
  * the seat's bid history as ordered chips (PRD 6.2): latest emphasized,
  * indications visually distinct, passes muted, capped on phone layouts with
@@ -10,6 +11,7 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { type Bid, IND, PASS, bidName } from '@five-hundred/engine';
+import { ActivityCard } from './ActivityCard.tsx';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
 import { CardBack } from './Card.tsx';
 
@@ -17,8 +19,8 @@ import { CardBack } from './Card.tsx';
 const VISIBLE_CHIPS = 3;
 
 /**
- * An acting bot shows "thinking…" only after holding the turn this long
- * (PRD 4.3): instant bot moves stay quiet; anything slower gets the pulse.
+ * An acting bot shows it is thinking only after holding the turn this long
+ * (PRD 4.3): instant bot moves stay quiet; anything slower gets the ring.
  */
 export const THINKING_DELAY_MS = 400;
 
@@ -72,8 +74,8 @@ export interface SeatBadgeProps {
   isDealer: boolean;
   /** This seat holds the turn (view.toAct). */
   isActing: boolean;
-  /** Seat is a bot: while acting it grows a pulsing "thinking…" hint after
-   *  THINKING_DELAY_MS. Never set for human seats. */
+  /** Seat is a bot: while acting it wears the ActivityCard thinking ring
+   *  after THINKING_DELAY_MS. Never set for human seats. */
   thinking?: boolean;
   /** Not in activeSeats: dimmed with a "Sitting out" ribbon. */
   sittingOut: boolean;
@@ -128,9 +130,11 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
       )}
       {props.bidHistory !== undefined && <BidChips bids={props.bidHistory} />}
       {pondering && revealed && (
-        <span className="seat-thinking" data-testid="seat-thinking">
-          thinking…
-        </span>
+        <ActivityCard
+          className="seat-thinking"
+          testId="seat-thinking"
+          label={`${props.name} is thinking`}
+        />
       )}
       {props.sittingOut && (
         <span className="sitting-out-ribbon">

@@ -88,7 +88,7 @@ describe('turn handoff keeps the badge box invariant (AC-1/AC-2)', () => {
     }
   });
 
-  it('the revealed thinking hint and the ribbon are out of flow', () => {
+  it('the revealed thinking ring and the ribbon are out of flow', () => {
     const { app, badge } = renderBadge({
       isActing: true,
       thinking: true,
@@ -122,6 +122,50 @@ describe('turn handoff keeps the badge box invariant (AC-1/AC-2)', () => {
   it('no strip renders outside the auction (bidHistory undefined)', () => {
     const { app } = renderBadge({ bidHistory: undefined });
     expect(app.queryByTestId('bid-history')).toBeNull();
+  });
+});
+
+describe('the thinking hint is the ActivityCard ring (fh-x25 AC-1/AC-2)', () => {
+  it('a pondering bot grows a decorative ring plus the words for screen readers', () => {
+    const { app, badge } = renderBadge({ isActing: true, thinking: true });
+    expect(app.queryByTestId('seat-thinking')).toBeNull(); // still inside the delay
+    act(() => vi.advanceTimersByTime(THINKING_DELAY_MS));
+
+    const hint = app.getByTestId('seat-thinking');
+    const ring = hint.querySelector('.activity-card') as HTMLElement;
+    expect(ring).not.toBeNull();
+    expect(ring.getAttribute('aria-hidden')).toBe('true');
+    expect(hint.textContent).toBe('AI Liam is thinking');
+
+    // ...and it clears the moment the bot plays (the turn leaves the seat).
+    app.rerender(badgeElement({ isActing: false, thinking: true }));
+    expect(app.queryByTestId('seat-thinking')).toBeNull();
+    expect(badge.querySelector('.activity-card')).toBeNull();
+  });
+
+  it('the ring is vendored CSS: an accent conic trace, nothing fetched', () => {
+    const rule = /\.activity-card \{[^}]*\}/.exec(CSS)?.[0];
+    expect(rule).toMatch(/background: conic-gradient\(\s*from var\(--activity-card-angle/);
+    // The angle is a registered custom property, which is what makes the
+    // gradient's origin animatable at all.
+    expect(CSS).toMatch(/@property --activity-card-angle \{[^}]*syntax: '<angle>';/);
+    // Self-contained (AC-2): no url() anywhere in the vendored effect.
+    expect(rule).not.toMatch(/url\(/);
+    expect(/@keyframes activity-card-trace \{[^@]*?\}\s*\}/.exec(CSS)).not.toBeNull();
+  });
+
+  it('the ring cannot move the badge, and stops moving under reduced motion', () => {
+    // Overlay geometry only — inset off the badge's own box, out of flow, so
+    // a mid-turn arrival repaints without reflowing anything (fh-8sw).
+    const hintRule = /\.seat-thinking \{[^}]*\}/.exec(CSS)?.[0];
+    expect(hintRule).toMatch(/position: absolute;/);
+    expect(hintRule).toMatch(/inset: -5px;/);
+    expect(hintRule).toMatch(/pointer-events: none;/);
+    const reduced =
+      /@media \(prefers-reduced-motion: reduce\) \{[^@]*?\.activity-card \{[^}]*animation: none/.exec(
+        CSS,
+      );
+    expect(reduced).not.toBeNull();
   });
 });
 

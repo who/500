@@ -401,24 +401,90 @@ button.primary {
   font-weight: 600;
 }
 
+/* An acting bot's badge wears the ActivityCard border trace while it thinks
+   (fh-x25) — the ring reads as "this seat, right now", which the old
+   "thinking…" caption could only say in words. Out of flow (fh-8sw): an
+   overlay pinned just outside the badge's box, so its delayed arrival paints
+   and never resizes or reflows the badge mid-turn. */
 .seat-thinking {
-  /* Out of flow (fh-8sw): floats under the badge like the sitting-out
-     ribbon, so its delayed arrival can't resize the badge mid-turn. */
   position: absolute;
-  top: calc(100% + 0.2rem);
-  left: 50%;
-  transform: translateX(-50%);
-  white-space: nowrap;
-  font-size: 0.75rem;
-  font-style: italic;
-  color: var(--text);
-  opacity: 0.75;
-  animation: thinking-pulse 1.4s ease-in-out infinite;
+  /* Clear of the 2px border and the 3px acting ring, so both stay readable
+     underneath. The radius is the badge's 8px grown by the same 5px. */
+  inset: -5px;
+  border-radius: 13px;
+  pointer-events: none;
 }
 
-@keyframes thinking-pulse {
-  50% {
-    opacity: 0.3;
+/* The words the ring replaced, kept for screen readers. Clipped rather than
+   display:none, which would drop it from the accessibility tree too. */
+.activity-card-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* --- ActivityCard: vendored border trace -----------------------------------
+   Adapted from https://github.com/who/ActivityCard (MIT); see
+   components/ActivityCard.tsx for what was taken and what was left behind.
+   Self-contained by design — no font, image, or script is fetched. */
+
+@property --activity-card-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.activity-card {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 2px;
+  /* Upstream's ramp on this app's accent tokens: three quarters of the
+     outline is empty, then the tail brightens over the last 90deg into the
+     head sitting at the origin angle. Animating that angle runs the head. */
+  background: conic-gradient(
+    from var(--activity-card-angle, 0deg),
+    transparent 0deg,
+    transparent 270deg,
+    var(--accent-bg) 280deg,
+    var(--accent-border) 320deg,
+    var(--accent) 360deg
+  );
+  /* Ring, not a filled box: the padding box is punched out of the gradient,
+     leaving only the 2px band. */
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  /* Two stacked shadows, as upstream: a tight one to make the 2px head read
+     at badge scale, a wide one for the bloom that sells it as light. */
+  filter: drop-shadow(0 0 3px var(--accent-border)) drop-shadow(0 0 8px var(--accent-border));
+  animation: activity-card-trace 2.4s linear infinite;
+}
+
+@keyframes activity-card-trace {
+  from {
+    --activity-card-angle: 0deg;
+  }
+  to {
+    --activity-card-angle: 360deg;
+  }
+}
+
+/* Reduced motion keeps the meaning and drops the movement: nothing travels,
+   the ring just sits there as an even accent outline. */
+@media (prefers-reduced-motion: reduce) {
+  .activity-card {
+    animation: none;
+    background: var(--accent-border);
+    filter: none;
   }
 }
 

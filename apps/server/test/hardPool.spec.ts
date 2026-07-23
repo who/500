@@ -12,9 +12,10 @@
  *
  * Plus the packet's queueing edge case (simultaneous decisions complete FIFO
  * on a single worker, no starvation), worker-side policy errors surfacing as
- * typed rejections without retry, and the BotDriver seam: hard seats route
- * to the pool with sequential per-decision seeds, hardPool: null keeps the
- * synchronous path.
+ * typed rejections without retry, the budget config (fh-x25 AC-3: the raised
+ * default, still env-overridable and still clamped), and the BotDriver seam:
+ * hard seats route to the pool with sequential per-decision seeds,
+ * hardPool: null keeps the synchronous path.
  */
 
 import { createServer, type Server } from 'node:http';
@@ -36,7 +37,14 @@ import type { BotSeatConfig } from '@five-hundred/protocol';
 import { handleRequest } from '../src/index.js';
 import { createGameSession, isGameSession, type GameSession, type GameSessionOptions } from '../src/game.js';
 import { RoomStore, type Room, type RoomClient } from '../src/rooms.js';
-import { HardBotPool, hardPoolSize } from '../src/workers/hardPool.js';
+import {
+  DEFAULT_HARD_BUDGET_MS,
+  HardBotPool,
+  MAX_HARD_BUDGET_MS,
+  MIN_HARD_BUDGET_MS,
+  hardBudgetMs,
+  hardPoolSize,
+} from '../src/workers/hardPool.js';
 
 const MEDIUM = new MediumPolicy();
 const MEDIUMS = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
@@ -81,6 +89,29 @@ describe('HardBotPool', () => {
 
   afterEach(async () => {
     await Promise.all(pools.splice(0).map((p) => p.dispose()));
+  });
+
+  describe('per-decision budget (fh-x25)', () => {
+    it('defaults to the raised 1600ms, inside the PRD ceiling', () => {
+      expect(DEFAULT_HARD_BUDGET_MS).toBe(1600);
+      expect(DEFAULT_HARD_BUDGET_MS).toBeGreaterThan(1000); // the pre-fh-x25 value
+      expect(DEFAULT_HARD_BUDGET_MS).toBeLessThanOrEqual(MAX_HARD_BUDGET_MS);
+      expect(hardBudgetMs({})).toBe(DEFAULT_HARD_BUDGET_MS);
+      expect(hardBudgetMs({ HARD_BOT_BUDGET_MS: '' })).toBe(DEFAULT_HARD_BUDGET_MS);
+    });
+
+    it('stays overridable by HARD_BOT_BUDGET_MS and clamped to the ceiling/floor', () => {
+      expect(hardBudgetMs({ HARD_BOT_BUDGET_MS: '250' })).toBe(250);
+      expect(hardBudgetMs({ HARD_BOT_BUDGET_MS: '99999' })).toBe(MAX_HARD_BUDGET_MS);
+      expect(hardBudgetMs({ HARD_BOT_BUDGET_MS: '1' })).toBe(MIN_HARD_BUDGET_MS);
+    });
+
+    it('ignores a non-numeric override rather than thinking for NaN ms', () => {
+      const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      expect(hardBudgetMs({ HARD_BOT_BUDGET_MS: 'soon' })).toBe(DEFAULT_HARD_BUDGET_MS);
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
   });
 
   it('sizes to max(1, cpus - 1) capped at 4', () => {

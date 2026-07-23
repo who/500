@@ -1,7 +1,8 @@
 /**
  * Hard-bot worker entry — runs one HardPolicy decision per request, fully
- * synchronously, inside a worker thread so the rollout's ~1s of CPU never
- * touches the server event loop (PRD 4.3/4.4). The state crosses the thread
+ * synchronously, inside a worker thread so the rollout's budgeted CPU (up to
+ * DEFAULT_HARD_BUDGET_MS, hardPool.ts) never touches the server event loop
+ * (PRD 4.3/4.4). The state crosses the thread
  * boundary as the engine's versioned JSON serialization; the reply is the
  * plain engine Action, validated by the driver's normal apply path.
  *

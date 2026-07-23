@@ -32,7 +32,19 @@ import { serializeGame, type Action, type GameState } from '@five-hundred/engine
 import { overlayJson as defaultOverlayJson } from '../botParams.js';
 
 export const HARD_POOL_MAX_WORKERS = 4;
-export const DEFAULT_HARD_BUDGET_MS = 1000;
+/**
+ * Per-decision rollout deadline for a Hard seat (fh-x25: was 1000ms).
+ * The budget is a cutoff, not a target — a play rollout that runs out of
+ * time keeps only the worlds it finished and falls back to the Medium
+ * choice, logged by the worker. 1600ms lets a full 20-world rollout land on
+ * the crowded turns where 1000ms was cutting it short, so the seat plays its
+ * own judgement more often. It costs wait: with three Hard seats a full
+ * round of play is three pacing delays plus three rollouts, which is why the
+ * pacing window was trimmed alongside it (botDriver.ts) and why the acting
+ * seat now wears the ActivityCard ring — a wait you can see is a wait that
+ * reads as deliberate.
+ */
+export const DEFAULT_HARD_BUDGET_MS = 1600;
 /** PRD section 9 risk fallback ceiling: never think longer than 2s. */
 export const MAX_HARD_BUDGET_MS = 2000;
 export const MIN_HARD_BUDGET_MS = 50;

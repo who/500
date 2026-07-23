@@ -247,7 +247,9 @@ describe('Hand play interaction', () => {
       vi.advanceTimersByTime(THINKING_DELAY_MS);
     });
     const bot = app.container.querySelector('[data-seat="3"] [data-testid="seat-thinking"]');
-    expect(bot?.textContent).toBe('thinking…');
+    // The ring is decorative; the seat's name carries the meaning aloud.
+    expect(bot?.querySelector('.activity-card')).not.toBeNull();
+    expect(bot?.textContent).toMatch(/ is thinking$/);
 
     // A human acting seat (the viewer) shows no thinking hint, ever.
     const human = renderPlayTurn();

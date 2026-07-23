@@ -21,7 +21,7 @@ export const EXPECTED_CONTRACT = /7S by AI \w+/;
 
 /**
  * Hard's per-decision rollout budget for e2e (server env HARD_BOT_BUDGET_MS).
- * Production defaults to 1000ms; a browser run plays ~30 bot cards a hand, so
+ * Production defaults to 1600ms; a browser run plays ~30 bot cards a hand, so
  * the suite trims the budget to keep the whole run near two minutes while
  * still exercising the real worker-pool rollout path.
  */
