@@ -17,6 +17,8 @@ const validCommands: Record<string, unknown> = {
   configureBotsEmpty: { t: 'configureBots', bots: [] },
   startGame: { t: 'startGame' },
   convertSeatToBot: { t: 'convertSeatToBot', seat: 2, difficulty: 'easy' },
+  // fh-gpk: difficulty is optional — omitting it takes the server default.
+  convertSeatToBotDefaultTier: { t: 'convertSeatToBot', seat: 2 },
   bid: { t: 'bid', bid: { kind: 'NUM', level: 7, strain: 4 } },
   bidIndication: { t: 'bid', bid: { kind: 'IND', level: 6, strain: 0 } },
   bidPass: { t: 'bid', bid: { kind: 'PASS', level: 0, strain: -1 } },

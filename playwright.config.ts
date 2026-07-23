@@ -6,7 +6,7 @@
  */
 
 import { defineConfig } from '@playwright/test';
-import { TEST_SEED } from './e2e/seed.ts';
+import { TEST_HARD_BUDGET_MS, TEST_SEED } from './e2e/seed.ts';
 
 const port = Number(process.env.E2E_PORT ?? 8543);
 const baseURL = `http://localhost:${port}`;
@@ -26,6 +26,12 @@ export default defineConfig({
     url: `${baseURL}/healthz`,
     reuseExistingServer: false,
     timeout: 30_000,
-    env: { PORT: String(port), TEST_SEED: String(TEST_SEED) },
+    env: {
+      PORT: String(port),
+      TEST_SEED: String(TEST_SEED),
+      // Every seat is a Hard bot (fh-gpk); trim the rollout budget so a
+      // browser-paced hand still finishes inside the suite's time box.
+      HARD_BOT_BUDGET_MS: String(TEST_HARD_BUDGET_MS),
+    },
   },
 });

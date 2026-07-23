@@ -51,9 +51,6 @@ test('phone width: every screen fits 375px and the theme toggle persists', async
   // Lobby.
   await expect(page.getByTestId('room-code')).toBeVisible();
   await expectNoHorizontalScroll(page, 'lobby');
-  for (const seat of [1, 2, 3]) {
-    await page.getByTestId(`difficulty-${seat}`).selectOption('easy');
-  }
   await page.getByTestId('start-game').click();
 
   // Auction: the full bid grid must fit and stay tappable — proven by

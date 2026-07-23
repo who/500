@@ -65,11 +65,15 @@ export interface StartGameCommand {
 /**
  * Host only, mid-game: hand a disconnected human seat to a bot. Irreversible
  * for the rest of the game — the seat's old token is invalidated.
+ *
+ * `difficulty` is optional (fh-gpk): the product always fills seats with Hard
+ * bots, so omitting it takes the server's default tier. Tools and tests may
+ * still name a tier explicitly.
  */
 export interface ConvertSeatToBotCommand {
   readonly t: 'convertSeatToBot';
   readonly seat: number;
-  readonly difficulty: BotDifficulty;
+  readonly difficulty?: BotDifficulty;
 }
 
 export interface BidCommand {

@@ -185,18 +185,27 @@ function fakeClient(): FakeClient {
   return client;
 }
 
-/** Human at seat 3, hard bots at 0-2, zero pacing delay, injected pool. */
-function setupHardRoom(opts: GameSessionOptions): { room: Room; session: GameSession } {
+/**
+ * Human at seat 3, zero pacing delay, injected pool. `configure` is the
+ * fh-gpk switch: false leaves the seats exactly as a plain client would (no
+ * configureBots ever sent), true names 'hard' explicitly.
+ */
+function setupHardRoom(
+  opts: GameSessionOptions,
+  configure = true,
+): { room: Room; session: GameSession } {
   const store = new RoomStore({ startGame: (room) => createGameSession(room, 0xb07, opts) });
   const human = fakeClient();
   store.createRoom(human, 'Ann');
   store.sit(human, 3);
   const room = human.room;
   if (room === null) throw new Error('room not created');
-  store.configureBots(
-    human,
-    [0, 1, 2].map((seat): BotSeatConfig => ({ seat, difficulty: 'hard' })),
-  );
+  if (configure) {
+    store.configureBots(
+      human,
+      [0, 1, 2].map((seat): BotSeatConfig => ({ seat, difficulty: 'hard' })),
+    );
+  }
   store.startGame(human);
   const session = room.game;
   if (!isGameSession(session)) throw new Error('game did not start');
@@ -227,6 +236,33 @@ describe('BotDriver hard routing', () => {
       expect([0, 1, 2]).toContain(call.seat); // only hard seats route here
       expect(call.seed).toBe((session.seed + i) >>> 0); // game seed + count
     }
+  });
+
+  it('fh-gpk AC-1/AC-2: a client that never configures bots still gets Hard seats routed to the pool', async () => {
+    vi.useFakeTimers();
+    const calls: number[] = [];
+    const fakePool = {
+      decide(state: GameState, seat: number, seed: number): Promise<Action> {
+        calls.push(seat);
+        return Promise.resolve(policyAction(state, seat, MEDIUM, makeRng(seed)));
+      },
+    };
+    const { room, session } = setupHardRoom({ bots: { delayMs: () => 0, hardPool: fakePool } }, false);
+
+    // Every seat the server filled on its own is a Hard bot...
+    expect(room.seats.map((s) => (s.kind === 'human' ? 'human' : s.difficulty))).toEqual([
+      'hard',
+      'hard',
+      'hard',
+      'human',
+    ]);
+
+    // ...and their decisions really run in the pool, not the Medium fallback.
+    const opening = session.state;
+    for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(1);
+    expect(session.state).not.toBe(opening);
+    expect(calls.length).toBeGreaterThanOrEqual(3);
+    expect([...new Set(calls)].sort()).toEqual([0, 1, 2]);
   });
 
   it('falls back to a Medium decision with an error log when the pool fails', async () => {

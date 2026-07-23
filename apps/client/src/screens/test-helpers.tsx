@@ -86,7 +86,7 @@ export function applyEvent(client: TestClient, envelope: Envelope): void {
 export const env = (seq: number, event: StateBearingEvent): Envelope => ({ seq, event });
 
 export function emptySeatView(seat: number): RoomSeatView {
-  return { seat, occupant: 'empty', name: null, difficulty: 'medium', connected: true };
+  return { seat, occupant: 'empty', name: null, difficulty: 'hard', connected: true };
 }
 
 export function humanSeatView(seat: number, name: string, connected = true): RoomSeatView {
@@ -95,7 +95,7 @@ export function humanSeatView(seat: number, name: string, connected = true): Roo
 
 export function botSeatView(
   seat: number,
-  difficulty: 'easy' | 'medium' | 'hard' = 'medium',
+  difficulty: 'easy' | 'medium' | 'hard' = 'hard',
 ): RoomSeatView {
   return { seat, occupant: 'bot', name: null, difficulty, connected: true };
 }

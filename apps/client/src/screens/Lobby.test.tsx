@@ -101,10 +101,6 @@ describe('Lobby', () => {
     const hostView = renderApp(host);
     seatHost(host);
     const hostScoped = within(hostView.container);
-    for (const seat of [1, 2, 3]) {
-      const select = hostScoped.getByLabelText(`Seat ${seat + 1} bot difficulty`);
-      expect((select as HTMLSelectElement).disabled).toBe(false);
-    }
     expect(
       (hostScoped.getByRole('button', { name: 'Start game' }) as HTMLButtonElement).disabled,
     ).toBe(false);
@@ -117,40 +113,31 @@ describe('Lobby', () => {
     applyEvent(guest, env(0, { t: 'roomState', room }));
     applyEvent(guest, { event: { t: 'seatGranted', seat: 1, token: 'tok-guest' } });
     const guestScoped = within(guestView.container);
-    for (const seat of [2, 3]) {
-      const select = guestScoped.getByLabelText(`Seat ${seat + 1} bot difficulty`);
-      expect((select as HTMLSelectElement).disabled).toBe(true);
-    }
     expect(guestScoped.queryByRole('button', { name: 'Start game' })).toBeNull();
     expect(guestScoped.getByText(/Waiting for the host/)).toBeTruthy();
   });
 
-  it('sends configureBots on a difficulty change and everyone sees the broadcast (AC-2)', async () => {
-    const user = userEvent.setup();
+  it('has no difficulty control: every non-human seat just says Hard bot (fh-gpk AC-1)', () => {
     const host = makeClient();
     const hostView = renderApp(host);
-    seatHost(host);
-    const hostSelect = within(seatElement(hostView, 2)).getByRole('combobox');
-    await user.selectOptions(hostSelect, 'hard');
-    expect(host.sent).toContainEqual({
-      t: 'configureBots',
-      bots: [{ seat: 2, difficulty: 'hard' }],
-    });
-
-    // The resulting broadcast updates a non-host client's selector too.
-    const guest = makeClient();
-    const guestView = renderApp(guest);
-    const updated = anaRoom({
-      seats: [
-        humanSeatView(0, 'Ana'),
-        emptySeatView(1),
-        { ...emptySeatView(2), difficulty: 'hard' },
-        emptySeatView(3),
-      ],
-    });
-    applyEvent(guest, env(0, { t: 'roomState', room: updated }));
-    const guestSelect = within(seatElement(guestView, 2)).getByRole('combobox');
-    expect((guestSelect as HTMLSelectElement).value).toBe('hard');
+    seatHost(
+      host,
+      anaRoom({
+        seats: [humanSeatView(0, 'Ana'), emptySeatView(1), emptySeatView(2), botSeatView(3)],
+      }),
+    );
+    const scoped = within(hostView.container);
+    // The selector is gone for everyone, host included...
+    expect(scoped.queryAllByRole('combobox')).toEqual([]);
+    expect(hostView.container.querySelector('[data-testid="difficulty-1"]')).toBeNull();
+    // ...and each bot/empty seat states the tier it will play at.
+    for (const seat of [1, 2, 3]) {
+      expect(within(seatElement(hostView, seat)).getByTestId(`bot-tier-${seat}`).textContent).toBe(
+        'Hard bot',
+      );
+    }
+    // Rendering the lobby never sends a bot-configuration command.
+    expect(host.sent.filter((c) => c.t === 'configureBots')).toEqual([]);
   });
 
   it('shows the learned tag and lets the host toggle adaptive bots (fh-sja.6)', async () => {
@@ -231,8 +218,8 @@ describe('Lobby', () => {
       seats: [
         humanSeatView(0, 'Ana'),
         humanSeatView(1, 'Ben'),
-        botSeatView(2, 'medium'),
-        botSeatView(3, 'hard'),
+        botSeatView(2),
+        botSeatView(3),
       ],
     });
     applyEvent(host, env(1, { t: 'roomState', room: started }));

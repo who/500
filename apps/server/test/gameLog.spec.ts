@@ -79,7 +79,7 @@ describe('opt-in game logging', () => {
     ]);
     expect(record.hands.length).toBeGreaterThan(0);
     // Seats 0/2 are human, 1/3 are bots in the shared fixture.
-    expect(record.players.map((p) => p.kind)).toEqual(['human', 'medium', 'human', 'medium']);
+    expect(record.players.map((p) => p.kind)).toEqual(['human', 'hard', 'human', 'hard']);
   });
 
   it('writes nothing when logging is disabled (AC-3)', async () => {

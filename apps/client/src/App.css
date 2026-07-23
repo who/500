@@ -185,11 +185,11 @@ button.primary {
   color: var(--text-h);
 }
 
-.seat-card select {
-  font: inherit;
-  padding: 0.25rem 0.4rem;
-  border-radius: 6px;
-  border: 1px solid var(--border);
+/* Bots are always Hard (fh-gpk): a static note where the tier picker was. */
+.bot-tier {
+  margin: 0;
+  font-size: 0.8rem;
+  opacity: 0.75;
 }
 
 .tag {

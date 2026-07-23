@@ -137,7 +137,8 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
     m.bots.every((b) => isRec(b) && isSeat(b.seat) && isDifficulty(b.difficulty)),
   setAdaptiveBots: (m) => typeof m.on === 'boolean',
   startGame: () => true,
-  convertSeatToBot: (m) => isSeat(m.seat) && isDifficulty(m.difficulty),
+  // difficulty is optional (fh-gpk): absent means the server's default tier.
+  convertSeatToBot: (m) => isSeat(m.seat) && (m.difficulty === undefined || isDifficulty(m.difficulty)),
   bid: (m) => isBid(m.bid),
   discardKeeps: (m) => isCardArray(m.keeps),
   declareSlam: () => true,

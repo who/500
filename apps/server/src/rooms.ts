@@ -55,7 +55,12 @@ export interface Room {
   adaptiveBots: boolean;
 }
 
-export const DEFAULT_DIFFICULTY: BotDifficulty = 'medium';
+/**
+ * fh-gpk: the product only ever spawns Hard bots. Easy/Medium survive as
+ * internal opponents (arena/self-play, and Hard's in-thread fallback), but
+ * every seat the server fills on its own plays Hard.
+ */
+export const DEFAULT_DIFFICULTY: BotDifficulty = 'hard';
 export const ROOM_CODE_LENGTH = 5;
 /** A–Z + 2–9 minus O/I/0/1 lookalikes. */
 export const ROOM_CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -312,6 +317,13 @@ export class RoomStore {
     this.broadcastRoomState(room);
   }
 
+  /**
+   * Host only, pre-game: assign a tier to bot/empty seats. The product no
+   * longer exposes this (fh-gpk removed the lobby's difficulty selector, so
+   * every seat stays at DEFAULT_DIFFICULTY = hard); it stays on the wire as
+   * the tool/test path that builds mixed-tier rooms for the arena and the
+   * server suites, and remains fully validated so it can never be abused.
+   */
   configureBots(client: RoomClient, bots: readonly BotSeatConfig[]): void {
     const room = client.room;
     if (room === null) {

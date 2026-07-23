@@ -8,6 +8,8 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ClientCommand, Envelope, ErrorCode, RoomView, ServerEvent } from '@five-hundred/protocol';
+import { createGameSession, resumeView } from '../src/game.js';
+import { RoomStore } from '../src/rooms.js';
 import { attachWs, type WsApp } from '../src/ws.js';
 
 let server: Server;
@@ -82,7 +84,13 @@ class TestClient {
 
 beforeAll(async () => {
   server = createServer();
-  app = attachWs(server);
+  // Room lifecycle only: sessions start without the bot driver, so the Hard
+  // seats this suite now creates by default (fh-gpk) never spin up the
+  // worker pool. Bot behaviour lives in botDriver.spec / hardPool.spec.
+  app = attachWs(
+    server,
+    new RoomStore({ startGame: (room) => createGameSession(room, 0xc0ffee, { bots: null }), resumeView }),
+  );
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   port = (server.address() as AddressInfo).port;
 });
@@ -138,17 +146,20 @@ describe('room lifecycle happy path (AC-1)', () => {
     expect(ann.received.filter((e) => e.event.t === 'seatGranted')).toHaveLength(1);
     expect(bob.received.filter((e) => e.event.t === 'seatGranted')).toHaveLength(1);
 
-    ann.send({ t: 'configureBots', bots: [{ seat: 1, difficulty: 'hard' }] });
+    // Seats default to Hard (fh-gpk); the tool-only configureBots path can
+    // still retier one, and the seat it leaves alone stays Hard.
+    expect(annSit2.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'hard' });
+    ann.send({ t: 'configureBots', bots: [{ seat: 1, difficulty: 'easy' }] });
     const [annCfg, bobCfg] = [await ann.nextRoomState(), await bob.nextRoomState()];
     expect(annCfg).toEqual(bobCfg);
-    expect(annCfg.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'hard' });
+    expect(annCfg.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'easy' });
 
     ann.send({ t: 'startGame' });
     const [annStart, bobStart] = [await ann.nextRoomState(), await bob.nextRoomState()];
     expect(annStart).toEqual(bobStart);
     expect(annStart.room.started).toBe(true);
-    expect(annStart.room.seats[1]).toMatchObject({ occupant: 'bot', difficulty: 'hard' });
-    expect(annStart.room.seats[3]).toMatchObject({ occupant: 'bot', difficulty: 'medium' });
+    expect(annStart.room.seats[1]).toMatchObject({ occupant: 'bot', difficulty: 'easy' });
+    expect(annStart.room.seats[3]).toMatchObject({ occupant: 'bot', difficulty: 'hard' });
 
     // Both clients saw the same strictly increasing per-room seq sequence
     // (Ann has one extra roomState from before Bob joined).

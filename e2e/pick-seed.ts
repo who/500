@@ -1,19 +1,27 @@
 /**
  * Seed picker for the Playwright smoke test (e2e/smoke.test.ts): replays the
- * server's exact bot wiring — EasyPolicy at seats 1–3, per-seat rng seeded
- * makeRng((seed + seat) >>> 0), the human at seat 0 always passing — and
- * prints, per candidate seed, the contract the auction lands on. The smoke
- * test pins TEST_SEED plus its expected contract (e2e/seed.ts); when engine
- * or bot changes shift the stream, rerun this to pick a new seed:
+ * server's exact bot wiring — HardPolicy at seats 1–3 (fh-gpk: the product
+ * only ever spawns Hard bots), each decision seeded the way the worker pool
+ * seeds it (game seed + a running decision count across all Hard seats, see
+ * BotDriver.decide), the human at seat 0 always passing — and prints, per
+ * candidate seed, the contract the auction lands on. The smoke test pins
+ * TEST_SEED plus its expected contract (e2e/seed.ts); when engine or bot
+ * changes shift the stream, rerun this to pick a new seed:
  *
  *   pnpm --filter @five-hundred/bots exec tsx ../../e2e/pick-seed.ts
  *
- * A good smoke seed: a bot declarer (guaranteed — the human never bids), a
+ * A good smoke seed: a bot declarer at SEAT 1 (so the declarer's lead puts
+ * the human last to trick 1 — scaleup.test.ts measures that frozen state), a
  * suit contract (NT could ask the human to name a joker suit, a picker the
- * smoke script does not drive), and zero redeals for speed.
+ * smoke script does not drive), no slam, and zero redeals for speed.
+ *
+ * Only the auction and the exchange are replayed: those run on fixed world
+ * counts and so are reproducible from the seed alone. Card play is the one
+ * wall-clock-budgeted decision (hardPool's deadlineMs), which is why the
+ * smoke test asserts the contract but never a specific played card.
  */
 
-import { EasyPolicy, policyAction } from '../packages/bots/src/index.js';
+import { HardPolicy, policyAction } from '../packages/bots/src/index.js';
 import {
   applyAction,
   bid,
@@ -35,6 +43,7 @@ interface Outcome {
   readonly declarer: number;
   readonly redeals: number;
   readonly suitContract: boolean;
+  readonly slam: boolean;
 }
 
 function humanAction(state: GameState): Action {
@@ -55,41 +64,47 @@ function humanAction(state: GameState): Action {
 
 function simulate(seed: number): Outcome {
   let state = newGame(seed);
-  const policies = [null, new EasyPolicy(), new EasyPolicy(), new EasyPolicy()] as const;
-  const rngs = [null, makeRng((seed + 1) >>> 0), makeRng((seed + 2) >>> 0), makeRng((seed + 3) >>> 0)];
+  const policy = new HardPolicy();
+  /** Mirrors BotDriver's hardDecisions counter: one stream for all Hard seats. */
+  let decisions = 0;
   let redeals = 0;
   for (let step = 0; step < 5000; step++) {
-    if (state.phase === 'handScored') {
-      const result = state.handResult;
-      if (result === null) throw new Error('handScored without a result');
+    // The contract is settled once play begins; card play is budget-bound
+    // (non-reproducible), so the replay stops here.
+    if (state.phase === 'play') {
+      const contract = state.contract;
+      const declarer = state.declarer;
+      if (contract === null || declarer === null) throw new Error('play without a contract');
       return {
         seed,
-        contract: bidName(result.contract),
-        declarer: result.declarer,
+        contract: bidName(contract),
+        declarer,
         redeals,
-        suitContract: trumpOf(result.contract) !== null,
+        suitContract: trumpOf(contract) !== null,
+        slam: state.slam,
       };
     }
     const seat = toActSeat(state);
     if (seat === null) throw new Error(`no seat to act during ${state.phase}`);
-    const policy = policies[seat];
-    const rng = rngs[seat];
     const action =
-      policy == null || rng == null ? humanAction(state) : policyAction(state, seat, policy, rng);
+      seat === 0
+        ? humanAction(state)
+        : policyAction(state, seat, policy, makeRng((seed + decisions++) >>> 0));
     const dealsBefore = state.dealsDrawn;
     const applied = applyAction(state, action);
     if (!applied.ok) throw new Error(`seed ${seed}: rejected ${action.type}: ${applied.error.message}`);
     state = applied.state;
     if (state.dealsDrawn > dealsBefore && state.handNumber === 0) redeals++;
   }
-  throw new Error(`seed ${seed}: hand did not finish within 5000 steps`);
+  throw new Error(`seed ${seed}: hand did not reach play within 5000 steps`);
 }
 
 for (let seed = 1; seed <= 40; seed++) {
   const o = simulate(seed);
-  const good = o.suitContract && o.redeals === 0;
+  const good = o.suitContract && o.redeals === 0 && !o.slam && o.declarer === 1;
   console.log(
     `seed ${String(o.seed).padStart(3)}: ${o.contract} by Bot ${o.declarer + 1}` +
-      ` (declarer seat ${o.declarer}, redeals ${o.redeals})${good ? '  <- candidate' : ''}`,
+      ` (declarer seat ${o.declarer}, redeals ${o.redeals}, slam ${o.slam})` +
+      `${good ? '  <- candidate' : ''}`,
   );
 }

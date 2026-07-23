@@ -55,15 +55,13 @@ test('the table, cards, and trick area scale up across 1280/1920/2560', async ({
 }, testInfo) => {
   await page.setViewportSize({ width: 1280, height: 1000 });
 
-  // Reach the frozen mid-trick state: create, seat three Easy bots, start,
-  // pass the auction away, and wait for trick 1 to stall on the human.
+  // Reach the frozen mid-trick state: create, start (the three open seats
+  // become Hard bots), pass the auction away, and wait for trick 1 to stall
+  // on the human.
   await page.goto('/');
   await page.getByTestId('name-input').fill('Scale');
   await page.getByTestId('create-room').click();
   await expect(page.getByTestId('room-code')).toBeVisible();
-  for (const seat of [1, 2, 3]) {
-    await page.getByTestId(`difficulty-${seat}`).selectOption('easy');
-  }
   await page.getByTestId('start-game').click();
 
   const bidPanel = page.getByTestId('bid-panel');
@@ -74,7 +72,8 @@ test('the table, cards, and trick area scale up across 1280/1920/2560', async ({
     await page.waitForTimeout(POLL_MS);
   }
 
-  // Seed 2: the declarer's side leads, so the human plays last to trick 1 —
+  // The pinned seed: seat 1 declares and leads, so the human plays last to
+  // trick 1 —
   // three bot cards sit on the felt while the game waits for us.
   await expect(page.locator('.trick-area .trick-card')).toHaveCount(3);
   await expect(page.locator('.hand-card-playable').first()).toBeVisible();

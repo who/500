@@ -38,7 +38,7 @@ import type {
 } from '@five-hundred/protocol';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
 import { createGameLogger, resolveGameLogConfig, type GameLogConfig, type GameLogger } from './gameLog.js';
-import { isPaused, roomView, type Room, type RoomClient } from './rooms.js';
+import { DEFAULT_DIFFICULTY, isPaused, roomView, type Room, type RoomClient } from './rooms.js';
 
 /** Game commands: everything ws.ts does not route to the room lifecycle. */
 export type GameCommand = Extract<
@@ -410,10 +410,12 @@ export function handleConvertSeatToBot(client: RoomClient, cmd: ConvertSeatToBot
     sendError(client, 'badCommand', `Seat ${cmd.seat} is still connected.`);
     return;
   }
-  room.seats[cmd.seat] = { kind: 'bot', difficulty: cmd.difficulty };
+  // fh-gpk: an unspecified tier means the product default (Hard).
+  const difficulty = cmd.difficulty ?? DEFAULT_DIFFICULTY;
+  room.seats[cmd.seat] = { kind: 'bot', difficulty };
   room.lastActivity = Date.now();
   broadcastAll(room, { t: 'roomState', room: roomView(room) });
-  session.driver?.addBot(cmd.seat, cmd.difficulty);
+  session.driver?.addBot(cmd.seat, difficulty);
   if (session.state.phase === 'handScored') {
     // The converted seat is now a bot, hence auto-ready: tell everyone.
     broadcastHandReady(room, session);

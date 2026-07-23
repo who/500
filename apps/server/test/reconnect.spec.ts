@@ -141,7 +141,11 @@ describe('seat-to-bot conversion with a live driver (AC-3)', () => {
   beforeAll(async () => {
     server = createServer();
     const store = new RoomStore({
-      startGame: (room) => createGameSession(room, SEED, { bots: { delayMs: () => 0 } }),
+      // Seats default to Hard (fh-gpk); hardPool: null keeps their decisions
+      // on the synchronous in-thread path so this suite stays fast and
+      // deterministic — the pool routing itself is hardPool.spec.ts's job.
+      startGame: (room) =>
+        createGameSession(room, SEED, { bots: { delayMs: () => 0, hardPool: null } }),
       resumeView,
     });
     app = attachWs(server, store);

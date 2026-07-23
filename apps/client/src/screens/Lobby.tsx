@@ -1,24 +1,19 @@
 /**
  * Lobby screen (PRD section 6.1 screen 2): the room code with a copy-link
  * affordance, four seats arranged around a table, seat claiming, and the
- * host-only controls — per-non-human-seat bot difficulty and start. Seats
- * render relative to YOUR seat at the bottom (the table-screen convention);
- * before you sit, seat 0 anchors the bottom.
+ * host-only start control. Seats render relative to YOUR seat at the bottom
+ * (the table-screen convention); before you sit, seat 0 anchors the bottom.
+ *
+ * There is no difficulty choice (fh-gpk): every seat the server fills plays
+ * Hard, so a non-human seat just says so.
  */
 
 import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
-import type { BotDifficulty, RoomSeatView } from '@five-hundred/protocol';
-import { BOT_DIFFICULTIES } from '@five-hundred/protocol';
+import type { RoomSeatView } from '@five-hundred/protocol';
 import { useGameClient } from './router.tsx';
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
-
-const DIFFICULTY_LABELS: Record<BotDifficulty, string> = {
-  easy: 'Easy',
-  medium: 'Medium',
-  hard: 'Hard',
-};
 
 function shareUrl(roomCode: string): string {
   if (typeof location === 'undefined') return `#/room/${roomCode}`;
@@ -51,10 +46,6 @@ export function Lobby(): ReactNode {
     client.send({ t: 'sit', seat });
   }
 
-  function handleDifficulty(seat: number, difficulty: BotDifficulty): void {
-    client.send({ t: 'configureBots', bots: [{ seat, difficulty }] });
-  }
-
   function handleAdaptive(on: boolean): void {
     client.send({ t: 'setAdaptiveBots', on });
   }
@@ -76,20 +67,11 @@ export function Lobby(): ReactNode {
           {seat.occupant === 'bot' && <strong>Bot</strong>}
           {seat.occupant === 'empty' && <em>Open seat</em>}
         </div>
+        {/* Bots are always Hard; an open seat becomes one when the game starts. */}
         {seat.occupant !== 'human' && (
-          <select
-            aria-label={`Seat ${seat.seat + 1} bot difficulty`}
-            data-testid={`difficulty-${seat.seat}`}
-            value={seat.difficulty ?? 'medium'}
-            disabled={!isHost}
-            onChange={(e) => handleDifficulty(seat.seat, e.target.value as BotDifficulty)}
-          >
-            {BOT_DIFFICULTIES.map((d) => (
-              <option key={d} value={d}>
-                {DIFFICULTY_LABELS[d]}
-              </option>
-            ))}
-          </select>
+          <p className="bot-tier" data-testid={`bot-tier-${seat.seat}`}>
+            Hard bot
+          </p>
         )}
         {seat.occupant === 'empty' && !isYou && (
           <button type="button" onClick={() => handleSit(seat.seat)}>

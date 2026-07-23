@@ -41,6 +41,8 @@ export function defaultBotDelayMs(): number {
  * In-thread policy per difficulty. Hard maps to Medium here deliberately:
  * real Hard decisions run HardPolicy inside the worker pool, and this
  * synchronous policy is only its degraded fallback when the pool fails.
+ * Since fh-gpk every product seat is Hard, so this path is the fallback and
+ * the arena/self-play tiers — never what a player faces on a healthy server.
  */
 export function policyFor(difficulty: BotDifficulty): Policy {
   return difficulty === 'easy' ? new EasyPolicy() : new MediumPolicy();
