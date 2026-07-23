@@ -6,6 +6,9 @@
  *
  * There is no difficulty choice (fh-gpk): every seat the server fills plays
  * Hard, so a non-human seat just says so.
+ *
+ * A first-timer gets talked through the room (fh-0nj): one line of guidance
+ * that changes with where they stand — not seated, seated guest, host.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -14,6 +17,29 @@ import type { RoomSeatView } from '@five-hundred/protocol';
 import { useGameClient } from './router.tsx';
 
 const POSITIONS = ['bottom', 'left', 'top', 'right'] as const;
+
+/** The house-rules summary this table plays by (repo doc, rendered by GitHub). */
+const HOUSE_RULES_URL = 'https://github.com/who/500/blob/main/500-house-rules.md';
+
+/**
+ * One sentence of "what do I do now" for the state the viewer is in (fh-0nj).
+ * Seats are numbered from 1 for people; empty seats become Hard bots on start,
+ * which is the only bot choice there is (fh-gpk).
+ */
+function lobbyGuidance(args: {
+  mySeat: number | null;
+  isHost: boolean;
+  roomCode: string;
+}): string {
+  const { mySeat, isHost, roomCode } = args;
+  if (mySeat === null) {
+    return 'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled by Hard bots when the game starts.';
+  }
+  if (isHost) {
+    return `You're the host. Share code ${roomCode} for others to join, then press Start game when ready — any empty seats fill with Hard bots.`;
+  }
+  return `You're in seat ${mySeat + 1}. The host starts the game when everyone is ready — others can join with room code ${roomCode}, and empty seats become Hard bots.`;
+}
 
 function shareUrl(roomCode: string): string {
   if (typeof location === 'undefined') return `#/room/${roomCode}`;
@@ -102,6 +128,24 @@ export function Lobby(): ReactNode {
         </button>
       </header>
 
+      <section className="lobby-guide">
+        <p className="guidance" data-testid="lobby-guidance">
+          {lobbyGuidance({ mySeat, isHost, roomCode: room.roomCode })}
+        </p>
+        <details className="how-to-play">
+          <summary>How to play 500</summary>
+          <p>
+            Four players in two partnerships, partners sitting opposite. Everyone bids once for the
+            right to name trumps, then the winning side tries to take the tricks they promised.
+          </p>
+          <p>
+            <a href={HOUSE_RULES_URL} target="_blank" rel="noreferrer">
+              Read our house rules
+            </a>
+          </p>
+        </details>
+      </section>
+
       <div className="table-area">
         <div className="table-felt" aria-hidden="true" />
         {POSITIONS.map((position, offset) => {
@@ -143,10 +187,7 @@ export function Lobby(): ReactNode {
             Start game
           </button>
         ) : (
-          <p className="notice">
-            {mySeat === null && 'Tap an open seat to join the table. '}
-            Waiting for the host to start…
-          </p>
+          <p className="notice">Waiting for the host to start…</p>
         )}
       </footer>
 

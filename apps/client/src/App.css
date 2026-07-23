@@ -122,6 +122,35 @@ button.primary {
   letter-spacing: 0.15em;
 }
 
+/* Contextual onboarding callout above the seats (fh-0nj). Text only — no
+   motion, so nothing to disable under prefers-reduced-motion. */
+.lobby-guide {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid var(--accent-border);
+  border-radius: 8px;
+  background: var(--accent-bg);
+}
+
+.lobby-guide .guidance {
+  margin: 0;
+  color: var(--text-h);
+}
+
+.how-to-play summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
+.how-to-play p {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+  color: var(--text);
+}
+
 .table-area {
   position: relative;
   min-height: calc(380 * var(--su));

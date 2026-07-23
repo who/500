@@ -140,6 +140,59 @@ describe('Lobby', () => {
     expect(host.sent.filter((c) => c.t === 'configureBots')).toEqual([]);
   });
 
+  it('guides an unseated arrival, a seated guest and the host differently (fh-0nj AC-1/AC-2/AC-3)', () => {
+    const guidance = (view: ReturnType<typeof renderApp>): string =>
+      within(view.container).getByTestId('lobby-guidance').textContent ?? '';
+
+    // Just arrived, no seat yet: told to sit, and what open seats become.
+    const visitor = makeClient();
+    const visitorView = renderApp(visitor);
+    applyEvent(visitor, env(0, { t: 'roomState', room: anaRoom() }));
+    expect(guidance(visitorView)).toBe(
+      'Pick a seat to join — tap Sit here on any open seat. Empty seats are filled by Hard bots when the game starts.',
+    );
+
+    // Seated guest: own seat (1-based), who starts, the code to share.
+    const guest = makeClient();
+    const guestView = renderApp(guest);
+    applyEvent(
+      guest,
+      env(0, {
+        t: 'roomState',
+        room: anaRoom({
+          seats: [humanSeatView(0, 'Ana'), humanSeatView(1, 'Ben'), emptySeatView(2), emptySeatView(3)],
+        }),
+      }),
+    );
+    applyEvent(guest, { event: { t: 'seatGranted', seat: 1, token: 'tok-guest' } });
+    expect(guidance(guestView)).toBe(
+      "You're in seat 2. The host starts the game when everyone is ready — others can join with room code ABCDE, and empty seats become Hard bots.",
+    );
+
+    // Host: how to invite, and how to start.
+    const host = makeClient();
+    const hostView = renderApp(host);
+    seatHost(host);
+    expect(guidance(hostView)).toBe(
+      "You're the host. Share code ABCDE for others to join, then press Start game when ready — any empty seats fill with Hard bots.",
+    );
+
+    // AC-2: no copy anywhere in the lobby mentions choosing a difficulty.
+    for (const view of [visitorView, guestView, hostView]) {
+      expect(view.container.textContent).not.toMatch(/difficult/i);
+    }
+  });
+
+  it('offers a how-to-play summary for a total newcomer (fh-0nj)', () => {
+    const client = makeClient();
+    const view = renderApp(client);
+    applyEvent(client, env(0, { t: 'roomState', room: anaRoom() }));
+    const scoped = within(view.container);
+    expect(scoped.getByText('How to play 500')).toBeTruthy();
+    const link = scoped.getByRole('link', { name: 'Read our house rules' }) as HTMLAnchorElement;
+    expect(link.getAttribute('href')).toContain('500-house-rules.md');
+  });
+
   it('shows the learned tag and lets the host toggle adaptive bots (fh-sja.6)', async () => {
     const user = userEvent.setup();
     const host = makeClient();
