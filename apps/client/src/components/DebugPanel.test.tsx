@@ -14,7 +14,7 @@ import { flagTarget } from '../lib/flagTarget.ts';
 import { cardName, type RedactedView, type TrickPlay } from '@five-hundred/engine';
 
 const TARGET = { hand: 2, trick: 5 };
-/** Engine seat 2 — the seat the felt labels "Bot 3" (fh-g4g). */
+/** Engine seat 2 — the seat the felt labels by player name (fh-g4g). */
 const PLAY: TrickPlay = { seat: 2, card: 17 };
 const PLAYED = `seat 2 played ${cardName(17)}`;
 
@@ -65,11 +65,11 @@ describe('DebugPanel', () => {
 
   /**
    * fh-g4g. The panel is the one spot in the UI that speaks the log's dialect:
-   * 0-based engine seats. Everywhere else says "Bot 3" for engine seat 2, and
-   * a note typed from that wording is off by one against every other field in
+   * 0-based engine seats. Everywhere else names engine seat 2 by player name
+   * ("AI Emma"), and a note typed from that wording resolves to nothing in
    * the corpus — so the seat the flag lands on is shown while it is typed.
    */
-  it('names the flagged play by 0-based engine seat, not the Bot N label', () => {
+  it('names the flagged play by 0-based engine seat, not the felt label', () => {
     const target = { ...TARGET, play: PLAY };
     const app = render(<DebugPanel target={target} onFlag={() => {}} />);
 

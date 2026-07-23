@@ -166,7 +166,7 @@ describe('flagged tricks (fh-q2m)', () => {
     expect(markers[0]?.heldCards).toEqual([...remaining].sort((a, b) => a - b));
     // fh-g4g: the marker names the play it points at — the last card down in
     // the flagged trick — with a 0-based ENGINE seat, so the record does not
-    // depend on prose typed off a UI that calls seat 2 "Bot 3".
+    // depend on prose typed off a UI that calls seat 2 by player name.
     const lastPlay = flagged.tricks[0]!.plays.at(-1)!;
     expect(markers[0]?.flaggedPlay).toEqual({
       ply: flagged.tricks[0]!.plays.length - 1,

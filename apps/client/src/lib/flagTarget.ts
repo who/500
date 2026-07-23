@@ -19,7 +19,7 @@ export interface FlagTarget {
    * Last card down in that trick, if any (fh-g4g). Display only — the server
    * stamps the authoritative copy onto the marker from its own state — but it
    * is what puts the 0-based engine seat in front of the human writing the
-   * note, who otherwise only ever sees the UI's 1-based "Bot N".
+   * note, who otherwise only ever sees the UI's player names.
    */
   readonly play?: TrickPlay;
 }

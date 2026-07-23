@@ -32,7 +32,7 @@ export function flagLabel(target: FlagTarget): string {
 
 /**
  * The play the flag lands on, worded the way the log words it (fh-g4g): a
- * 0-based *engine* seat, deliberately not the felt's 1-based "Bot N". The one
+ * 0-based *engine* seat, deliberately not the felt's player names. The one
  * place in the UI that speaks the corpus's dialect, so a note typed here is
  * about the same seat the marker records. Empty when the trick has no card in
  * it yet.

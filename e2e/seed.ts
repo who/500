@@ -12,8 +12,12 @@
 
 export const TEST_SEED = 9;
 
-/** What seed 9 deals: Bot 2 (seat 1) wins the auction at 7 spades, no redeals. */
-export const EXPECTED_CONTRACT = '7S by Bot 2';
+/**
+ * What seed 9 deals: seat 1 (a bot) wins the auction at 7 spades, no redeals.
+ * The declarer's displayed name is a random "AI <name>" per run (fh-1ni), so
+ * the pin covers the contract and that a bot declared it, not the name.
+ */
+export const EXPECTED_CONTRACT = /7S by AI \w+/;
 
 /**
  * Hard's per-decision rollout budget for e2e (server env HARD_BOT_BUDGET_MS).

@@ -68,11 +68,18 @@ import { SlamPanel } from '../components/SlamPanel.tsx';
 import { TrickArea } from '../components/TrickArea.tsx';
 import { useGameClient } from './router.tsx';
 
-/** Display name for a seat: the human's name, else a bot label. */
+/**
+ * Display name for a seat: the human's name, or "AI <name>" for a bot (fh-1ni
+ * — the server assigns the bare first name at seat-to-bot time; the "AI "
+ * prefix is display-only). Falls back to the seat number when there is no
+ * room view yet (a token rejoin straight into a game).
+ */
 export function seatName(room: RoomView | null, seat: number): string {
   const entry = room?.seats[seat];
-  if (entry !== undefined && entry.occupant === 'human' && entry.name !== null) return entry.name;
-  return `Bot ${seat + 1}`;
+  if (entry !== undefined && entry.name !== null) {
+    return entry.occupant === 'bot' ? `AI ${entry.name}` : entry.name;
+  }
+  return `Seat ${seat + 1}`;
 }
 
 /** What a submission was locked against: it releases when either changes. */

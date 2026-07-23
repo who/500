@@ -19,6 +19,7 @@ import type {
   RoomView,
   StateBearingEvent,
 } from '@five-hundred/protocol';
+import { pickBotName } from './botNames.js';
 import { OVERLAY_PRESENT, OVERLAY_VERSION } from './botParams.js';
 
 /** One connection's transport surface plus its room bindings. */
@@ -35,7 +36,8 @@ export type SeatState =
   | { kind: 'human'; name: string; token: string; connected: boolean }
   /** difficulty = what the bot will play at if the seat is still empty at start */
   | { kind: 'empty'; difficulty: BotDifficulty }
-  | { kind: 'bot'; difficulty: BotDifficulty };
+  /** fh-1ni: name is the bare first name; the client renders it as "AI <name>". */
+  | { kind: 'bot'; difficulty: BotDifficulty; name: string };
 
 export interface Room {
   code: string;
@@ -128,11 +130,18 @@ export function isPaused(room: Room): boolean {
   return s !== undefined && s.kind === 'human' && !s.connected;
 }
 
+/** fh-1ni: the names this room's bot seats already hold, so a new one differs. */
+export function takenBotNames(room: Room): string[] {
+  return room.seats.flatMap((s) => (s.kind === 'bot' ? [s.name] : []));
+}
+
 function seatView(seat: number, s: SeatState): RoomSeatView {
   if (s.kind === 'human') {
     return { seat, occupant: 'human', name: s.name, difficulty: null, connected: s.connected };
   }
-  return { seat, occupant: s.kind, name: null, difficulty: s.difficulty, connected: true };
+  // fh-1ni: bots carry a name like humans do; an empty seat has none yet.
+  const name = s.kind === 'bot' ? s.name : null;
+  return { seat, occupant: s.kind, name, difficulty: s.difficulty, connected: true };
 }
 
 export function roomView(room: Room): RoomView {
@@ -394,7 +403,13 @@ export class RoomStore {
       return;
     }
     room.seats.forEach((s, i) => {
-      if (s.kind === 'empty') room.seats[i] = { kind: 'bot', difficulty: s.difficulty };
+      if (s.kind === 'empty') {
+        room.seats[i] = {
+          kind: 'bot',
+          difficulty: s.difficulty,
+          name: pickBotName(takenBotNames(room)),
+        };
+      }
     });
     room.game = this.opts.startGame?.(room) ?? { stub: true };
     this.touch(room);

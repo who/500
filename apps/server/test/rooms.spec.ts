@@ -8,6 +8,7 @@ import { createServer, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import type { ClientCommand, Envelope, ErrorCode, RoomView, ServerEvent } from '@five-hundred/protocol';
+import { BOT_NAMES } from '../src/botNames.js';
 import { createGameSession, resumeView } from '../src/game.js';
 import { RoomStore } from '../src/rooms.js';
 import { attachWs, type WsApp } from '../src/ws.js';
@@ -170,6 +171,29 @@ describe('room lifecycle happy path (AC-1)', () => {
       const s = seqs(c);
       for (let i = 1; i < s.length; i++) expect(s[i]).toBeGreaterThan(s[i - 1] as number);
     }
+  });
+
+  it('names every bot seat at start, distinctly, leaving empty seats unnamed (fh-1ni AC-2/AC-3)', async () => {
+    const { client: ann, room: created } = await createRoomAs('Ann');
+    ann.send({ t: 'sit', seat: 0 });
+    await ann.next('seatGranted');
+    const sat = await ann.nextRoomState();
+    // Pre-start the other seats are empty and carry no name yet.
+    for (const seat of [1, 2, 3]) {
+      expect(sat.room.seats[seat]).toMatchObject({ occupant: 'empty', name: null });
+    }
+
+    ann.send({ t: 'startGame' });
+    const started = await ann.nextRoomState();
+    expect(started.room.roomCode).toBe(created.roomCode);
+    const names = [1, 2, 3].map((seat) => started.room.seats[seat]?.name);
+    for (const name of names) {
+      expect(name).toEqual(expect.any(String));
+      expect(BOT_NAMES).toContain(name);
+    }
+    expect(new Set(names).size).toBe(3);
+    // The human's seat is untouched by the naming pass.
+    expect(started.room.seats[0]).toMatchObject({ occupant: 'human', name: 'Ann' });
   });
 });
 

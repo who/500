@@ -1,7 +1,7 @@
 /**
  * Upward-scaling matrix (fh-mwj / AC-1, AC-3): the game must grow with the
  * viewport instead of sitting in a fixed 900px column. The seeded auction
- * (Bot 2 wins at 7S) makes trick 1 freeze on the human's turn with three
+ * (seat 1 wins at 7S) makes trick 1 freeze on the human's turn with three
  * bot cards on the felt — a stable, deterministic layout to measure. The
  * viewport then steps through 1280/1920/2560 over that same frozen state:
  * table column, hand cards, and trick area must all grow monotonically, the

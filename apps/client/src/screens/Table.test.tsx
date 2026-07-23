@@ -317,7 +317,7 @@ describe('Table', () => {
       { t: 'flagTrick', hand: 2, trick: 5, note: 'bot ducked its ace' },
     ]);
     // fh-g4g: the confirmation names the play in 0-based engine seats, which
-    // is how the log records it — never the felt's 1-based "Bot N" label.
+    // is how the log records it — never the felt's 1-based seat label.
     expect(app.getByTestId('flag-status').textContent).toBe(
       'Flagged hand 3, trick 6 — seat 3 played 5S',
     );
@@ -344,7 +344,7 @@ describe('Table', () => {
       }),
     );
     expect(app.getByTestId('exchange-picker').querySelectorAll('[data-card]')).toHaveLength(15);
-    expect(app.getByTestId('hud-contract').textContent).toBe('8H by Bot 1');
+    expect(app.getByTestId('hud-contract').textContent).toBe('8H by Seat 1');
   });
 });
 
@@ -380,7 +380,7 @@ describe('contract-won announcement (fh-8kz)', () => {
     // the bot's silent middle exchange before trick 1.
     const bot = winAuction(0, WON_8D);
     expect(bot.app.getByTestId('contract-toast').textContent).toBe(
-      'Bot 4 won the bid — 8 Diamonds (280 at stake)',
+      'AI Noah won the bid — 8 Diamonds (280 at stake)',
     );
     bot.app.unmount();
 
@@ -474,7 +474,7 @@ describe('contract-won announcement (fh-8kz)', () => {
     );
     expect(app.queryByTestId('redeal-toast')).toBeNull();
     expect(app.getByTestId('contract-toast').textContent).toBe(
-      'Bot 4 won the bid — 8 Diamonds (280 at stake)',
+      'AI Noah won the bid — 8 Diamonds (280 at stake)',
     );
   });
 

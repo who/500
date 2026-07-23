@@ -40,8 +40,16 @@ import type {
 } from '@five-hundred/protocol';
 import type { FlaggedPlay } from '@five-hundred/learn';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
+import { pickBotName } from './botNames.js';
 import { createGameLogger, resolveGameLogConfig, type GameLogConfig, type GameLogger } from './gameLog.js';
-import { DEFAULT_DIFFICULTY, isPaused, roomView, type Room, type RoomClient } from './rooms.js';
+import {
+  DEFAULT_DIFFICULTY,
+  isPaused,
+  roomView,
+  takenBotNames,
+  type Room,
+  type RoomClient,
+} from './rooms.js';
 
 /** Game commands: everything ws.ts does not route to the room lifecycle. */
 export type GameCommand = Extract<
@@ -398,7 +406,7 @@ export function handleFlagTrick(client: RoomClient, cmd: FlagTrickCommand): void
  * that trick as of the click. That is the decision the human was reacting to,
  * and stamping it here — from live engine state, in 0-based seat terms — is
  * what keeps the marker from depending on prose typed off a UI that labels
- * seat 2 "Bot 3".
+ * seat 2 by its player name.
  *
  * The trick is either already complete (the felt still shows it) or the one in
  * progress; anything else — a different hand, a trick not started, an empty
@@ -488,7 +496,7 @@ export function handleConvertSeatToBot(client: RoomClient, cmd: ConvertSeatToBot
   }
   // fh-gpk: an unspecified tier means the product default (Hard).
   const difficulty = cmd.difficulty ?? DEFAULT_DIFFICULTY;
-  room.seats[cmd.seat] = { kind: 'bot', difficulty };
+  room.seats[cmd.seat] = { kind: 'bot', difficulty, name: pickBotName(takenBotNames(room)) };
   room.lastActivity = Date.now();
   broadcastAll(room, { t: 'roomState', room: roomView(room) });
   session.driver?.addBot(cmd.seat, difficulty);

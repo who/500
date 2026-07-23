@@ -39,7 +39,7 @@ afterEach(() => {
 function badgeElement(overrides: Partial<SeatBadgeProps> = {}) {
   return (
     <SeatBadge
-      name="Bot 2"
+      name="AI Liam"
       isYou={false}
       isDealer={false}
       isActing={false}

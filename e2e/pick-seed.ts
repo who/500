@@ -103,7 +103,7 @@ for (let seed = 1; seed <= 40; seed++) {
   const o = simulate(seed);
   const good = o.suitContract && o.redeals === 0 && !o.slam && o.declarer === 1;
   console.log(
-    `seed ${String(o.seed).padStart(3)}: ${o.contract} by Bot ${o.declarer + 1}` +
+    `seed ${String(o.seed).padStart(3)}: ${o.contract} by seat ${o.declarer}` +
       ` (declarer seat ${o.declarer}, redeals ${o.redeals}, slam ${o.slam})` +
       `${good ? '  <- candidate' : ''}`,
   );

@@ -130,13 +130,13 @@ describe('Lobby', () => {
     // The selector is gone for everyone, host included...
     expect(scoped.queryAllByRole('combobox')).toEqual([]);
     expect(hostView.container.querySelector('[data-testid="difficulty-1"]')).toBeNull();
-    // ...and so is the tier label: bots read as "Bot", open seats as "Open seat".
+    // ...and so is the tier label: bots read as "AI <name>", open seats as "Open seat".
     for (const seat of [1, 2, 3]) {
       const scopedSeat = within(seatElement(hostView, seat));
       expect(scopedSeat.queryByTestId(`bot-tier-${seat}`)).toBeNull();
       expect(scopedSeat.queryByText(/Hard bot/)).toBeNull();
     }
-    expect(within(seatElement(hostView, 3)).getByText('Bot')).toBeTruthy();
+    expect(within(seatElement(hostView, 3)).getByText('AI Noah')).toBeTruthy();
     for (const seat of [1, 2]) {
       expect(within(seatElement(hostView, seat)).getByText('Open seat')).toBeTruthy();
     }

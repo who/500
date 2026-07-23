@@ -43,7 +43,7 @@ beforeEach(() => {
   history.replaceState(null, '', '/');
 });
 
-/** Viewer Ana at seat 0 against three bots (Bot 2 / Bot 3 / Bot 4). */
+/** Viewer Ana at seat 0 against three bots (AI Liam / AI Olivia / AI Noah). */
 const ROOM = roomViewFixture({
   started: true,
   hostSeat: 0,
@@ -569,14 +569,14 @@ describe('last-trick peek', () => {
     const entries = [...popover.querySelectorAll('li')];
     expect(entries.map((li) => li.dataset.seat)).toEqual(['1', '2', '3', '0']);
     expect(entries.map((li) => li.textContent)).toEqual([
-      expect.stringContaining('Bot 2'),
-      expect.stringContaining('Bot 3'),
-      expect.stringContaining('Bot 4'),
+      expect.stringContaining('AI Liam'),
+      expect.stringContaining('AI Olivia'),
+      expect.stringContaining('AI Noah'),
       expect.stringContaining('Ana'),
     ]);
     const winner = popover.querySelector('li[data-winner]');
     expect((winner as HTMLElement).dataset.seat).toBe('1');
-    expect(app.getByTestId('last-trick-winner').textContent).toBe('Won by Bot 2');
+    expect(app.getByTestId('last-trick-winner').textContent).toBe('Won by AI Liam');
 
     fireEvent.click(app.getByTestId('last-trick-toggle'));
     expect(app.queryByTestId('last-trick-popover')).toBeNull();

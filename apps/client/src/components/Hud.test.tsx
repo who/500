@@ -13,7 +13,7 @@ import { biddersAreSet } from '../lib/biddersSet.ts';
 import { redactedViewFixture } from '../screens/test-helpers.tsx';
 import { Hud } from './Hud.tsx';
 
-const NAMES = ['Ana', 'Bot 2', 'Bot 3', 'Bot 4'];
+const NAMES = ['Ana', 'AI Liam', 'AI Olivia', 'AI Noah'];
 
 /** Mid-play view for the seat-0 viewer; 8H by the seat-1 bot. */
 function playView(overrides: Partial<RedactedView> = {}): RedactedView {

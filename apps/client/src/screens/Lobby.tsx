@@ -91,7 +91,8 @@ export function Lobby(): ReactNode {
               {!seat.connected && <span className="tag warn">Disconnected</span>}
             </>
           )}
-          {seat.occupant === 'bot' && <strong>Bot</strong>}
+          {/* fh-1ni: bots read as "AI <name>"; a pre-start empty seat has none yet. */}
+          {seat.occupant === 'bot' && <strong>{seat.name === null ? 'AI' : `AI ${seat.name}`}</strong>}
           {seat.occupant === 'empty' && <em>Open seat</em>}
         </div>
         {seat.occupant === 'empty' && !isYou && (

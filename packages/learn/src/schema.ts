@@ -108,9 +108,10 @@ export interface HandRecord {
  * reacting to.
  *
  * `seat` is the 0-based engine seat, like every other seat number in this
- * schema. That matters because the table UI labels seats "Bot 1..4" from 1,
- * so a note typed off the screen calls engine seat 2 "bot 3" — this field,
- * not the prose, is the authority on who played.
+ * schema. That matters because the table UI labels seats by player name
+ * ("Ana", "AI Emma") and never by engine index, so a note typed off the
+ * screen names nobody this corpus can resolve — this field, not the prose,
+ * is the authority on who played.
  */
 export interface FlaggedPlay {
   /** 0-based index of the play within the trick's `plays`. */

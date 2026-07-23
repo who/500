@@ -93,11 +93,15 @@ export function humanSeatView(seat: number, name: string, connected = true): Roo
   return { seat, occupant: 'human', name, difficulty: null, connected };
 }
 
+/** fh-1ni: the server names each bot seat; specs pin one name per seat. */
+const BOT_NAMES = ['Emma', 'Liam', 'Olivia', 'Noah'];
+
 export function botSeatView(
   seat: number,
   difficulty: 'easy' | 'medium' | 'hard' = 'hard',
+  name: string = BOT_NAMES[seat] ?? 'Robin',
 ): RoomSeatView {
-  return { seat, occupant: 'bot', name: null, difficulty, connected: true };
+  return { seat, occupant: 'bot', name, difficulty, connected: true };
 }
 
 export function roomViewFixture(overrides: Partial<RoomView> = {}): RoomView {
