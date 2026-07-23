@@ -153,6 +153,47 @@ export interface HardPlayParams {
   readonly mediumTiebreakZ: number;
 }
 
+/**
+ * Human-memory knobs (memory.ts, fh-8jf.1): the seeded forgetting curve a
+ * seat's observation history is filtered through before any card-counting
+ * happens. Salience is the memorability of a card in [0, ~1.6]; a horizon is
+ * measured in tricks.
+ */
+export interface HardMemoryParams {
+  /** Salience of the joker — the single most memorable card in the pack. */
+  readonly jokerSalience: number;
+  /** Either bower (right/left), under a trump contract. */
+  readonly bowerSalience: number;
+  /** Any ace. */
+  readonly aceSalience: number;
+  /** Any king. */
+  readonly kingSalience: number;
+  /** Any queen. */
+  readonly queenSalience: number;
+  /** A jack that is not a bower. */
+  readonly jackSalience: number;
+  /** A 4 — the least memorable card there is. */
+  readonly spotSalience: number;
+  /** Added per rank above the 4, so a 10 sticks slightly better than a 5. */
+  readonly spotRankStep: number;
+  /** Added for any card that counts as trump (joker and left bower included). */
+  readonly trumpBonus: number;
+  /** Salience at or above which a card is retained for the whole hand. */
+  readonly permanentSalience: number;
+  /** Retention horizon, in tricks, of a card with zero salience. */
+  readonly baseHorizon: number;
+  /** Tricks of retention added per unit of salience. */
+  readonly salienceHorizon: number;
+  /** Fractional spread of the per-card horizon roll (0 = no jitter). */
+  readonly jitter: number;
+  /** Tricks back that are never forgotten (1 = the immediately preceding one). */
+  readonly graceTricks: number;
+  /** Retention horizon, in tricks, of an observed void. */
+  readonly voidHorizon: number;
+  /** Fraction of the void horizon the deep-past roll may shave off. */
+  readonly voidDecay: number;
+}
+
 /** Every tunable strategy constant, versioned and deep-mergeable. */
 export interface BotParams {
   readonly schemaVersion: number;
@@ -163,6 +204,7 @@ export interface BotParams {
   readonly hardBidding: HardBiddingParams;
   readonly hardKeeps: HardKeepsParams;
   readonly hardPlay: HardPlayParams;
+  readonly hardMemory: HardMemoryParams;
 }
 
 /**
@@ -180,6 +222,7 @@ const GROUP_KEYS: readonly (keyof Omit<BotParams, 'schemaVersion'>)[] = [
   'hardBidding',
   'hardKeeps',
   'hardPlay',
+  'hardMemory',
 ];
 
 function deepFreeze<T>(value: T): T {

@@ -67,7 +67,15 @@ describe('tier-stability guard (fh-sja.6 AC-2)', () => {
 
   it('leaves every non-Hard-bidding param group byte-identical under a maxed overlay', () => {
     const overlaid = maxedHardOverlay();
-    for (const group of ['suitStrength', 'bidding', 'slam', 'endgame', 'hardKeeps', 'hardPlay'] as const) {
+    for (const group of [
+      'suitStrength',
+      'bidding',
+      'slam',
+      'endgame',
+      'hardKeeps',
+      'hardPlay',
+      'hardMemory',
+    ] as const) {
       expect(overlaid[group]).toEqual(DEFAULT_PARAMS[group]);
     }
     // The overlay DID move hardBidding — otherwise the guard is vacuous.

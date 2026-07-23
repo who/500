@@ -49,5 +49,23 @@
     "trickWeight": 8,
     "mediumTiebreakEps": 5,
     "mediumTiebreakZ": 2
+  },
+  "hardMemory": {
+    "jokerSalience": 1.0,
+    "bowerSalience": 0.95,
+    "aceSalience": 0.8,
+    "kingSalience": 0.6,
+    "queenSalience": 0.45,
+    "jackSalience": 0.35,
+    "spotSalience": 0.1,
+    "spotRankStep": 0.02,
+    "trumpBonus": 0.6,
+    "permanentSalience": 0.7,
+    "baseHorizon": 2.0,
+    "salienceHorizon": 12.0,
+    "jitter": 0.35,
+    "graceTricks": 1,
+    "voidHorizon": 12.0,
+    "voidDecay": 0.34
   }
 }
