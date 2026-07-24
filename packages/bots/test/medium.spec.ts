@@ -22,7 +22,16 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import type { Action, Bid, BidKind, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
+import type {
+  Action,
+  Bid,
+  BidKind,
+  Card,
+  GameState,
+  Rng,
+  Trick,
+  TrickPlay,
+} from '@five-hundred/engine';
 import {
   IND,
   JOKER,
@@ -1011,6 +1020,146 @@ describe('partner guardrail (fh-61z)', () => {
         noRng,
       ),
     ).toBe(makeCard(0, 5));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fh-8jf.3: the memory filter behind the history heuristics. Medium's
+// trump-draw (fh-n2n/fh-61z), NT-boss (fh-2wt) and partner-guardrail (fh-61z)
+// rules all count cards off one seen-set; a policy given a memory builds that
+// set through the forgetting curve, so a card it has forgotten is played
+// around as if it might still be out.
+// ---------------------------------------------------------------------------
+
+describe('memory filter wiring (fh-8jf.3)', () => {
+  // A deliberately brutal curve, so what these assertions test is the WIRING
+  // and not the calibration (that is fh-8jf.4's job): nothing clears
+  // permanentSalience and every horizon floors at graceTricks + 1, so a card
+  // is remembered iff it was played to the current trick or the one before —
+  // whatever its rank, whatever the seed.
+  const FORGETFUL = mergeParams(DEFAULT_PARAMS, {
+    hardMemory: { permanentSalience: 99, baseHorizon: 0, salienceHorizon: 0, jitter: 0 },
+  });
+  /** Same curve, no memory: the shape every Hard rollout simulator seat gets. */
+  const perfect = new MediumPolicy(FORGETFUL);
+  const forgetful = perfect.withMemory(0x5eed);
+
+  const NT_CONTRACT = bid(NUM, 8, 4); // strain 4 = no-trump
+  const HEARTS = 3;
+  const ACE_SPADES = makeCard(0, 14);
+  const KING_SPADES = makeCard(0, 13);
+  const RIGHT_BOWER = makeCard(3, 11);
+  const FIVE_CLUBS = makeCard(1, 5);
+  const SEVEN_DIAMONDS = makeCard(2, 7);
+
+  const trick = (ledSuit: number, cards: readonly Card[]) => ({
+    leader: 1,
+    ledSuit,
+    plays: cards.map((card, i) => ({ seat: (1 + i) % 4, card })),
+    winner: 1,
+  });
+  /** Filler tricks that touch no card any hand below holds. */
+  const clubFill = trick(1, [makeCard(1, 9), makeCard(1, 10), makeCard(1, 12), makeCard(1, 13)]);
+  const heartFill = trick(3, [makeCard(3, 4), makeCard(3, 5), makeCard(3, 6), makeCard(3, 7)]);
+
+  it('AC-1: an NT boss is only boss while the ace above it is remembered', () => {
+    // The ace of spades went down on the FIRST trick (age 3 — forgotten), the
+    // joker on the LAST (age 1 — inside the never-forget grace window, so the
+    // joker-unseen guard cannot be what decides this).
+    const history = [
+      trick(0, [ACE_SPADES, makeCard(0, 4), makeCard(0, 6), makeCard(0, 8)]),
+      clubFill,
+      trick(3, [JOKER, makeCard(3, 4), makeCard(3, 5), makeCard(3, 6)]),
+    ];
+    const hand = [KING_SPADES, makeCard(2, 5), makeCard(2, 6), SEVEN_DIAMONDS];
+    const ctx = { declarer: 0, tricks: history, handNumber: 0 };
+    // Perfect recall: the ace is gone, so the king is the boss spade — cash it.
+    expect(
+      perfect.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, ctx, noRng),
+    ).toBe(KING_SPADES);
+    // Forgotten: the ace is back in the unseen pool, nothing is a sure winner,
+    // and the lead-from-strength path opens the top of the long suit instead.
+    expect(
+      forgetful.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, ctx, noRng),
+    ).toBe(SEVEN_DIAMONDS);
+  });
+
+  it('AC-1: a forgotten joker stops the right bower counting as boss trump', () => {
+    // Joker on the first trick (age 3), so only a remembering declarer knows
+    // its bower cannot be overruffed.
+    const history = [
+      trick(2, [JOKER, makeCard(2, 4), makeCard(2, 5), makeCard(2, 6)]),
+      clubFill,
+      trick(0, [makeCard(0, 4), makeCard(0, 6), makeCard(0, 8), makeCard(0, 9)]),
+    ];
+    const hand = [RIGHT_BOWER, ACE_SPADES, FIVE_CLUBS];
+    const ctx = { declarer: 0, tricks: history, handNumber: 0 };
+    expect(
+      perfect.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, ctx, noRng),
+    ).toBe(RIGHT_BOWER);
+    // With the joker possibly still out, a lone bower is not worth bleeding
+    // into a trump war: lead a side card instead.
+    const chosen = forgetful.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, ctx, noRng);
+    expect(chosen).not.toBe(RIGHT_BOWER);
+    expect([ACE_SPADES, FIVE_CLUBS]).toContain(chosen);
+  });
+
+  it('never forgets the immediately preceding trick, however brutal the curve', () => {
+    // The same NT decision as above, turning on WHEN the two cards the boss
+    // check needs — the ace over the king, and the joker over everything —
+    // hit the table. Both fall on one trick, so only its recency varies.
+    const bigTrick = trick(0, [ACE_SPADES, JOKER, makeCard(0, 4), makeCard(0, 6)]);
+    const recent = [clubFill, heartFill, bigTrick];
+    const early = [bigTrick, clubFill, heartFill];
+    const hand = [KING_SPADES, makeCard(2, 5), makeCard(2, 6), SEVEN_DIAMONDS];
+    const lead = (policy: MediumPolicy, tricks: readonly Trick[]): Card =>
+      policy.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, {
+        declarer: 0,
+        tricks,
+        handNumber: 0,
+      }, noRng);
+    // Age 1 — the grace window the human also sees: both cash the king.
+    expect(lead(forgetful, recent)).toBe(KING_SPADES);
+    expect(lead(perfect, recent)).toBe(KING_SPADES);
+    // The same trick three back: only perfect recall still knows it is boss.
+    expect(lead(perfect, early)).toBe(KING_SPADES);
+    expect(lead(forgetful, early)).toBe(SEVEN_DIAMONDS);
+  });
+
+  it('AC-2/AC-3: memory is per-policy and per-seat, and every call is deterministic', () => {
+    expect(perfect.remembers).toBe(false); // how hard/play.ts builds its simulator seats
+    expect(forgetful.remembers).toBe(true);
+    expect(new MediumPolicy().remembers).toBe(false);
+
+    // The default curve, a real seed: repeated identical calls are identical,
+    // and the card is always one of the legal ones.
+    const remembering = new MediumPolicy().withMemory(1234);
+    const history = [
+      trick(0, [ACE_SPADES, makeCard(0, 4), makeCard(0, 6), makeCard(0, 8)]),
+      clubFill,
+      heartFill,
+    ];
+    const hand = [KING_SPADES, makeCard(2, 5), makeCard(2, 6), SEVEN_DIAMONDS];
+    const pick = (seat: number, handNumber: number): Card =>
+      remembering.choosePlay(
+        seat,
+        hand,
+        hand,
+        [],
+        null,
+        null,
+        NT_CONTRACT,
+        { declarer: seat, tricks: history, handNumber },
+        noRng,
+      );
+    const first = pick(0, 0);
+    expect(hand).toContain(first);
+    expect(pick(0, 0)).toBe(first);
+    expect(pick(0, 0)).toBe(first);
+    // Different seat / different hand of the game roll their own memories, so
+    // they are free to differ — but each must still play a legal card.
+    expect(hand).toContain(pick(2, 0));
+    expect(hand).toContain(pick(0, 3));
   });
 });
 

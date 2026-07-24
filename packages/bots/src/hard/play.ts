@@ -188,6 +188,15 @@ export function choosePlayByRollout(
   // Medium's card depends only on the (unmutated) decision state, so it is
   // fixed before any sampling — which lets every world score its paired
   // difference against it as it goes (see pickCard).
+  //
+  // This one Medium call is a REAL decision on the REAL history (the tiebreak
+  // reference and the budget-miss fallback), unlike the simulator seats in
+  // `policies`, which play out sampled worlds and must keep full information.
+  // It therefore takes a memory as soon as Hard has one to give it: the seam
+  // and the hand number are wired (fh-8jf.3), and fh-8jf.2 — which decides how
+  // Hard seeds and enables its own memory in deriveConstraints — swaps this
+  // `medium` for `medium.withMemory(seed)` so the two never disagree about
+  // which cards are gone.
   const mediumCard = medium.choosePlay(
     seat,
     play.hands[seat] ?? [],
@@ -196,7 +205,7 @@ export function choosePlayByRollout(
     play.trump,
     play.ledSuit,
     contract,
-    { declarer: play.declarer, tricks: play.tricks },
+    { declarer: play.declarer, tricks: play.tricks, handNumber: state.handNumber },
   );
   const mediumIdx = legal.indexOf(mediumCard);
 

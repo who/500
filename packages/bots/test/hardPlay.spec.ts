@@ -33,13 +33,15 @@ import {
   toActSeat,
 } from '@five-hundred/engine';
 import { pickCard, sideDeltaFor, trickBonus, type RolloutTally } from '../src/hard/play.js';
-import type { HardPlayDecision } from '../src/index.js';
+import type { BotParams, HardPlayDecision } from '../src/index.js';
 import {
+  DEFAULT_PARAMS,
   HardPolicy,
   MediumPolicy,
   botAction,
   choosePlayByRollout,
   hasStatePlay,
+  mergeParams,
   simulateHands,
 } from '../src/index.js';
 
@@ -161,6 +163,27 @@ describe('choosePlayByRollout', () => {
       { declarer: play.declarer, tricks: play.tricks },
     );
     expect(card).toBe(medium);
+  });
+
+  // fh-8jf.3 AC-2: the rollout plays out SAMPLED worlds, where full
+  // information is that world's truth rather than clairvoyance, so no
+  // simulator seat is given a memory. The memory curve lives entirely in
+  // params.hardMemory, so rewriting it to the most brutal setting there is
+  // must leave the decision bit-identical — if a simulator seat ever picked up
+  // a memory, this is the test that would catch it.
+  it('AC-2: the memory curve does not reach the rollout simulator (fh-8jf.3)', () => {
+    const [decision] = collectDecisions(0xd0d0, 1, (legal) => legal.length > 2);
+    if (decision === undefined) throw new Error('no multi-card decision found');
+    const forgetful = mergeParams(DEFAULT_PARAMS, {
+      hardMemory: { permanentSalience: 99, baseHorizon: 0, salienceHorizon: 0, jitter: 0 },
+    });
+    const pick = (params: BotParams): Card =>
+      choosePlayByRollout(decision.state, decision.seat, makeRng(42), {
+        worlds: 5,
+        now: neverClock,
+        params,
+      });
+    expect(pick(forgetful)).toBe(pick(DEFAULT_PARAMS));
   });
 });
 

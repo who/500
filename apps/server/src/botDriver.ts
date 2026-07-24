@@ -287,7 +287,7 @@ export class BotDriver {
           play.trump,
           play.ledSuit,
           contract,
-          { declarer: play.declarer, tricks: play.tricks },
+          { declarer: play.declarer, tricks: play.tricks, handNumber: state.handNumber },
           rng,
         );
         if (card === JOKER && play.trump === null && play.ledSuit === null) {

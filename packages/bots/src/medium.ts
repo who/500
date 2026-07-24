@@ -43,6 +43,15 @@
  * winning partner). A fourth (fh-c6i): the oracle's bid
  * headroom passed out ~91% of deals; live play uses the tuned BID_HEADROOM
  * below, and the parity fixture replays choose_bid at ORACLE_BID_HEADROOM.
+ *
+ * Those three history heuristics — the trump draw, the NT boss cash, and the
+ * partner guardrail's live-threat check — all rest on one seen-set, and a
+ * policy given a memory (fh-8jf.3) builds that set through the forgetting
+ * curve in memory.ts instead of the true history: a forgotten card returns to
+ * the unseen pool and is played around as if it might still be out. A policy
+ * constructed WITHOUT a memory is byte-for-byte the perfect-recall bot it has
+ * always been, which is what keeps Hard's rollout simulator honest — inside a
+ * sampled world, full information is that world's truth, not clairvoyance.
  */
 
 import type { Bid, Card, TrickPlay } from '@five-hundred/engine';
@@ -67,6 +76,7 @@ import {
   trumpOf,
 } from '@five-hundred/engine';
 import { bestPlaySoFar } from './helpers.js';
+import { memorySeed, rememberHistory } from './memory.js';
 import { DEFAULT_PARAMS, type BotParams } from './params.js';
 import type { BidContext, PlayContext, Policy } from './policy.js';
 import { defaultGiveBestCard } from './policy.js';
@@ -126,6 +136,26 @@ export function endgameHeadroom(context: BidContext, params: BotParams = DEFAULT
 
 const ascending = (a: Card, b: Card): number => a - b;
 
+/**
+ * Per-seat memory wiring (fh-8jf.3). A MediumPolicy given one plays its
+ * history heuristics off the REMEMBERED seen-set (memory.ts) instead of the
+ * true one, so it forgets like a human instead of counting cards perfectly.
+ */
+export interface MediumMemoryOptions {
+  /**
+   * Base seed the per-seat, per-hand forgetting rolls hang off — normally the
+   * game seed. Mixed with the hand number and the acting seat by
+   * {@link memorySeed}, so one shared policy object still gives each seat its
+   * own independent memory.
+   */
+  readonly seed: number;
+}
+
+export interface MediumOptions {
+  /** Absent (the default) means perfect recall; see {@link MediumMemoryOptions}. */
+  readonly memory?: MediumMemoryOptions;
+}
+
 /** Trump-suit membership under `trump`: joker, both bowers, natural trumps. */
 function isTrumpCard(c: Card, trump: number): boolean {
   if (c === JOKER) return true;
@@ -170,8 +200,28 @@ export class MediumPolicy implements Policy {
    * replays choose_bid by constructing with a params whose bidding.headroom is
    * ORACLE_BID_HEADROOM; every live construction uses the tuned default
    * (fh-c6i).
+   *
+   * `options.memory` is the fh-8jf.3 seam and is deliberately absent by
+   * default: a policy constructed without it counts cards perfectly, which is
+   * exactly what the Hard bot's rollout simulator seats want (they play out a
+   * SAMPLED world, where full information is the truth of that world, not
+   * clairvoyance). Only the seats making REAL decisions off the REAL history
+   * are given a memory.
    */
-  constructor(private readonly params: BotParams = DEFAULT_PARAMS) {}
+  constructor(
+    private readonly params: BotParams = DEFAULT_PARAMS,
+    private readonly options: MediumOptions = {},
+  ) {}
+
+  /** The same policy with a per-seat memory hung off `seed` (fh-8jf.3). */
+  withMemory(seed: number): MediumPolicy {
+    return new MediumPolicy(this.params, { ...this.options, memory: { seed } });
+  }
+
+  /** True when this policy plays off a fuzzed history rather than the true one. */
+  get remembers(): boolean {
+    return this.options.memory !== undefined;
+  }
 
   /**
    * Rough expected tricks with `strain` as trump (or NT). Oracle
@@ -347,6 +397,47 @@ export class MediumPolicy implements Policy {
     return defaultGiveBestCard([...hand].sort(ascending), contract);
   }
 
+  /**
+   * The cards this seat believes are already out of play: its own hand, the
+   * trick in progress, and every card it has seen played.
+   *
+   * With no memory configured that is the true union — perfect recall, the
+   * pre-fh-8jf.3 behaviour every rollout simulator seat still gets. With a
+   * memory, the history goes through the forgetting curve first (memory.ts),
+   * so a card the seat has forgotten simply drops out of the set and every
+   * heuristic below treats it as possibly still live — the deliberate
+   * strength reduction of the fh-8jf epic. The never-forget guarantees are
+   * the filter's own: own hand, the current trick and the one before it.
+   */
+  private seenCards(
+    seat: number,
+    hand: readonly Card[],
+    trump: number | null,
+    ledSuit: number | null,
+    trickPlays: readonly TrickPlay[],
+    context: PlayContext,
+  ): ReadonlySet<Card> {
+    const memory = this.options.memory;
+    if (memory !== undefined) {
+      const view = rememberHistory(
+        {
+          seat,
+          seed: memorySeed(memory.seed, context.handNumber ?? 0, seat),
+          trump,
+          hand,
+          tricks: context.tricks,
+          current: trickPlays.length === 0 ? null : { ledSuit, plays: trickPlays },
+        },
+        this.params.hardMemory,
+      );
+      return new Set(view.seen);
+    }
+    const seen = new Set<Card>(hand);
+    for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+    for (const p of trickPlays) seen.add(p.card);
+    return seen;
+  }
+
   chooseJokerSuit(hand: readonly Card[]): number {
     const counts = [0, 0, 0, 0];
     for (const c of hand) {
@@ -374,6 +465,13 @@ export class MediumPolicy implements Policy {
     for (const p of trickPlays) {
       currentMax = Math.max(currentMax, cardPower(p.card, trump, ledSuit));
     }
+    // One seen-set for the whole decision (fh-8jf.3), memory-filtered when
+    // this policy has a memory. Derived lazily — the lose-all branch below and
+    // most follows never need it — and then reused, so a single decision can
+    // never contradict itself about whether a card is still out.
+    let seenCache: ReadonlySet<Card> | null = null;
+    const seenCards = (): ReadonlySet<Card> =>
+      (seenCache ??= this.seenCards(seat, hand, trump, ledSuit, trickPlays, context));
     if (isLoseAll(contract)) {
       // Duck with the biggest card that still loses; if forced to win,
       // shed the most dangerous card.
@@ -399,8 +497,7 @@ export class MediumPolicy implements Policy {
       trickPlays.length === 0 &&
       seat % 2 === context.declarer % 2
     ) {
-      const seen = new Set<Card>(hand);
-      for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+      const seen = seenCards();
       const unseen = DECK.filter((c) => !seen.has(c));
       const outTrumps = unseen.filter((c) => isTrumpCard(c, trump));
       const ownTrumps = sorted.filter((c) => isTrumpCard(c, trump));
@@ -458,8 +555,7 @@ export class MediumPolicy implements Policy {
       // The joker takes any NT trick, subject only to the lead-declares-suit
       // rule, so it is the ultimate cashing lead.
       if (sorted.some((c) => c === JOKER)) return JOKER;
-      const seen = new Set<Card>(hand);
-      for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
+      const seen = seenCards();
       const unseen = DECK.filter((c) => !seen.has(c));
       // While the joker is unseen (and not in hand) it beats every side card,
       // so nothing is a sure winner (AC-2): an ace is not boss until the
@@ -531,9 +627,7 @@ export class MediumPolicy implements Policy {
         if (ruffsPartner) return duck;
         const seatsToAct = 3 - trickPlays.length;
         if (seatsToAct <= 0) return duck;
-        const seen = new Set<Card>(hand);
-        for (const t of context.tricks) for (const p of t.plays) seen.add(p.card);
-        for (const p of trickPlays) seen.add(p.card);
+        const seen = seenCards();
         const topWinPower = cardPower(
           firstMaxBy(winners, (c) => cardPower(c, trump, ledSuit)),
           trump,

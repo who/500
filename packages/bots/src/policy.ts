@@ -45,6 +45,13 @@ export interface BidContext {
 export interface PlayContext {
   readonly declarer: number;
   readonly tricks: readonly Trick[];
+  /**
+   * Which hand of the game this is. Only the memory filter reads it (fh-8jf.3):
+   * it keys the per-hand forgetting rolls, so a seat that forgot the 5C this
+   * hand is not doomed to forget it every hand. Absent is treated as hand 0,
+   * which is harmless for the perfect-recall policies that ignore it entirely.
+   */
+  readonly handNumber?: number;
 }
 
 export interface Policy {
