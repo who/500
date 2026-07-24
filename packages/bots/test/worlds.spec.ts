@@ -543,6 +543,60 @@ describe('deriveConstraints with imperfect memory (fh-8jf.2)', () => {
     }
   }, 30_000);
 
+  /**
+   * The constraint set a Hard seat crashed on, verbatim (fh-8jf.4, seed 23 of
+   * the memory-on gate sweep): a late trick where seat 1 has shown out of all
+   * three side suits, so its four cards must ALL come from the trump the fat,
+   * forgetful pool holds only seven of. Rejection sampling never lands it and
+   * the old constructive fallback drew destinations weighted by remaining
+   * capacity, so the dead pool (seven slots) usually swallowed the trump before
+   * seat 1 was served — 1000 dead ends in a row on a set the true world
+   * satisfies by definition. The fallback now fills the hands first and lets
+   * dead take the leftovers.
+   */
+  it('AC-3b: fills a heavily-void seat from a forgetful pool (fh-8jf.4)', () => {
+    const cons: ObservedConstraints = {
+      viewer: 2,
+      trump: 2,
+      unseen: [0, 1, 8, 10, 12, 14, 17, 19, 24, 26, 28, 30, 33, 35, 37, 38, 41, 42, 43],
+      seats: [
+        { seat: 0, count: 4, voidSuits: [2] },
+        { seat: 1, count: 4, voidSuits: [0, 1, 3] },
+        { seat: 3, count: 4, voidSuits: [2] },
+      ],
+      restricted: [],
+    };
+    const rng = makeRng(1);
+    for (let i = 0; i < 500; i++) {
+      expect(violation(cons, sampleWorld(cons, rng))).toBeNull();
+    }
+  });
+
+  it('AC-3c: samples at every trick depth of a seeded game, for every viewer', () => {
+    // The crash above only shows up deep in a hand, where the seats hold a few
+    // cards, the voids have piled up and forgetting has fattened the pool.
+    // Walk the whole play phase rather than one snapshot of it.
+    const medium = new MediumPolicy();
+    const policies = [medium, medium, medium, medium];
+    for (let game = 1; game <= 4; game++) {
+      const rng = makeRng(game);
+      let st = newGame(game);
+      for (let guard = 0; st.phase !== 'handScored'; guard++) {
+        if (guard > 10_000) throw new Error('fixture drive did not converge');
+        if (st.phase === 'play') {
+          for (const viewer of st.activeSeats) {
+            const cons = deriveConstraints(st, viewer, { seed: game * 7 + viewer });
+            const sampler = makeRng(game * 101 + viewer);
+            for (let i = 0; i < 8; i++) {
+              expect(violation(cons, sampleWorld(cons, sampler))).toBeNull();
+            }
+          }
+        }
+        st = apply(st, botAction(st, policies, rng));
+      }
+    }
+  }, 60_000);
+
   it('is a difficulty dial: a harsher curve forgets strictly more', () => {
     const st = deepSpadesGame();
     const harsh: HardMemoryParams = {

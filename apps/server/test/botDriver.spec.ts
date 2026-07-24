@@ -11,7 +11,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { legalActions, toActSeat, type Action, type GameState } from '@five-hundred/engine';
 import type { BotSeatConfig, Envelope } from '@five-hundred/protocol';
-import { BOT_DELAY_MAX_MS, BOT_DELAY_MIN_MS, defaultBotDelayMs } from '../src/botDriver.js';
+import { EasyPolicy, MediumPolicy } from '@five-hundred/bots';
+import {
+  BOT_DELAY_MAX_MS,
+  BOT_DELAY_MIN_MS,
+  defaultBotDelayMs,
+  policyFor,
+} from '../src/botDriver.js';
 import {
   createGameSession,
   handleGameCommand,
@@ -171,6 +177,20 @@ describe('bot turn driver', () => {
     await vi.advanceTimersByTimeAsync(10 * BOT_DELAY_MAX_MS);
     expect(human.sent.length).toBe(sentAfterSweep); // no post-deletion sends
     expect(session.state).toBe(opening); // and no orphaned state advance
+  });
+
+  it('gives every card-counting seat the fallible memory the shipped bots use', () => {
+    // fh-8jf.4: the driver's synchronous seats play off the forgetting curve,
+    // hung off the game seed so a seat's memory is stable within a hand and
+    // independent of its partner's. Easy has no memory of played cards to
+    // fuzz — it only ever looks at the trick in front of it.
+    const medium = policyFor('medium', SEED);
+    expect(medium).toBeInstanceOf(MediumPolicy);
+    expect((medium as MediumPolicy).remembers).toBe(true);
+    // Hard's real decisions run in the worker (which carries its own memory);
+    // this in-thread policy is its degraded fallback and forgets alike.
+    expect((policyFor('hard', SEED) as MediumPolicy).remembers).toBe(true);
+    expect(policyFor('easy', SEED)).toBeInstanceOf(EasyPolicy);
   });
 
   it('crashes the room when a bot action is rejected by validation', async () => {

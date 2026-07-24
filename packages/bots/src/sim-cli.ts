@@ -5,6 +5,7 @@
  *   pnpm --filter @five-hundred/bots sim -- --games 200 --policies MEME
  *   pnpm --filter @five-hundred/bots sim -- --hands 5000 --seed 7 --policies MMMM
  *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 7
+ *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 23 --memory 23
  *
  * --policies is one letter per seat (E = Easy, M = Medium, H = Hard at the
  * full default world budget); defaults are MMMM for --hands and MEME (Medium
@@ -42,13 +43,26 @@ function intFlag(args: string[], name: string): number | undefined {
   return value;
 }
 
-function parsePolicies(spec: string): Policy[] {
+/**
+ * Build the four seats. With `memory` set, every Medium and Hard seat plays
+ * off the fh-8jf forgetting curve hung off that base seed — what the shipped
+ * server bots do (fh-8jf.4) — so the strength gate is reproducible here:
+ *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 23 --memory 23
+ * Without it the seats count cards perfectly, which is what the pre-memory
+ * tuning baselines (bid timidity, calibration) were measured at.
+ */
+function parsePolicies(spec: string, memory?: number): Policy[] {
   if (!/^[EMH]{4}$/.test(spec)) {
     throw new Error(`--policies needs 4 letters from E/M/H, got ${spec}`);
   }
-  return [...spec].map((ch) =>
-    ch === 'E' ? new EasyPolicy() : ch === 'H' ? new HardPolicy() : new MediumPolicy(),
-  );
+  return [...spec].map((ch) => {
+    if (ch === 'E') return new EasyPolicy();
+    if (ch === 'H') {
+      return new HardPolicy(memory === undefined ? {} : { memory: { seed: memory } });
+    }
+    const medium = new MediumPolicy();
+    return memory === undefined ? medium : medium.withMemory(memory);
+  });
 }
 
 function strFlag(args: string[], name: string): string | undefined {
@@ -114,12 +128,13 @@ const args = process.argv.slice(2);
 const games = intFlag(args, '--games');
 const hands = intFlag(args, '--hands');
 const seed = intFlag(args, '--seed') ?? 0;
+const memory = intFlag(args, '--memory');
 const spec = args[args.lastIndexOf('--policies') + 1];
 const logPath = strFlag(args, '--log');
 
 if (games !== undefined) {
   const chosen = args.includes('--policies') ? (spec ?? '') : 'MEME';
-  const policies = parsePolicies(chosen);
+  const policies = parsePolicies(chosen, memory);
   const wins =
     logPath === undefined
       ? simulateGames(games, policies, seed)
@@ -128,6 +143,6 @@ if (games !== undefined) {
   if (logPath !== undefined) console.log(`logged ${games} games to ${logPath}`);
   console.log(`side 0 wins ${wins[0]}, side 1 wins ${wins[1]} (side 0 rate ${rate}%)`);
 } else {
-  const policies = parsePolicies(args.includes('--policies') ? (spec ?? '') : 'MMMM');
+  const policies = parsePolicies(args.includes('--policies') ? (spec ?? '') : 'MMMM', memory);
   printStats(simulateHands(hands ?? 5000, policies, seed));
 }

@@ -158,6 +158,12 @@ export interface HardPlayParams {
  * seat's observation history is filtered through before any card-counting
  * happens. Salience is the memorability of a card in [0, ~1.6]; a horizon is
  * measured in tricks.
+ *
+ * The shipped values were calibrated in fh-8jf.4 and are what BOTH tiers play
+ * off on the server; the measured behaviour they buy (13.8% of played cards
+ * dropped, nothing salient ever lost, Hard still beating Medium at the 60%
+ * gate) is pinned in test/memoryCalibration.spec.ts, and loosening them is a
+ * working difficulty dial — see that spec's LOOSE_MEMORY overlay.
  */
 export interface HardMemoryParams {
   /** Salience of the joker — the single most memorable card in the pack. */

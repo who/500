@@ -50,6 +50,16 @@ port.on('message', (request: HardWorkerRequest) => {
     const state = deserializeGame(request.stateJson);
     const policy = new HardPolicy({
       params: overlayParams(request),
+      // Human-fallible recall for the shipped bot (fh-8jf.4): the seat derives
+      // its constraints through the forgetting curve, so an old low card it has
+      // dropped goes back into the unseen pool and it plays on as if that card
+      // might still be live. The base seed is the GAME seed, not the request
+      // seed — the request seed changes every decision, which would re-roll the
+      // curve mid-hand and let a forgotten card flicker back. state.seed is
+      // constant for the game and memorySeed mixes in the hand and the seat, so
+      // one seat's memory is stable within a hand, fresh each hand, and
+      // independent of its partner's.
+      memory: { seed: state.seed },
       play: {
         deadlineMs: request.budgetMs,
         onDecision: (d) => {

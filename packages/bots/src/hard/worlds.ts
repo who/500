@@ -11,11 +11,12 @@
  * 597-615: unseen = DECK minus my 15, shuffle, slice to the other seats)
  * with the play-phase constraints above. Two-stage sampler: rejection
  * sampling first — a plain shuffle is exactly uniform over consistent
- * worlds — then a constructive fallback (most-constrained cards placed
- * first into capacity-weighted destinations) so pathological constraint
- * sets still terminate; CONSTRUCT_TRIES failures throw, because an
- * unsatisfiable constraint set means the extraction is buggy, not that a
- * fallback should paper over it.
+ * worlds — then a constructive fallback (hands filled most-constrained-seat
+ * first, the dead pool taking the leftovers) so pathological constraint sets
+ * still terminate; CONSTRUCT_TRIES failures throw with the constraint set in
+ * the message, because an unsatisfiable set means the extraction is buggy —
+ * the true world always satisfies it — and the dump is what makes such a
+ * crash reproducible from a log line.
  *
  * Everything here is pure given (constraints, rng) and plain JSON data —
  * no Maps or classes cross the interface — so the sampler runs identically
@@ -293,16 +294,37 @@ export function sampleWorld(constraints: ObservedConstraints, rng: Rng): Sampled
     const world = tryConstruct(constraints, allowed, rng);
     if (world !== null) return world;
   }
+  // The set is dumped verbatim: the true world always satisfies it, so getting
+  // here is a bug in the extraction or in tryConstruct, and the only way to
+  // debug one from a server log is to be able to replay the exact set
+  // (fh-8jf.4's AC-3b fixture came out of one of these lines).
   throw new Error(
-    'sampleWorld: no consistent world found after constructive retries — ' +
-      'the constraint set is unsatisfiable (extraction bug?)',
+    'sampleWorld: no consistent world found after constructive retries — the ' +
+      `constraint set is unsatisfiable (extraction bug?): ${JSON.stringify(constraints)}`,
   );
 }
 
 /**
- * One constructive attempt: place the most-constrained cards first, each
- * into a destination drawn weighted by remaining capacity (the dead pool is
- * a destination like any other). Null on a dead end; the caller retries.
+ * One constructive attempt: fill the hidden HANDS from the pool and let the
+ * dead pool take whatever is left over.
+ *
+ * The dead pool has no constraints and exactly the leftover capacity, so the
+ * only real problem is the bipartite one — give every seat `count` cards it is
+ * allowed to hold — and every card spent on the dead pool is a card that
+ * cannot answer it. The earlier version of this routine treated dead as a
+ * destination like any other, drawn with weight `deadCap`; late in a hand with
+ * imperfect memory (fh-8jf.4) that weight dominates — the pool is fat with
+ * forgotten cards while the seats hold one or two each — so the few cards a
+ * heavily-void seat could take were usually buried in the dead pool before its
+ * turn came, and 1000 attempts could all dead-end on a constraint set the TRUE
+ * world satisfies by definition.
+ *
+ * Seats are filled one card at a time, always serving the seat with the least
+ * slack (allowed candidates minus cards still needed) first, and each card is
+ * drawn from a shuffled pool with a bias toward the cards fewest OTHER needy
+ * seats could use. A seat whose candidates no longer cover its count fails the
+ * attempt immediately rather than dealing into a corner. Null on a dead end;
+ * the caller retries.
  */
 function tryConstruct(
   constraints: ObservedConstraints,
@@ -310,44 +332,56 @@ function tryConstruct(
   rng: Rng,
 ): SampledWorld | null {
   const { unseen, seats } = constraints;
-  const caps = seats.map((s) => s.count);
-  let deadCap = unseen.length - caps.reduce((n, c) => n + c, 0);
-
-  // Shuffle for randomness, then a stable sort brings restricted cards to
-  // the front while preserving the shuffled order within each tier.
-  const order = [...unseen];
-  rng.shuffle(order);
-  const options = (card: Card): number =>
-    seats.reduce((n, s) => n + (allowed(card, s) ? 1 : 0), 0) + (deadCap > 0 ? 1 : 0);
-  order.sort((a, b) => options(a) - options(b));
-
+  const pool = [...unseen];
+  rng.shuffle(pool);
+  const taken = pool.map(() => false);
+  const need = seats.map((s) => s.count);
   const perSeat: Card[][] = seats.map(() => []);
-  const dead: Card[] = [];
-  for (const card of order) {
-    let total = deadCap;
+  // Precomputed allowance grid: `fits[i][j]` is "seat i may hold pool card j".
+  const fits = seats.map((s) => pool.map((c) => allowed(c, s)));
+
+  for (;;) {
+    // The neediest seat: fewest spare candidates for the cards it still needs.
+    let pick = -1;
+    let slack = Number.POSITIVE_INFINITY;
     for (let i = 0; i < seats.length; i++) {
-      if ((caps[i] as number) > 0 && allowed(card, seats[i] as HiddenSeat)) {
-        total += caps[i] as number;
+      if ((need[i] as number) === 0) continue;
+      const row = fits[i] as boolean[];
+      let avail = 0;
+      for (let j = 0; j < pool.length; j++) if (!(taken[j] as boolean) && (row[j] as boolean)) avail++;
+      if (avail < (need[i] as number)) return null; // this branch cannot be completed
+      const spare = avail - (need[i] as number);
+      if (spare < slack) {
+        slack = spare;
+        pick = i;
       }
     }
-    if (total === 0) return null;
-    let r = rng.int(total);
-    let placed = false;
-    for (let i = 0; i < seats.length; i++) {
-      const cap = caps[i] as number;
-      if (cap === 0 || !allowed(card, seats[i] as HiddenSeat)) continue;
-      if (r < cap) {
-        (perSeat[i] as Card[]).push(card);
-        caps[i] = cap - 1;
-        placed = true;
-        break;
+    if (pick === -1) break; // every seat is full
+
+    // Among that seat's candidates, prefer one the other needy seats do not
+    // want; the shuffle above is what randomizes ties, so this stays a sample
+    // rather than a fixed deal.
+    const row = fits[pick] as boolean[];
+    let best = -1;
+    let bestDemand = Number.POSITIVE_INFINITY;
+    for (let j = 0; j < pool.length; j++) {
+      if ((taken[j] as boolean) || !(row[j] as boolean)) continue;
+      let demand = 0;
+      for (let i = 0; i < seats.length; i++) {
+        if (i !== pick && (need[i] as number) > 0 && ((fits[i] as boolean[])[j] as boolean)) demand++;
       }
-      r -= cap;
+      if (demand < bestDemand) {
+        bestDemand = demand;
+        best = j;
+        if (demand === 0) break;
+      }
     }
-    if (!placed) {
-      dead.push(card);
-      deadCap -= 1;
-    }
+    if (best === -1) return null;
+    taken[best] = true;
+    need[pick] = (need[pick] as number) - 1;
+    (perSeat[pick] as Card[]).push(pool[best] as Card);
   }
+
+  const dead = pool.filter((_, j) => !(taken[j] as boolean));
   return assemble(seats, perSeat, dead);
 }

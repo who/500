@@ -52,9 +52,16 @@ export function defaultBotDelayMs(): number {
  * synchronous policy is only its degraded fallback when the pool fails.
  * Since fh-gpk every product seat is Hard, so this path is the fallback and
  * the arena/self-play tiers — never what a player faces on a healthy server.
+ *
+ * Medium seats get the fh-8jf forgetting curve hung off the game seed
+ * (fh-8jf.4), matching what the Hard worker does, so a fallback move is made
+ * from the same fallible view of the table as the Hard move it replaces
+ * rather than from a perfect card count. Easy has no memory of played cards
+ * at all — it decides on the current trick only — so there is nothing to
+ * forget and it takes the seed only for signature symmetry.
  */
-export function policyFor(difficulty: BotDifficulty): Policy {
-  return difficulty === 'easy' ? new EasyPolicy() : new MediumPolicy();
+export function policyFor(difficulty: BotDifficulty, seed: number): Policy {
+  return difficulty === 'easy' ? new EasyPolicy() : new MediumPolicy().withMemory(seed);
 }
 
 export interface BotDriverOptions {
@@ -123,7 +130,7 @@ export class BotDriver {
     room.seats.forEach((s, seat) => {
       if (s.kind === 'bot') {
         this.bots.set(seat, {
-          policy: policyFor(s.difficulty),
+          policy: policyFor(s.difficulty, session.seed),
           rng: makeRng((session.seed + seat) >>> 0),
           difficulty: s.difficulty,
         });
@@ -156,7 +163,7 @@ export class BotDriver {
    */
   addBot(seat: number, difficulty: BotDifficulty): void {
     this.bots.set(seat, {
-      policy: policyFor(difficulty),
+      policy: policyFor(difficulty, this.session.seed),
       rng: makeRng((this.session.seed + seat) >>> 0),
       difficulty,
     });
