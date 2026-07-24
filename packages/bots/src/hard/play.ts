@@ -74,6 +74,18 @@ export interface HardPlayOptions {
   readonly onDecision?: (decision: HardPlayDecision) => void;
   /** Strategy constants; defaults to DEFAULT_PARAMS. */
   readonly params?: BotParams;
+  /**
+   * Per-seat imperfect memory (fh-8jf.2); absent means perfect recall. The
+   * seed is the base one — the deciding seat and hand are mixed in here, so
+   * one HardPolicy shared across seats still gives each its own memory.
+   */
+  readonly memory?: HardMemoryOptions;
+}
+
+/** How a Hard seat seeds the forgetting curve it decides through (fh-8jf.2). */
+export interface HardMemoryOptions {
+  /** Base seed for the per-seat, per-hand rolls — normally the game seed. */
+  readonly seed: number;
 }
 
 const MEDIUM = new MediumPolicy();
@@ -160,7 +172,12 @@ export function choosePlayByRollout(
   if (legal.length === 1) return first; // instant: no sampling, no clock
 
   const params = options.params ?? DEFAULT_PARAMS;
-  const medium = params === DEFAULT_PARAMS ? MEDIUM : new MediumPolicy(params);
+  const memory = options.memory;
+  const base = params === DEFAULT_PARAMS ? MEDIUM : new MediumPolicy(params);
+  // The reference/fallback Medium decides on the REAL history, so it gets the
+  // same memory the constraints below are derived through; the simulator
+  // seats in `policies` deliberately do not (see playPolicies).
+  const medium = memory === undefined ? base : base.withMemory(memory.seed);
   const policies = playPolicies(params);
   const trickWeight = params.hardPlay.trickWeight;
   const deadline = options.deadlineMs;
@@ -192,11 +209,10 @@ export function choosePlayByRollout(
   // This one Medium call is a REAL decision on the REAL history (the tiebreak
   // reference and the budget-miss fallback), unlike the simulator seats in
   // `policies`, which play out sampled worlds and must keep full information.
-  // It therefore takes a memory as soon as Hard has one to give it: the seam
-  // and the hand number are wired (fh-8jf.3), and fh-8jf.2 — which decides how
-  // Hard seeds and enables its own memory in deriveConstraints — swaps this
-  // `medium` for `medium.withMemory(seed)` so the two never disagree about
-  // which cards are gone.
+  // It therefore carries the same memory as the constraint derivation below
+  // (fh-8jf.2, over the fh-8jf.3 seam): both hang off `options.memory.seed`
+  // and mix in the same hand and seat, so the fallback card and the sampled
+  // worlds can never disagree about which cards are gone.
   const mediumCard = medium.choosePlay(
     seat,
     play.hands[seat] ?? [],
@@ -209,7 +225,14 @@ export function choosePlayByRollout(
   );
   const mediumIdx = legal.indexOf(mediumCard);
 
-  const constraints = deriveConstraints(state, seat);
+  // Forgotten cards return to the unseen pool here, so the sampled worlds may
+  // deal an already-played low card back into a hidden hand — the rollout then
+  // plays that line out in full information, which is the truth of THAT world.
+  const constraints = deriveConstraints(
+    state,
+    seat,
+    memory === undefined ? undefined : { seed: memory.seed, params: params.hardMemory },
+  );
   const totals = legal.map(() => 0);
   const diffSq = legal.map(() => 0);
   const scores = legal.map(() => 0);

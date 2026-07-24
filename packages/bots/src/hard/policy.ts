@@ -27,7 +27,7 @@ import type { BidContext, PlayChoice, PlayContext, StateAwarePolicy } from '../p
 import { defaultGiveBestCard } from '../policy.js';
 import { chooseBidByRollout, considerSlamByRollout } from './bidding.js';
 import { chooseKeepsByRollout } from './keeps.js';
-import type { HardPlayOptions } from './play.js';
+import type { HardMemoryOptions, HardPlayOptions } from './play.js';
 import { choosePlayByRollout } from './play.js';
 
 export interface HardPolicyOptions {
@@ -43,6 +43,16 @@ export interface HardPolicyOptions {
    * models inside its rollouts read from here.
    */
   readonly params?: BotParams;
+  /**
+   * Per-seat imperfect memory for card play (fh-8jf.2). Absent — the default
+   * — means perfect recall, so every existing caller is byte-identical; given
+   * a base seed (normally the game seed) the seat derives its constraints
+   * through the forgetting curve in params.hardMemory and plays as if a
+   * forgotten card might still be live. `play.memory` wins if both are set.
+   * Turning it on for the shipped bots, and calibrating the curve behind it,
+   * is fh-8jf.4's re-baseline.
+   */
+  readonly memory?: HardMemoryOptions;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -112,6 +122,7 @@ export class HardPolicy implements StateAwarePolicy {
     const card = choosePlayByRollout(state, seat, rng, {
       ...this.options.play,
       params: this.params,
+      memory: this.options.play?.memory ?? this.options.memory,
     });
     const play = state.play;
     if (

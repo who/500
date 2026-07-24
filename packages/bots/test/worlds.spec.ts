@@ -13,6 +13,11 @@
  * caller-supplied card restrictions, 1-2 unknown cards late in a hand,
  * nulla / slam sat-out seats excluded from dealing, and the double-nulla
  * pass-through on both sides. All fixtures are seeded and deterministic.
+ *
+ * The last block covers the imperfect-memory wiring (fh-8jf.2): a forgotten
+ * card returns to the unseen pool and can be dealt back into a hidden hand,
+ * while everything certain — own hand, own discards, the current trick and
+ * the one before it, every permanent-salience card — never does.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -30,12 +35,14 @@ import {
   newGame,
   toActSeat,
 } from '@five-hundred/engine';
-import type { ObservedConstraints, SampledWorld } from '../src/index.js';
+import type { HardMemoryParams, ObservedConstraints, SampledWorld } from '../src/index.js';
 import {
+  DEFAULT_PARAMS,
   MediumPolicy,
   botAction,
   countsAsSuit,
   deriveConstraints,
+  isPermanent,
   sampleWorld,
 } from '../src/index.js';
 
@@ -397,6 +404,171 @@ describe('sat-out seats and the double-nulla pass-through', () => {
       expect(cons.unseen).not.toContain(c);
     }
     expect(cons.seats.map((s) => s.count)).toEqual([10, 10, 10]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Imperfect memory (fh-8jf.2)
+// ---------------------------------------------------------------------------
+
+/**
+ * A retention curve that forgets nothing: every card clears permanentSalience
+ * and no void ever decays. Constraints derived through it must equal the
+ * perfect-recall ones exactly — the pin that the memory path and the true-
+ * history path are the same derivation with a different view in front of it.
+ */
+const TOTAL_RECALL: HardMemoryParams = {
+  ...DEFAULT_PARAMS.hardMemory,
+  permanentSalience: 0,
+  voidHorizon: 999,
+};
+
+/**
+ * The crafted spades game driven deep enough for the early tricks to fade.
+ * Seat 0 (the declarer) holds every spade, so it leads and wins every trick
+ * while the other three shed low side cards — exactly the already-played spot
+ * cards the filter is meant to lose. Seven completed tricks, then two cards of
+ * the eighth, so the never-forget window (the trick in progress and the one
+ * before it) is exercised too.
+ */
+function deepSpadesGame(): GameState {
+  let st = craftedSpadesGame();
+  for (let t = 0; t < 7; t++) {
+    st = playCards(st, [S(6 + t), C(4 + t), D(4 + t), H(4 + t)]);
+  }
+  return playCards(st, [S(13), C(12)]);
+}
+
+/** Medium bots drive game `seed` to six completed tricks. */
+function midPlayState(seed: number): GameState {
+  const medium = new MediumPolicy();
+  const policies = [medium, medium, medium, medium];
+  const rng = makeRng(seed);
+  let st = newGame(seed);
+  for (let guard = 0; !(st.play !== null && st.play.tricks.length >= 6); guard++) {
+    if (guard > 10_000) throw new Error('fixture drive did not converge');
+    st = apply(st, botAction(st, policies, rng));
+  }
+  return st;
+}
+
+describe('deriveConstraints with imperfect memory (fh-8jf.2)', () => {
+  it('AC-1: forgotten low cards return to unseen and get dealt to hidden hands', () => {
+    const st = deepSpadesGame();
+    const perfect = deriveConstraints(st, 0);
+    const cons = deriveConstraints(st, 0, { seed: 0xbeef });
+
+    // Forgetting only ever ADDS to the unseen pool, never removes.
+    for (const c of perfect.unseen) expect(cons.unseen).toContain(c);
+    const forgotten = cons.unseen.filter((c) => !perfect.unseen.includes(c));
+    expect(forgotten.length).toBeGreaterThan(0);
+    // Hand counts are public and stay exact whatever the seat forgot.
+    expect(cons.seats.map((s) => s.count)).toEqual(perfect.seats.map((s) => s.count));
+    // Nothing salient is ever lost: no trump, no permanent-salience card.
+    for (const c of forgotten) {
+      expect(isPermanent(c, cons.trump, DEFAULT_PARAMS.hardMemory), `card ${c}`).toBe(false);
+      expect(countsAsSuit(c, 0, cons.trump), `card ${c} is trump`).toBe(false);
+    }
+
+    // ...and the sampler puts them back into hidden hands, which is the whole
+    // point: the bot plays on as if they might still be live.
+    const rng = makeRng(3);
+    const replaced = new Set<Card>();
+    for (let i = 0; i < 200; i++) {
+      const world = sampleWorld(cons, rng);
+      expect(violation(cons, world)).toBeNull();
+      for (const s of cons.seats) {
+        for (const c of world.hands[s.seat] ?? []) {
+          if (forgotten.includes(c)) replaced.add(c);
+        }
+      }
+    }
+    expect(replaced.size).toBeGreaterThan(0);
+  });
+
+  it('AC-2: own hand, own discards and the last two tricks are never unseen', () => {
+    const st = deepSpadesGame();
+    const play = st.play;
+    if (play === null) throw new Error('fixture is not in play');
+    const last = play.tricks[play.tricks.length - 1];
+    if (last === undefined) throw new Error('fixture has no completed trick');
+    const recent = [...play.plays, ...last.plays].map((p) => p.card);
+
+    for (let seed = 1; seed <= 25; seed++) {
+      const cons = deriveConstraints(st, 0, { seed });
+      const unseen = new Set(cons.unseen);
+      for (const c of st.hands[0] ?? []) expect(unseen.has(c), `own ${c}`).toBe(false);
+      // Seat 0 is the declarer, so the five discards are its own knowledge.
+      for (const c of st.discards) expect(unseen.has(c), `discard ${c}`).toBe(false);
+      for (const c of recent) expect(unseen.has(c), `recent ${c}`).toBe(false);
+      for (const t of play.tricks) {
+        for (const p of t.plays) {
+          if (isPermanent(p.card, cons.trump, DEFAULT_PARAMS.hardMemory)) {
+            expect(unseen.has(p.card), `permanent ${p.card}`).toBe(false);
+          }
+        }
+      }
+    }
+  });
+
+  it('AC-3: constraints stay satisfiable across a seeded sweep', () => {
+    for (let fixture = 1; fixture <= 5; fixture++) {
+      const st = midPlayState(fixture);
+      for (const viewer of st.activeSeats) {
+        for (let seed = 1; seed <= 4; seed++) {
+          const cons = deriveConstraints(st, viewer, { seed });
+          const rng = makeRng(seed * 31 + viewer);
+          for (let i = 0; i < 40; i++) {
+            expect(violation(cons, sampleWorld(cons, rng))).toBeNull();
+          }
+        }
+      }
+    }
+  }, 30_000);
+
+  it('AC-4: deterministic in (state, viewer, seed), and total recall is the true view', () => {
+    const st = deepSpadesGame();
+    expect(deriveConstraints(st, 0, { seed: 0xbeef })).toEqual(
+      deriveConstraints(st, 0, { seed: 0xbeef }),
+    );
+    // The memory path with a curve that forgets nothing reproduces the
+    // perfect-recall derivation card for card and void for void.
+    for (let fixture = 1; fixture <= 5; fixture++) {
+      const state = midPlayState(fixture);
+      for (const viewer of state.activeSeats) {
+        expect(deriveConstraints(state, viewer, { seed: viewer, params: TOTAL_RECALL })).toEqual(
+          deriveConstraints(state, viewer),
+        );
+      }
+    }
+  }, 30_000);
+
+  it('is a difficulty dial: a harsher curve forgets strictly more', () => {
+    const st = deepSpadesGame();
+    const harsh: HardMemoryParams = {
+      ...DEFAULT_PARAMS.hardMemory,
+      permanentSalience: 99,
+      baseHorizon: 0,
+      salienceHorizon: 0,
+      jitter: 0,
+      voidHorizon: 0,
+    };
+    const perfect = deriveConstraints(st, 0);
+    const dial = deriveConstraints(st, 0, { seed: 5, params: harsh });
+    const normal = deriveConstraints(st, 0, { seed: 5 });
+    expect(dial.unseen.length).toBeGreaterThan(normal.unseen.length);
+    expect(normal.unseen.length).toBeGreaterThan(perfect.unseen.length);
+    // Even at its harshest the floor holds: the grace window keeps the two
+    // most recent tricks, so the eight cards on the table stay seen.
+    const play = st.play;
+    if (play === null) throw new Error('fixture is not in play');
+    const last = play.tricks[play.tricks.length - 1];
+    for (const p of [...play.plays, ...(last?.plays ?? [])]) {
+      expect(dial.unseen).not.toContain(p.card);
+    }
+    // Voids can fade too — the spade voids here were re-observed on the trick
+    // in progress, so they survive even this.
+    for (const s of dial.seats) expect(s.voidSuits).toEqual([0]);
   });
 });
 

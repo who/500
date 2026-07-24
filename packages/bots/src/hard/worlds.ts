@@ -28,10 +28,25 @@
  * exchange is still live (partner-discard phase) the constraint is
  * extracted; consumers with side knowledge can also append to `restricted`
  * before sampling.
+ *
+ * Imperfect memory (fh-8jf.2): deriveConstraints takes an optional per-seat
+ * memory, and with one it builds the seen-set and the voids from the
+ * REMEMBERED view (memory.ts) rather than the true history. This is where the
+ * epic's central trick lands — a forgotten card is not tracked as a special
+ * kind of belief, it simply falls out of `seen` and back into `unseen`, so
+ * the sampler may deal it to a hidden hand and the bot plays the rest of the
+ * hand as if it might still be live. Constraints stay satisfiable by
+ * construction: forgetting only ADDS to `unseen` and only REMOVES voids, so
+ * every world consistent with the true history is still consistent here (the
+ * forgotten cards go to the dead pool), and the counts, which are public, are
+ * never fuzzed.
  */
 
 import type { Card, GameState, Rng } from '@five-hundred/engine';
 import { DECK, DNULLA, effectiveSuit, partnerOf, trumpOf } from '@five-hundred/engine';
+import type { RememberedView } from '../memory.js';
+import { memoryHistoryFromState, memorySeed, rememberHistory } from '../memory.js';
+import { DEFAULT_PARAMS, type HardMemoryParams } from '../params.js';
 
 /** One hidden seat the sampler must deal a hand to. */
 export interface HiddenSeat {
@@ -77,13 +92,72 @@ export function countsAsSuit(card: Card, suit: number, trump: number | null): bo
   return effectiveSuit(card, trump, suit) === suit;
 }
 
+/** Per-seat imperfect memory for constraint derivation (fh-8jf.2). */
+export interface ConstraintMemory {
+  /**
+   * Base seed the forgetting rolls hang off — normally the game seed. Mixed
+   * with the hand number and the viewing seat by {@link memorySeed}, exactly
+   * as MediumPolicy.withMemory does, so a Hard seat and the Medium reference
+   * it consults never disagree about which cards are gone.
+   */
+  readonly seed: number;
+  /** Retention curve; defaults to the checked-in DEFAULT_PARAMS.hardMemory. */
+  readonly params?: HardMemoryParams;
+}
+
+/**
+ * The viewer's TRUE observations, in the shape the memory filter returns —
+ * perfect recall, the pre-fh-8jf.2 behaviour and still the default. Voids come
+ * from failure to follow, over completed tricks and the one in progress, and
+ * are monotone: a seat out of an effective suit never regains it.
+ */
+function observedView(
+  state: GameState,
+  viewer: number,
+  trump: number | null,
+  known: readonly Card[],
+): RememberedView {
+  const seen = new Set<Card>(state.hands[viewer]);
+  for (const c of known) seen.add(c);
+  const play = state.play;
+  const voids: Set<number>[] = [new Set(), new Set(), new Set(), new Set()];
+  if (play !== null) {
+    for (const t of play.tricks) for (const p of t.plays) seen.add(p.card);
+    for (const p of play.plays) seen.add(p.card);
+    const tricks: { ledSuit: number; plays: readonly { seat: number; card: Card }[] }[] =
+      play.tricks.map((t) => ({ ledSuit: t.ledSuit, plays: t.plays }));
+    if (play.ledSuit !== null && play.plays.length > 0) {
+      tricks.push({ ledSuit: play.ledSuit, plays: play.plays });
+    }
+    for (const t of tricks) {
+      for (const p of t.plays) {
+        if (!countsAsSuit(p.card, t.ledSuit, trump)) (voids[p.seat] as Set<number>).add(t.ledSuit);
+      }
+    }
+  }
+  return {
+    seen: [...seen].sort((a, b) => a - b),
+    voids: voids.map((s) => [...s].sort((a, b) => a - b)),
+  };
+}
+
 /**
  * Extract the viewing seat's constraints from a full GameState, reading only
  * seat-visible information: the own hand, the public trick history, public
  * hand counts and active seats, plus discards/passed cards when the viewer
  * is the seat that saw them.
+ *
+ * With a `memory` the observations run through the forgetting curve first
+ * (fh-8jf.2): forgotten cards return to `unseen` and faded voids stop
+ * constraining, so the sampled worlds carry the seat's uncertainty instead of
+ * a card-counter's certainty. What is public or private-but-certain is never
+ * fuzzed — the hand counts, the viewer's own hand, and its own discards.
  */
-export function deriveConstraints(state: GameState, viewer: number): ObservedConstraints {
+export function deriveConstraints(
+  state: GameState,
+  viewer: number,
+  memory?: ConstraintMemory,
+): ObservedConstraints {
   if (!Number.isInteger(viewer) || viewer < 0 || viewer > 3) {
     throw new Error(`viewer must be a seat 0-3, got ${String(viewer)}`);
   }
@@ -92,46 +166,37 @@ export function deriveConstraints(state: GameState, viewer: number): ObservedCon
   }
   const trump = state.contract !== null ? trumpOf(state.contract) : null;
 
-  const seen = new Set<Card>(state.hands[viewer]);
-  const play = state.play;
-  if (play !== null) {
-    for (const t of play.tricks) for (const p of t.plays) seen.add(p.card);
-    for (const p of play.plays) seen.add(p.card);
-  }
   // Discards are known to whoever made them: the declarer, except in double
-  // nulla where the pile that survives is the partner's second discard.
+  // nulla where the pile that survives is the partner's second discard. They
+  // are the seat's own private knowledge, so the filter never forgets them.
+  const known: Card[] = [];
   if (state.declarer !== null && state.discards.length > 0) {
     const owner =
       state.contract?.kind === DNULLA ? partnerOf(state.declarer) : state.declarer;
-    if (viewer === owner) for (const c of state.discards) seen.add(c);
+    if (viewer === owner) known.push(...state.discards);
   }
 
-  // Voids from failure to follow, over completed tricks and the one in
-  // progress. Monotone: a seat out of an effective suit never regains it.
-  const voids: Set<number>[] = [new Set(), new Set(), new Set(), new Set()];
-  if (play !== null) {
-    const tricks: { ledSuit: number; plays: readonly { seat: number; card: Card }[] }[] =
-      play.tricks.map((t) => ({ ledSuit: t.ledSuit, plays: t.plays }));
-    if (play.ledSuit !== null && play.plays.length > 0) {
-      tricks.push({ ledSuit: play.ledSuit, plays: play.plays });
-    }
-    for (const t of tricks) {
-      for (const p of t.plays) {
-        if (p.seat !== viewer && !countsAsSuit(p.card, t.ledSuit, trump)) {
-          (voids[p.seat] as Set<number>).add(t.ledSuit);
-        }
-      }
-    }
-  }
+  const view =
+    memory === undefined
+      ? observedView(state, viewer, trump, known)
+      : rememberHistory(
+          memoryHistoryFromState(state, viewer, {
+            seed: memorySeed(memory.seed, state.handNumber, viewer),
+            known,
+          }),
+          memory.params ?? DEFAULT_PARAMS.hardMemory,
+        );
+  const seen = new Set<Card>(view.seen);
 
   // Sat-out seats are not in activeSeats: their untouched cards are never
-  // dealt and fall through to the dead pool.
+  // dealt and fall through to the dead pool. Counts are public — a seat that
+  // forgot a card still knows how many cards everyone holds.
   const seats: HiddenSeat[] = state.activeSeats
     .filter((s) => s !== viewer)
     .map((seat) => ({
       seat,
       count: (state.hands[seat] ?? []).length,
-      voidSuits: [...(voids[seat] as Set<number>)].sort((a, b) => a - b),
+      voidSuits: view.voids[seat] ?? [],
     }));
 
   // Double nulla, partner still discarding: the declarer knows the 5 cards

@@ -185,6 +185,45 @@ describe('choosePlayByRollout', () => {
       });
     expect(pick(forgetful)).toBe(pick(DEFAULT_PARAMS));
   });
+
+  // fh-8jf.2: with a memory the seat derives its worlds through the
+  // forgetting curve, so a card it has forgotten can be dealt back into a
+  // hidden hand. A curve that forgets NOTHING must therefore leave the
+  // decision exactly where perfect recall left it — memory changes the play
+  // only through the curve, never through the wiring.
+  it('AC-4: memory with a total-recall curve is identical to no memory', () => {
+    const [decision] = collectDecisions(0xd0d0, 1, (legal) => legal.length > 2);
+    if (decision === undefined) throw new Error('no multi-card decision found');
+    const totalRecall = mergeParams(DEFAULT_PARAMS, {
+      hardMemory: { permanentSalience: 0, voidHorizon: 999 },
+    });
+    const bare = choosePlayByRollout(decision.state, decision.seat, makeRng(42), {
+      worlds: 5,
+      now: neverClock,
+    });
+    const remembered = choosePlayByRollout(decision.state, decision.seat, makeRng(42), {
+      worlds: 5,
+      now: neverClock,
+      params: totalRecall,
+      memory: { seed: 0x8f2 },
+    });
+    expect(remembered).toBe(bare);
+  });
+
+  it('AC-4: a memory-enabled decision is legal and deterministic', () => {
+    const decisions = collectDecisions(0x8f2, 6, (legal) => legal.length > 2);
+    for (const { state, seat, legal } of decisions) {
+      const pick = (): Card =>
+        choosePlayByRollout(state, seat, makeRng(9), {
+          worlds: 4,
+          now: neverClock,
+          memory: { seed: 0x5eed },
+        });
+      const card = pick();
+      expect(legal).toContain(card);
+      expect(pick()).toBe(card);
+    }
+  }, 30_000);
 });
 
 describe('HardPolicy', () => {
@@ -192,6 +231,19 @@ describe('HardPolicy', () => {
     expect(hasStatePlay(new HardPolicy())).toBe(true);
     expect(hasStatePlay(new MediumPolicy())).toBe(false);
   });
+
+  it('plays full hands through the headless sim harness with a memory (fh-8jf.2)', () => {
+    const hard = new HardPolicy({
+      bidWorlds: 2,
+      keepWorlds: 2,
+      play: { worlds: 2 },
+      memory: { seed: 0x8f2 },
+    });
+    const medium = new MediumPolicy();
+    const result = simulateHands(2, [hard, medium, medium, medium], 0x5eed);
+    const hands = Object.values(result.contracts).reduce((n, s) => n + s.n, 0);
+    expect(hands).toBe(2);
+  }, 30_000);
 
   it('plays full hands through the headless sim harness, worker-free', () => {
     const hard = new HardPolicy({ bidWorlds: 2, keepWorlds: 2, play: { worlds: 2 } });
