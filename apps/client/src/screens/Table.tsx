@@ -281,6 +281,8 @@ export function Table(): ReactNode {
               anchor={me}
               trump={view.contract === null ? null : trumpOf(view.contract)}
               biddersSet={biddersAreSet(view)}
+              handNumber={view.handNumber}
+              tricksPlayed={view.tricksPlayed}
             />
             <LastTrickPeek trick={view.lastTrick} names={names} />
           </>

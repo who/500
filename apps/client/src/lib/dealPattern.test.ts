@@ -7,6 +7,8 @@ import {
   RECIPES,
   cardJitter,
   clockwiseFromDealer,
+  trickPoseKey,
+  trickRestPose,
   dealSeed,
   expandPackets,
   pickRecipeIndex,
@@ -57,5 +59,23 @@ describe('dealPattern recipes', () => {
     expect(a).toEqual(b);
     expect(Math.abs(a.rotate)).toBeGreaterThanOrEqual(8);
     expect(Math.abs(a.rotate)).toBeLessThanOrEqual(15);
+  });
+
+  it('lands a trick rest pose in the spec ranges and keeps it across linger remount', () => {
+    const liveKey = trickPoseKey(2, 3, true);
+    const lingerKey = trickPoseKey(2, 4, false);
+    expect(liveKey).toBe(lingerKey);
+    expect(trickPoseKey(2, 4, true)).not.toBe(liveKey);
+
+    const a = trickRestPose(1, 14, liveKey);
+    const b = trickRestPose(1, 14, lingerKey);
+    expect(a).toEqual(b);
+    expect(Math.abs(a.rotate)).toBeGreaterThanOrEqual(8);
+    expect(Math.abs(a.rotate)).toBeLessThanOrEqual(18);
+    expect(Math.abs(a.x)).toBeGreaterThanOrEqual(4);
+    expect(Math.abs(a.x)).toBeLessThanOrEqual(10);
+    expect(Math.abs(a.y)).toBeGreaterThanOrEqual(4);
+    expect(Math.abs(a.y)).toBeLessThanOrEqual(10);
+    expect(trickRestPose(1, 14, trickPoseKey(3, 3, true))).not.toEqual(a);
   });
 });

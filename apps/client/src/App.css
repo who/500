@@ -826,20 +826,24 @@ button.primary {
   position: absolute;
   left: 50%;
   top: 50%;
-  /* Card movement kept subtle (PRD non-goals): each card slides in from the
-     seat that played it — the standalone translate composes with the
-     placement transform below. The global reduced-motion guard (index.css)
-     collapses it to instant. */
+  /* Rest pose (fh-786): rotate + small offset compose with .trick-* placement
+     transforms. Fly-in starts from the seat and lands on --rest-*. Reduced
+     motion (index.css) skips the flight; the rest pose still applies. */
+  translate: var(--rest-x, 0px) var(--rest-y, 0px);
+  rotate: var(--rest-rot, 0deg);
   animation: trick-card-in 160ms ease-out;
 }
 
 @keyframes trick-card-in {
   from {
-    translate: var(--fly-x, 0) var(--fly-y, 0);
+    translate: calc(var(--fly-x, 0px) + var(--rest-x, 0px))
+      calc(var(--fly-y, 0px) + var(--rest-y, 0px));
+    rotate: calc(var(--rest-rot, 0deg) * 1.4);
     opacity: 0.3;
   }
   to {
-    translate: 0 0;
+    translate: var(--rest-x, 0px) var(--rest-y, 0px);
+    rotate: var(--rest-rot, 0deg);
     opacity: 1;
   }
 }

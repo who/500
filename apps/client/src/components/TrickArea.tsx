@@ -16,8 +16,9 @@
  * HUD reads the same state.
  */
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react';
 import { type CurrentTrickView, type Trick, JOKER } from '@five-hundred/engine';
+import { trickPoseKey, trickRestPose } from '../lib/dealPattern.ts';
 import { seatPosition } from '../lib/seating.ts';
 import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { TRICK_LINGER_MS } from '../store.ts';
@@ -61,6 +62,9 @@ export function TrickArea(props: {
   trump: number | null;
   /** The declaring side can no longer make it (lib/biddersSet.ts). */
   biddersSet?: boolean;
+  /** Public view fields that seed a stable rest pose across linger remount. */
+  handNumber?: number;
+  tricksPlayed?: number;
 }): ReactNode {
   const linger = props.linger ?? null;
   // Sweep machinery: TRICK_SWEEP_MS before the linger releases, the cards
@@ -94,6 +98,7 @@ export function TrickArea(props: {
   const sweepTarget =
     (sweepingNow || swept) && winner !== null ? seatPosition(winner, props.anchor) : null;
   const biddersSet = props.biddersSet === true;
+  const poseKey = trickPoseKey(props.handNumber ?? 0, props.tricksPlayed ?? 0, inProgress);
   const areaClasses = [
     'trick-area',
     sweepingNow && 'trick-sweeping',
@@ -128,12 +133,19 @@ export function TrickArea(props: {
           ]
             .filter(Boolean)
             .join(' ');
+          const pose = trickRestPose(play.seat, play.card, poseKey);
+          const poseStyle = {
+            ['--rest-rot']: `${pose.rotate}deg`,
+            ['--rest-x']: `${pose.x}px`,
+            ['--rest-y']: `${pose.y}px`,
+          } as CSSProperties;
           return (
             <div
               key={play.seat}
               className={classes}
               data-seat={play.seat}
               data-winner={won || undefined}
+              style={poseStyle}
             >
               <CardFace card={play.card} className={trumpFaceClass(play.card, props.trump)} />
               {declared !== null && (

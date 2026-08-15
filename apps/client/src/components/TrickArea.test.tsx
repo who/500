@@ -24,6 +24,7 @@ import {
   bid,
   makeCard,
 } from '@five-hundred/engine';
+import { trickPoseKey, trickRestPose } from '../lib/dealPattern.ts';
 import { TRICK_LINGER_MS } from '../store.ts';
 import { TRICK_SWEEP_MS, TrickArea } from './TrickArea.tsx';
 import {
@@ -619,5 +620,59 @@ describe('trump foil in the middle (fh-wye)', () => {
 
   it('foils nothing under NT/nulla', () => {
     expect(foiled(null)).toEqual([false, false, false, false]);
+  });
+});
+
+/**
+ * Landed pile (fh-786): each play gets a seeded --rest-rot / offset that
+ * stays put when the store remounts the same trick as linger / lastTrick.
+ */
+describe('trick rest pose', () => {
+  const LIVE = {
+    leader: T1.leader,
+    ledSuit: T1.ledSuit,
+    plays: T1.plays,
+  };
+
+  function restVars(root: HTMLElement, seat: string): { rot: string; x: string; y: string } {
+    const el = root.querySelector(`.trick-card[data-seat="${seat}"]`) as HTMLElement;
+    return {
+      rot: el.style.getPropertyValue('--rest-rot'),
+      x: el.style.getPropertyValue('--rest-x'),
+      y: el.style.getPropertyValue('--rest-y'),
+    };
+  }
+
+  it('assigns a rest-rot pose from trickRestPose and keeps it across linger remount', () => {
+    const live = render(
+      <TrickArea
+        trick={LIVE}
+        lastTrick={null}
+        linger={null}
+        anchor={0}
+        trump={1}
+        handNumber={2}
+        tricksPlayed={3}
+      />,
+    );
+    const expected = trickRestPose(1, T1.plays[0]!.card, trickPoseKey(2, 3, true));
+    const liveVars = restVars(live.container as HTMLElement, '1');
+    expect(liveVars.rot).toBe(`${expected.rotate}deg`);
+    expect(liveVars.x).toBe(`${expected.x}px`);
+    expect(liveVars.y).toBe(`${expected.y}px`);
+    live.unmount();
+
+    const lingered = render(
+      <TrickArea
+        trick={{ leader: 1, ledSuit: null, plays: [] }}
+        lastTrick={T1}
+        linger={T1}
+        anchor={0}
+        trump={1}
+        handNumber={2}
+        tricksPlayed={4}
+      />,
+    );
+    expect(restVars(lingered.container as HTMLElement, '1')).toEqual(liveVars);
   });
 });

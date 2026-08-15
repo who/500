@@ -119,6 +119,41 @@ export function cardJitter(seed: number, packet: number, card: number): CardJitt
   };
 }
 
+export interface TrickRestPose {
+  /** Signed rest rotation in degrees, magnitude in [8, 18]. */
+  readonly rotate: number;
+  /** Extra x offset in px, magnitude in [4, 10]. */
+  readonly x: number;
+  /** Extra y offset in px, magnitude in [4, 10]. */
+  readonly y: number;
+}
+
+/**
+ * Mix hand + trick index into a 32-bit key. Live play uses `tricksPlayed` as
+ * the current trick; linger / lastTrick have already incremented it, so those
+ * views subtract one and keep the same pose across the remount.
+ */
+export function trickPoseKey(handNumber: number, tricksPlayed: number, inProgress: boolean): number {
+  const trickIndex = inProgress ? tricksPlayed : Math.max(0, tricksPlayed - 1);
+  return (((handNumber + 1) * 0x9e3779b9) ^ ((trickIndex + 1) * 0x85ebca6b)) >>> 0;
+}
+
+/** Deterministic per-play rest pose from (seat, card, trick identity). */
+export function trickRestPose(seat: number, card: number, trickKey: number): TrickRestPose {
+  const rng = makeRng((trickKey ^ Math.imul(seat + 1, 0x9e3779b9) ^ Math.imul(card + 1, 0x85ebca6b)) >>> 0);
+  const rotMag = 8 + rng.random() * 10;
+  const rotSign = rng.random() < 0.5 ? -1 : 1;
+  const xMag = 4 + rng.random() * 6;
+  const xSign = rng.random() < 0.5 ? -1 : 1;
+  const yMag = 4 + rng.random() * 6;
+  const ySign = rng.random() < 0.5 ? -1 : 1;
+  return {
+    rotate: rotSign * rotMag,
+    x: xSign * xMag,
+    y: ySign * yMag,
+  };
+}
+
 /**
  * Totals for a recipe. `max` is the largest packet size (players or middle);
  * it must stay ≤ 3 and the card count must be 45.
