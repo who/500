@@ -19,7 +19,9 @@ interface Point {
 }
 
 function searchRoot(overlay: HTMLElement): HTMLElement {
-  return overlay.closest('.game-table') ?? overlay.closest('[data-screen="table"]') ?? overlay;
+  // Table keeps .my-seat as a sibling of .game-table. Prefer the screen root
+  // so [data-seat=N] can resolve the viewer; .game-table only has opponents.
+  return overlay.closest('[data-screen="table"]') ?? overlay.closest('.game-table') ?? overlay;
 }
 
 function centerOf(overlay: HTMLElement, selector: string): Point {
