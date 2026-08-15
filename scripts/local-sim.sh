@@ -82,6 +82,11 @@ if [[ ! "$POLICIES" =~ ^[EMH]{4}$ ]]; then
   exit 2
 fi
 
+# pnpm --filter runs the sim with cwd packages/bots, so a relative --log
+# would land under that package. Always pass an absolute path.
+if [[ "$LOG" != /* ]]; then
+  LOG="$ROOT/$LOG"
+fi
 mkdir -p "$(dirname "$LOG")"
 echo "sim: ${GAMES} games policies=${POLICIES} seed=${SEED} memory=${MEMORY} -> ${LOG}"
 pnpm --filter @five-hundred/bots sim -- \
