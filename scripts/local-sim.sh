@@ -96,6 +96,22 @@ pnpm --filter @five-hundred/bots sim -- \
   --memory "$MEMORY" \
   --log "$LOG"
 
+# Prefer the path we asked for; if a relative --log leaked into
+# packages/bots (pnpm --filter cwd), use that so "next" is copy-pasteable.
+if [[ ! -f "$LOG" ]]; then
+  for candidate in \
+    "$ROOT/packages/bots/logs/games/$(basename "$LOG")" \
+    "$ROOT/packages/bots/${LOG#"$ROOT/"}"; do
+    if [[ -f "$candidate" ]]; then
+      LOG="$candidate"
+      break
+    fi
+  done
+fi
+if [[ ! -f "$LOG" ]]; then
+  echo "sim finished but no corpus at $LOG" >&2
+  exit 1
+fi
 if [[ "$LOG" == *.jsonl ]]; then
   PLAY_LOG="${LOG%.jsonl}.log"
 else
@@ -106,4 +122,4 @@ FH_PLAY_LOG="$(cd "$(dirname "$PLAY_LOG")" && pwd)/$(basename "$PLAY_LOG")"
 JSONL_ABS="$(cd "$(dirname "$LOG")" && pwd)/$(basename "$LOG")"
 FH_PLAY_LOG="$FH_PLAY_LOG" "$ROOT/packages/bots/node_modules/.bin/tsx" \
   "$ROOT/scripts/summarize-corpus.mts" "$JSONL_ABS"
-echo "next: ./scripts/local-upload.sh --in ${LOG}"
+echo "next: ./scripts/local-upload.sh --in ${JSONL_ABS}"

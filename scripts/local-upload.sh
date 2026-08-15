@@ -67,10 +67,18 @@ fi
 if [[ "$JSONL" != /* ]]; then
   JSONL="$ROOT/$JSONL"
 fi
+if [[ ! -f "$JSONL" ]]; then
+  fallback="$ROOT/packages/bots/logs/games/$(basename "$JSONL")"
+  if [[ -f "$fallback" ]]; then
+    echo "using corpus at $fallback (sim cwd was packages/bots)"
+    JSONL="$fallback"
+  fi
+fi
 
 upload_and_calibrate() {
   if [[ ! -f "$JSONL" ]]; then
     echo "no corpus at $JSONL — run ./scripts/local-sim.sh first" >&2
+    echo "if you already simmed, try: --in packages/bots/logs/games/$(basename "$JSONL")" >&2
     exit 1
   fi
 
