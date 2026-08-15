@@ -362,14 +362,16 @@ button.primary {
   opacity: 0.55;
 }
 
-/* Reserved Bidders chip (fh-3os): always mounted at this height, empty or
-   filled, so awarding the contract cannot grow a badge. Non-bidders keep the
+/* Reserved Bidders chip (fh-3os / fh-b9l): always mounted at this height
+   and a min-width that fits "Bidders · Double Nulla 500", empty or filled,
+   so awarding the contract cannot grow a badge. Non-bidders keep the
    transparent-border slot; the declaring pair get the label and a border. */
 .bidders-label {
   display: flex;
   align-items: center;
   justify-content: center;
   box-sizing: border-box;
+  min-width: 11.5rem;
   min-height: 1.15rem;
   padding: 0 0.4rem;
   border: 2px solid transparent;
@@ -380,6 +382,26 @@ button.primary {
   line-height: 1;
   white-space: nowrap;
   color: var(--text-h);
+}
+
+/* Phone seats are too narrow for the longest token on one line. Two-line
+   wrap plus a matching reserved height keeps the no-jump box. */
+@media (max-width: 480px) {
+  .bidders-label {
+    min-width: 0;
+    max-width: 100%;
+    min-height: 2.3rem;
+    white-space: normal;
+    text-align: center;
+  }
+
+  .table-seat-top {
+    padding-bottom: 2.3rem;
+  }
+
+  .my-seat {
+    padding-top: 2.3rem;
+  }
 }
 
 .bidders-label-on {

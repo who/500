@@ -208,6 +208,8 @@ export function Table(): ReactNode {
               : auctionLog.filter((e) => e.seat === seat).map((e) => e.bid)
         }
         bidders={bidders}
+        contract={view.contract}
+        slam={view.slam}
         biddersSet={biddersAreSet(view)}
       />
     );

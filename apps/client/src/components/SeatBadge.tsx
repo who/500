@@ -7,12 +7,13 @@
  * the seat's bid history as ordered chips (PRD 6.2): latest emphasized,
  * indications visually distinct, passes muted, capped on phone layouts with
  * a "+n" toggle that expands the full run. After a contract is won the
- * declaring side also wears a reserved "Bidders" chip under the badge
- * (empty on the other seats) so awarding it cannot grow the nameplate.
+ * declaring side also wears a reserved "Bidders · {token}" chip under the
+ * badge (empty on the other seats) so awarding it cannot grow the nameplate.
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { type Bid, IND, PASS, bidName } from '@five-hundred/engine';
+import { contractToken } from '../lib/contractToken.ts';
 import { ActivityCard } from './ActivityCard.tsx';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
 import { CardBack } from './Card.tsx';
@@ -93,6 +94,10 @@ export interface SeatBadgeProps {
   /** Declaring-side seat once a contract is won. The reserved slot still
    *  mounts when false so filling the chip cannot grow the badge. */
   bidders?: boolean;
+  /** Won contract; chip copy is `Bidders · {token}` when bidders. */
+  contract?: Bid | null;
+  /** Declared slam: token is `Slam 8H`, matching the HUD strong text. */
+  slam?: boolean;
   /** Declaring side can no longer make: the chip border uses --danger. */
   biddersSet?: boolean;
 }
@@ -160,7 +165,11 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
         data-bidders={props.bidders === true || undefined}
         data-bidders-set={(props.bidders === true && props.biddersSet === true) || undefined}
       >
-        {props.bidders === true ? 'Bidders' : null}
+        {props.bidders === true
+          ? props.contract != null
+            ? `Bidders · ${contractToken(props.contract, props.slam === true)}`
+            : 'Bidders'
+          : null}
       </div>
     </div>
   );

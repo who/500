@@ -10,8 +10,9 @@
  */
 
 import type { ReactNode } from 'react';
-import { type RedactedView, NULLA, bidName, bidValue, isLoseAll } from '@five-hundred/engine';
+import { type RedactedView, NULLA, bidValue, isLoseAll } from '@five-hundred/engine';
 import { biddersAreSet } from '../lib/biddersSet.ts';
+import { contractToken } from '../lib/contractToken.ts';
 
 export function Hud(props: { view: RedactedView; names: readonly string[] }): ReactNode {
   const { view, names } = props;
@@ -31,7 +32,7 @@ export function Hud(props: { view: RedactedView; names: readonly string[] }): Re
           <em>No contract yet</em>
         ) : loseAll ? (
           <>
-            <strong>{contract.kind === NULLA ? 'Nulla 250' : 'Double Nulla 500'}</strong>
+            <strong>{contractToken(contract, view.slam)}</strong>
             {view.declarer !== null && <span> by {names[view.declarer]}</span>}
             <span>
               {' '}
@@ -40,7 +41,7 @@ export function Hud(props: { view: RedactedView; names: readonly string[] }): Re
           </>
         ) : (
           <>
-            <strong>{view.slam ? `Slam ${bidName(contract)}` : bidName(contract)}</strong>
+            <strong>{contractToken(contract, view.slam)}</strong>
             {view.declarer !== null && <span> by {names[view.declarer]}</span>}
           </>
         )}

@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { act } from 'react';
-import { type Bid, IND, NUM, PASS, bid } from '@five-hundred/engine';
+import { type Bid, DNULLA, IND, NULLA, NUM, PASS, bid } from '@five-hundred/engine';
 import { SeatBadge, type SeatBadgeProps, THINKING_DELAY_MS } from './SeatBadge.tsx';
 
 const CSS = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
@@ -132,14 +132,15 @@ describe('the reserved Bidders chip (fh-3os)', () => {
     expect(slot.textContent).toBe('');
     expect(slot.getAttribute('data-bidders')).toBeNull();
 
-    const filled = renderBadge({ bidders: true });
+    const filled = renderBadge({ bidders: true, contract: bid(NUM, 8, 3) });
     const chip = filled.badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
-    expect(chip.textContent).toBe('Bidders');
+    expect(chip.textContent).toBe('Bidders · 8H');
     expect(chip.hasAttribute('data-bidders')).toBe(true);
     expect(getComputedStyle(slot).minHeight).toBe(getComputedStyle(chip).minHeight);
 
     const slotRule = /\.bidders-label \{[^}]*\}/.exec(CSS)?.[0];
     expect(slotRule).toMatch(/min-height: 1\.15rem;/);
+    expect(slotRule).toMatch(/min-width: 11\.5rem;/);
 
     // Top and bottom seats pad by that same reserved row so filling the
     // chip cannot grow them into the felt or the viewer's hand.
@@ -163,11 +164,37 @@ describe('the reserved Bidders chip (fh-3os)', () => {
   });
 
   it('a defender never shows the copy even if the side is set', () => {
-    const { app, badge } = renderBadge({ bidders: false, biddersSet: true });
+    const { app, badge } = renderBadge({
+      bidders: false,
+      biddersSet: true,
+      contract: bid(NUM, 8, 3),
+    });
     const slot = badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
     expect(slot.textContent).toBe('');
     expect(slot.className).not.toMatch(/bidders-label-on|bidders-label-set/);
     expect(app.container.contains(slot)).toBe(true);
+  });
+
+  it('uses the HUD contract token for 8H, Nulla, Slam, and Double Nulla (fh-b9l)', () => {
+    const hearts = renderBadge({ bidders: true, contract: bid(NUM, 8, 3) });
+    expect(hearts.badge.querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · 8H',
+    );
+
+    const nulla = renderBadge({ bidders: true, contract: bid(NULLA) });
+    expect(nulla.badge.querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · Nulla 250',
+    );
+
+    const slam = renderBadge({ bidders: true, contract: bid(NUM, 8, 3), slam: true });
+    expect(slam.badge.querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · Slam 8H',
+    );
+
+    const dnulla = renderBadge({ bidders: true, contract: bid(DNULLA) });
+    expect(dnulla.badge.querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · Double Nulla 500',
+    );
   });
 });
 

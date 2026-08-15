@@ -501,10 +501,10 @@ describe('declaring-side Bidders chips (fh-3os)', () => {
     // Cleo (2) declared; Ana (0) is her partner. Ben (1) and the bot (3) defend.
     const { app } = renderTable(midTrickView());
     expect(seatEl(app, 0).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
-      'Bidders',
+      'Bidders · 8H',
     );
     expect(seatEl(app, 2).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
-      'Bidders',
+      'Bidders · 8H',
     );
     expect(seatEl(app, 1).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
     expect(seatEl(app, 3).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
@@ -533,14 +533,32 @@ describe('declaring-side Bidders chips (fh-3os)', () => {
     );
     const bidder = seatEl(app, 1).querySelector('[data-testid="bidders-label"]');
     const partner = seatEl(app, 3).querySelector('[data-testid="bidders-label"]');
-    expect(bidder?.textContent).toBe('Bidders');
-    expect(partner?.textContent).toBe('Bidders');
+    expect(bidder?.textContent).toBe('Bidders · Nulla 250');
+    expect(partner?.textContent).toBe('Bidders · Nulla 250');
     expect(bidder?.className).toMatch(/bidders-label-set/);
     expect(partner?.className).toMatch(/bidders-label-set/);
     expect(seatEl(app, 3).querySelector('[data-sitting-out]')).not.toBeNull();
     expect(seatEl(app, 0).querySelector('[data-testid="bidders-label"]')?.className).not.toMatch(
       /bidders-label-set/,
     );
+  });
+
+  it('shows Slam on both teammates and leaves defenders empty', () => {
+    const { app } = renderTable(
+      midTrickView({
+        contract: bid(NUM, 10, 0),
+        slam: true,
+        declarer: 2,
+      }),
+    );
+    expect(seatEl(app, 0).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · Slam 10S',
+    );
+    expect(seatEl(app, 2).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders · Slam 10S',
+    );
+    expect(seatEl(app, 1).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
+    expect(seatEl(app, 3).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
   });
 });
 
