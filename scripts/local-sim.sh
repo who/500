@@ -29,6 +29,8 @@ GameRecord per game to a JSONL file.
   --seed N        sim seed (default 1; also used as --memory if omitted)
   --memory N      forgetting-curve seed (default: same as --seed)
   --log PATH      JSONL path (default logs/games/sim-local.jsonl)
+                  A sibling .log gets the full play-by-play (who won each
+                  trick and each game). Stdout prints one winner line per game.
 
 Upload that file with: ./scripts/local-upload.sh [--in PATH]
 EOF
@@ -88,4 +90,15 @@ pnpm --filter @five-hundred/bots sim -- \
   --seed "$SEED" \
   --memory "$MEMORY" \
   --log "$LOG"
+
+if [[ "$LOG" == *.jsonl ]]; then
+  PLAY_LOG="${LOG%.jsonl}.log"
+else
+  PLAY_LOG="${LOG}.log"
+fi
+echo "summarizing plays and winners…"
+FH_PLAY_LOG="$(cd "$(dirname "$PLAY_LOG")" && pwd)/$(basename "$PLAY_LOG")"
+JSONL_ABS="$(cd "$(dirname "$LOG")" && pwd)/$(basename "$LOG")"
+FH_PLAY_LOG="$FH_PLAY_LOG" "$ROOT/packages/bots/node_modules/.bin/tsx" \
+  "$ROOT/scripts/summarize-corpus.mts" "$JSONL_ABS"
 echo "next: ./scripts/local-upload.sh --in ${LOG}"
