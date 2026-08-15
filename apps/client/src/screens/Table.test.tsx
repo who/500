@@ -422,7 +422,7 @@ describe('contract-won announcement (fh-8kz)', () => {
     dnulla.app.unmount();
 
     // 10S by Cleo, who then declares the slam while the toast is still up:
-    // the announcement reads the live view, so the stake follows (+250).
+    // the announcement reads the live view, so the stake is a flat 500.
     const slam = winAuction(0, {
       phase: 'slamDecision',
       contract: bid(NUM, 10, 0),
@@ -446,7 +446,7 @@ describe('contract-won announcement (fh-8kz)', () => {
       }),
     );
     expect(slam.app.getByTestId('contract-toast').textContent).toBe(
-      'Cleo won the bid — Slam 10 Spades (690 at stake)',
+      'Cleo won the bid — Slam 10 Spades (500 at stake)',
     );
   });
 
