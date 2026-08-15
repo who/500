@@ -1,6 +1,25 @@
 # 500
 
-Five Hundred — card game engine, bots, and web UI monorepo.
+Five Hundred is a four-player partnership trick-taking game. Each deal gives
+everyone ten cards and leaves five in the middle (the kitty). Players bid
+once around for the right to name trumps; the winning side then tries to take
+the tricks they promised. First partnership to 500 points wins; a side that
+reaches −500 is out the back.
+
+This repository is **one specific breed** of 500: it implements the house
+rules in [`500-house-rules.md`](500-house-rules.md), not a generic
+tournament book. The distinctive bits include a **single round of four
+calls** (dealer last), **6-level indications** that never win the auction,
+a **minimum contract of 7**, **nulla / double nulla**, and a **declared
+slam that is always ±500**. If you learned 500 at a different table, those
+details will differ.
+
+The goal is to let people play **this** 500 over the internet — same
+scoring, same auction, same kitty — against friends or against bots. The
+bots are part of that: they sit empty seats, they can learn from finished
+human games (the play-log calibrator), and they can get harder over time
+when a learned overlay clears the promotion gate. Easy and Medium stay
+frozen so the table has a stable floor; only Hard takes the overlay.
 
 ## End-to-end smoke test
 
