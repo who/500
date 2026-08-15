@@ -139,6 +139,18 @@ describe('choosePlayByRollout', () => {
     expect(pick()).toBe(first);
   });
 
+  it('with no artifact, an explicit undefined calibration stays on the uniform path', () => {
+    const [decision] = collectDecisions(0xd0d0, 1, (legal) => legal.length > 2);
+    if (decision === undefined) throw new Error('no multi-card decision found');
+    const pick = (calibration?: undefined) =>
+      choosePlayByRollout(decision.state, decision.seat, makeRng(42), {
+        worlds: 5,
+        now: neverClock,
+        calibration,
+      });
+    expect(pick(undefined)).toBe(pick());
+  });
+
   it('falls back to the Medium choice when the budget cannot fit the floor', () => {
     const [decision] = collectDecisions(0xfa11, 1, (legal) => legal.length > 2);
     if (decision === undefined) throw new Error('no multi-card decision found');

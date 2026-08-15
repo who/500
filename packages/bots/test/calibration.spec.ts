@@ -16,7 +16,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Card, GameState, Rng } from '@five-hundred/engine';
-import { DECK, NUM, bid, makeRng } from '@five-hundred/engine';
+import { DECK, NUM, PASS, bid, makeRng } from '@five-hundred/engine';
 import {
   type GameRecord,
   type PlayerMeta,
@@ -29,8 +29,13 @@ import {
 } from '@five-hundred/learn';
 import {
   type CallObservation,
+  HardPolicy,
   type ObservedConstraints,
   type Policy,
+  observationsFromAuction,
+  policyKindForSeat,
+  sampleHiddenWorld,
+  sampleKeepWorlds,
   samplePriorConditionedWorld,
   sampleWorld,
 } from '../src/index.js';
@@ -255,6 +260,107 @@ describe('AC-2: biased human priors shift the sampled worlds', () => {
     const a = samplePriorConditionedWorld(constraints, obs, art, makeRng(3), 25);
     const b = sampleWorld(constraints, makeRng(3));
     expect(a.hands).toEqual(b.hands);
+  });
+});
+
+// --- fh-azx.5: Hard hidden-hand sampling through the production helper ------
+
+describe('fh-azx.5: Hard sampler uses the loaded calibration artifact', () => {
+  const humanObs: CallObservation[] = [{ seat: 1, policyKind: 'human', callKind: NUM, strain: 0 }];
+
+  it('AC-1: sampleHiddenWorld with a biased-human artifact shifts hidden worlds', () => {
+    const art = fitCalibration(biasedHumanCorpus(80), { minSamples: 20 });
+    const constraints = auctionConstraints(DECK.slice(0, 10));
+    const SAMPLES = 400;
+    const uncond = meanSeatStrength(
+      (rng) => sampleHiddenWorld(constraints, rng),
+      1,
+      0,
+      SAMPLES,
+      makeRng(7),
+    );
+    const cond = meanSeatStrength(
+      (rng) => sampleHiddenWorld(constraints, rng, art, humanObs),
+      1,
+      0,
+      SAMPLES,
+      makeRng(7),
+    );
+    expect(cond).toBeLessThan(uncond - 0.3);
+    // Same fixture through the prior-conditioned sampler itself — the helper
+    // is the production choice point, not a reimplementation.
+    const direct = meanSeatStrength(
+      (rng) => samplePriorConditionedWorld(constraints, humanObs, art, rng),
+      1,
+      0,
+      SAMPLES,
+      makeRng(7),
+    );
+    expect(cond).toBe(direct);
+  });
+
+  it('AC-1: keeps determinization goes through the helper and still shifts', () => {
+    const art = fitCalibration(biasedHumanCorpus(80), { minSamples: 20 });
+    const cards = DECK.slice(0, 15);
+    const contract = bid(NUM, 7, 0);
+    const SAMPLES = 200;
+    const uncond = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng)[0]!,
+      1,
+      0,
+      SAMPLES,
+      makeRng(11),
+    );
+    const cond = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng, art, humanObs)[0]!,
+      1,
+      0,
+      SAMPLES,
+      makeRng(11),
+    );
+    expect(cond).toBeLessThan(uncond - 0.3);
+  });
+
+  it('with no artifact, the helper and keeps path stay on the uniform sampler', () => {
+    const constraints = auctionConstraints(DECK.slice(0, 10));
+    const a = sampleHiddenWorld(constraints, makeRng(3));
+    const b = sampleWorld(constraints, makeRng(3));
+    expect(a.hands).toEqual(b.hands);
+    expect(a.dead).toEqual(b.dead);
+
+    const cards = DECK.slice(0, 15);
+    const contract = bid(NUM, 7, 0);
+    const keepA = sampleKeepWorlds(cards, contract, 2, makeRng(5));
+    const keepB = sampleKeepWorlds(cards, contract, 2, makeRng(5), null, humanObs);
+    expect(keepA.map((w) => w.hands)).toEqual(keepB.map((w) => w.hands));
+  });
+
+  it('observationsFromAuction skips the viewer and sat-out seats; unknown is hard', () => {
+    expect(observationsFromAuction(null, 0)).toEqual([]);
+    expect(observationsFromAuction({ history: [] }, 0)).toEqual([]);
+    const history = {
+      history: [
+        { seat: 1, bid: bid(NUM, 7, 0) },
+        { seat: 2, bid: bid(PASS) },
+        { seat: 0, bid: bid(NUM, 8, 0) },
+        { seat: 3, bid: bid(PASS) },
+      ],
+    };
+    const obs = observationsFromAuction(history, 0, ['hard', 'human', 'medium', 'easy'], [1, 3]);
+    expect(obs).toEqual([
+      { seat: 1, policyKind: 'human', callKind: NUM, strain: 0 },
+      { seat: 3, policyKind: 'easy', callKind: PASS, strain: -1 },
+    ]);
+    expect(policyKindForSeat(undefined, 2)).toBe('hard');
+    expect(policyKindForSeat(['human'], 1)).toBe('hard');
+  });
+
+  it('HardPolicy accepts a loaded artifact without changing the no-artifact API', () => {
+    const art = fitCalibration(biasedHumanCorpus(80), { minSamples: 20 });
+    const withArt = new HardPolicy({ calibration: art, observations: humanObs });
+    const without = new HardPolicy();
+    expect(withArt).toBeInstanceOf(HardPolicy);
+    expect(without).toBeInstanceOf(HardPolicy);
   });
 });
 

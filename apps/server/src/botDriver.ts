@@ -64,6 +64,19 @@ export function policyFor(difficulty: BotDifficulty, seed: number): Policy {
   return difficulty === 'easy' ? new EasyPolicy() : new MediumPolicy().withMemory(seed);
 }
 
+/**
+ * Per-seat policy kinds for the Hard sampler (fh-azx.5). Humans are marked
+ * human; bot seats use their difficulty; empty/unknown seats stay `hard` so
+ * we never guess a seat is human.
+ */
+export function policyKindsForRoom(room: Room): string[] {
+  return room.seats.map((s) => {
+    if (s.kind === 'human') return 'human';
+    if (s.kind === 'bot') return s.difficulty;
+    return 'hard';
+  });
+}
+
 export interface BotDriverOptions {
   /** Delay before each bot action; defaults to defaultBotDelayMs, 0 in tests. */
   delayMs?: () => number;
@@ -192,7 +205,9 @@ export class BotDriver {
         // its adaptive-bots toggle is on. The pool is the single gate on
         // overlay presence — with no overlay loaded it sends the defaults
         // regardless, so this is a no-op unless learning is actually shipped.
-        return pool.decide(state, seat, seed, this.room.adaptiveBots).catch((err: unknown) => {
+        return pool
+          .decide(state, seat, seed, this.room.adaptiveBots, policyKindsForRoom(this.room))
+          .catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
           console.error(
             `[bots] hard decision failed for seat ${seat} in room ${this.room.code}: ` +

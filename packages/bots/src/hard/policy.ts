@@ -21,6 +21,7 @@
 
 import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import { JOKER } from '@five-hundred/engine';
+import type { CalibrationArtifact, PolicyKind } from '@five-hundred/learn';
 import { MediumPolicy } from '../medium.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, PlayChoice, PlayContext, StateAwarePolicy } from '../policy.js';
@@ -29,6 +30,8 @@ import { chooseBidByRollout, considerSlamByRollout } from './bidding.js';
 import { chooseKeepsByRollout } from './keeps.js';
 import type { HardMemoryOptions, HardPlayOptions } from './play.js';
 import { choosePlayByRollout } from './play.js';
+import type { CallObservation } from './priors.js';
+import { observationsFromAuction } from './priors.js';
 
 export interface HardPolicyOptions {
   /** Worlds per bid / slam decision; defaults to ROLLOUT_WORLDS. */
@@ -53,6 +56,16 @@ export interface HardPolicyOptions {
    * is fh-8jf.4's re-baseline.
    */
   readonly memory?: HardMemoryOptions;
+  /**
+   * Loaded calibration artifact (fh-azx.5). When set, hidden-hand sampling
+   * goes through samplePriorConditionedWorld; absent/null keeps every
+   * existing sampleWorld / fh-zpg indication path.
+   */
+  readonly calibration?: CalibrationArtifact | null;
+  /** Auction-call observations for the prior-conditioned sampler. */
+  readonly observations?: readonly CallObservation[];
+  /** Per-seat policy kinds used when rebuilding observations from GameState. */
+  readonly policyKinds?: readonly PolicyKind[];
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -76,6 +89,8 @@ export class HardPolicy implements StateAwarePolicy {
     return chooseBidByRollout(hand, ladderPos, mayIndicate, context, rng, {
       worlds: this.options.bidWorlds,
       params: this.params,
+      calibration: this.options.calibration,
+      observations: this.options.observations,
     });
   }
 
@@ -83,6 +98,8 @@ export class HardPolicy implements StateAwarePolicy {
     return chooseKeepsByRollout(cards, contract, rng, {
       worlds: this.options.keepWorlds,
       params: this.params,
+      calibration: this.options.calibration,
+      observations: this.options.observations,
     });
   }
 
@@ -90,6 +107,8 @@ export class HardPolicy implements StateAwarePolicy {
     return considerSlamByRollout(hand15, contract, rng, {
       worlds: this.options.bidWorlds,
       params: this.params,
+      calibration: this.options.calibration,
+      observations: this.options.observations,
     });
   }
 
@@ -123,6 +142,12 @@ export class HardPolicy implements StateAwarePolicy {
       ...this.options.play,
       params: this.params,
       memory: this.options.play?.memory ?? this.options.memory,
+      calibration: this.options.play?.calibration ?? this.options.calibration,
+      observations:
+        this.options.play?.observations ??
+        this.options.observations ??
+        observationsFromAuction(state.auction, seat, this.options.policyKinds, state.activeSeats),
+      policyKinds: this.options.play?.policyKinds ?? this.options.policyKinds,
     });
     const play = state.play;
     if (

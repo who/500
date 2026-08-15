@@ -64,8 +64,10 @@ import {
   sideZeroDelta,
   worldDeal,
 } from './bidding.js';
+import type { CalibrationArtifact } from '@five-hundred/learn';
+import type { CallObservation } from './priors.js';
+import { sampleHiddenWorld } from './priors.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
-import { sampleWorld } from './worlds.js';
 
 // The keep gates below now live in BotParams (hardKeeps group, fh-sja.1); the
 // names re-exported here are the checked-in defaults. A HardPolicy threads its
@@ -88,6 +90,10 @@ export interface HardKeepsOptions {
   readonly worlds?: number;
   /** Strategy constants; defaults to DEFAULT_PARAMS. */
   readonly params?: BotParams;
+  /** Loaded calibration; absent/null keeps the uniform sampler. */
+  readonly calibration?: CalibrationArtifact | null;
+  /** Auction-call evidence for the prior-conditioned sampler. */
+  readonly observations?: readonly CallObservation[];
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -175,10 +181,14 @@ export function sampleKeepWorlds(
   contract: Bid,
   n: number,
   rng: Rng,
+  artifact?: CalibrationArtifact | null,
+  observations: readonly CallObservation[] = [],
 ): SampledWorld[] {
   const constraints = keepsConstraints([...cards].sort(ascending), contract);
   const worlds: SampledWorld[] = [];
-  for (let i = 0; i < n; i++) worlds.push(sampleWorld(constraints, rng));
+  for (let i = 0; i < n; i++) {
+    worlds.push(sampleHiddenWorld(constraints, rng, artifact, observations));
+  }
   return worlds;
 }
 
@@ -264,7 +274,14 @@ export function chooseKeepsByRollout(
   const params = options.params ?? DEFAULT_PARAMS;
   const n = Math.max(1, options.worlds ?? params.hardKeeps.keepWorlds);
   const candidates = candidateKeeps(sorted, contract, params);
-  const worlds = sampleKeepWorlds(sorted, contract, n, rng);
+  const worlds = sampleKeepWorlds(
+    sorted,
+    contract,
+    n,
+    rng,
+    options.calibration,
+    options.observations ?? [],
+  );
   let best = candidates[0] as Card[];
   let bestEV = -Infinity;
   for (const cand of candidates) {

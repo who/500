@@ -17,7 +17,15 @@
 
 import { describe, expect, it } from 'vitest';
 import { PASS, applyAction, bid, makeRng, newGame, type Action, type GameState } from '@five-hundred/engine';
-import { EasyPolicy, MediumPolicy, botAction, type BotParams, type Policy } from '../src/index.js';
+import { fitCalibration } from '@five-hundred/learn';
+import {
+  EasyPolicy,
+  HardPolicy,
+  MediumPolicy,
+  botAction,
+  type BotParams,
+  type Policy,
+} from '../src/index.js';
 import { DEFAULT_PARAMS, mergeParams } from '../src/params.js';
 import { HARD_LEAVES } from '../src/tune.js';
 
@@ -102,6 +110,30 @@ describe('tier-stability guard (fh-sja.6 AC-2)', () => {
       const b = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
       expect(a).toEqual(b);
       expect(a.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('keeps Easy and Medium byte-stable when a Hard overlay and artifact are present', () => {
+    const overlay = maxedHardOverlay();
+    const artifact = fitCalibration([], { minSamples: 20 });
+    // Hard is the only consumer; constructing it here must not leak into
+    // Easy/Medium, which never take a CalibrationArtifact.
+    const hard = new HardPolicy({ params: overlay, calibration: artifact });
+    expect(hard).toBeInstanceOf(HardPolicy);
+    const seeds = [1, 7, 42];
+    for (const seed of seeds) {
+      const mediumDefault = transcript(
+        Array.from({ length: 4 }, () => new MediumPolicy(DEFAULT_PARAMS)),
+        seed,
+      );
+      const mediumOverlay = transcript(
+        Array.from({ length: 4 }, () => new MediumPolicy(overlay)),
+        seed,
+      );
+      expect(mediumOverlay).toEqual(mediumDefault);
+      const easyA = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
+      const easyB = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
+      expect(easyB).toEqual(easyA);
     }
   });
 });

@@ -29,7 +29,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { serializeGame, type Action, type GameState } from '@five-hundred/engine';
-import { overlayJson as defaultOverlayJson } from '../botParams.js';
+import { calibrationJson as defaultCalibrationJson, overlayJson as defaultOverlayJson } from '../botParams.js';
 
 export const HARD_POOL_MAX_WORKERS = 4;
 /**
@@ -77,6 +77,18 @@ export interface HardWorkerRequest {
    * back to DEFAULT_PARAMS if it is absent or malformed.
    */
   readonly paramsJson?: string;
+  /**
+   * Serialized CalibrationArtifact (fh-azx.5). Present only when the room
+   * opted into adaptive bots and a boot-loaded artifact exists; missing
+   * means uniform hidden-hand sampling. Backward compatible.
+   */
+  readonly calibrationJson?: string;
+  /**
+   * Per-seat policy kinds (`human` / `easy` / `medium` / `hard`) for building
+   * CallObservations. Unknown seats are treated as `hard` — never guessed
+   * human. Optional so older callers stay valid.
+   */
+  readonly policyKinds?: readonly string[];
 }
 
 export type HardWorkerResponse =
@@ -89,8 +101,16 @@ export interface HardDecider {
    * `useOverlay` (fh-sja.6): when true and a learned overlay is loaded, the
    * decision runs HardPolicy under the overlay params; otherwise it runs the
    * checked-in defaults. Optional so existing callers/fakes need no change.
+   * Adaptive-off rooms also omit the calibration artifact (fh-azx.5).
+   * `policyKinds` is the per-seat human/bot-tier map when the driver has it.
    */
-  decide(state: GameState, seat: number, seed: number, useOverlay?: boolean): Promise<Action>;
+  decide(
+    state: GameState,
+    seat: number,
+    seed: number,
+    useOverlay?: boolean,
+    policyKinds?: readonly string[],
+  ): Promise<Action>;
 }
 
 const IS_SOURCE = import.meta.url.endsWith('.ts');
@@ -151,6 +171,8 @@ export class HardBotPool implements HardDecider {
     private readonly budgetMs: number = hardBudgetMs(),
     /** Serialized learned overlay for opted-in rooms; null disables it. */
     private readonly overlayJson: string | null = defaultOverlayJson,
+    /** Serialized calibration artifact; omitted from requests when null. */
+    private readonly calibrationJson: string | null = defaultCalibrationJson,
   ) {
     this.init = workerEntry().then(
       (url) => {
@@ -175,13 +197,28 @@ export class HardBotPool implements HardDecider {
     return this.workers.size;
   }
 
-  decide(state: GameState, seat: number, seed: number, useOverlay = false): Promise<Action> {
+  decide(
+    state: GameState,
+    seat: number,
+    seed: number,
+    useOverlay = false,
+    policyKinds?: readonly string[],
+  ): Promise<Action> {
     if (this.disposed) return Promise.reject(new Error('hard bot pool is disposed'));
     if (this.initError !== null) return Promise.reject(this.initError);
     const paramsJson = useOverlay ? (this.overlayJson ?? undefined) : undefined;
+    const calibrationJson = useOverlay ? (this.calibrationJson ?? undefined) : undefined;
     return new Promise<Action>((resolve, reject) => {
       this.queue.push({
-        request: { stateJson: serializeGame(state), seat, seed, budgetMs: this.budgetMs, paramsJson },
+        request: {
+          stateJson: serializeGame(state),
+          seat,
+          seed,
+          budgetMs: this.budgetMs,
+          paramsJson,
+          calibrationJson,
+          policyKinds,
+        },
         resolve,
         reject,
         retried: false,

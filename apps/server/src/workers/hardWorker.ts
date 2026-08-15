@@ -15,7 +15,14 @@
 
 import { parentPort } from 'node:worker_threads';
 import { deserializeGame, makeRng } from '@five-hundred/engine';
-import { HardPolicy, policyAction, validateParams, type BotParams } from '@five-hundred/bots';
+import {
+  HardPolicy,
+  observationsFromAuction,
+  policyAction,
+  validateParams,
+  type BotParams,
+} from '@five-hundred/bots';
+import { parseCalibration, type CalibrationArtifact, type PolicyKind } from '@five-hundred/learn';
 import type { HardWorkerRequest, HardWorkerResponse } from './hardPool.js';
 
 const port = parentPort;
@@ -44,12 +51,50 @@ function overlayParams(request: HardWorkerRequest): BotParams | undefined {
   return result.params;
 }
 
+/**
+ * Decode the request's calibration artifact (fh-azx.5). Missing or malformed
+ * payloads leave HardPolicy on the uniform sampler rather than failing the
+ * decision — a shipped-bot move beats none.
+ */
+function requestCalibration(request: HardWorkerRequest): CalibrationArtifact | undefined {
+  if (request.calibrationJson === undefined) return undefined;
+  try {
+    return parseCalibration(request.calibrationJson);
+  } catch (err) {
+    console.error(
+      `[hard] seat ${request.seat}: invalid calibration artifact, using uniform worlds: ${String(err)}`,
+    );
+    return undefined;
+  }
+}
+
+/** Per-seat kinds; unknown slots are `hard` — never guessed human. */
+function requestPolicyKinds(request: HardWorkerRequest): PolicyKind[] {
+  const raw = request.policyKinds;
+  const out: PolicyKind[] = [];
+  for (let i = 0; i < 4; i++) {
+    const k = raw?.[i];
+    out.push(k === 'human' || k === 'easy' || k === 'medium' || k === 'hard' ? k : 'hard');
+  }
+  return out;
+}
+
 port.on('message', (request: HardWorkerRequest) => {
   let response: HardWorkerResponse;
   try {
     const state = deserializeGame(request.stateJson);
+    const policyKinds = requestPolicyKinds(request);
+    const calibration = requestCalibration(request);
     const policy = new HardPolicy({
       params: overlayParams(request),
+      calibration,
+      policyKinds,
+      observations: observationsFromAuction(
+        state.auction,
+        request.seat,
+        policyKinds,
+        state.activeSeats,
+      ),
       // Human-fallible recall for the shipped bot (fh-8jf.4): the seat derives
       // its constraints through the forgetting curve, so an old low card it has
       // dropped goes back into the unseen pool and it plays on as if that card

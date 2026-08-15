@@ -37,8 +37,11 @@ import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import { mustApply } from './bidding.js';
+import type { CalibrationArtifact, PolicyKind } from '@five-hundred/learn';
+import type { CallObservation } from './priors.js';
+import { observationsFromAuction, sampleHiddenWorld } from './priors.js';
 import type { SampledWorld } from './worlds.js';
-import { deriveConstraints, sampleWorld } from './worlds.js';
+import { deriveConstraints } from './worlds.js';
 
 // The world-count knobs below now live in BotParams (hardPlay group,
 // fh-sja.1); the names re-exported here are the checked-in defaults. A
@@ -80,6 +83,12 @@ export interface HardPlayOptions {
    * one HardPolicy shared across seats still gives each its own memory.
    */
   readonly memory?: HardMemoryOptions;
+  /** Loaded calibration; absent/null keeps the uniform sampler. */
+  readonly calibration?: CalibrationArtifact | null;
+  /** Auction-call evidence; when omitted, rebuilt from the live GameState. */
+  readonly observations?: readonly CallObservation[];
+  /** Per-seat policy kinds used when rebuilding observations from the auction. */
+  readonly policyKinds?: readonly PolicyKind[];
 }
 
 /** How a Hard seat seeds the forgetting curve it decides through (fh-8jf.2). */
@@ -233,13 +242,19 @@ export function choosePlayByRollout(
     seat,
     memory === undefined ? undefined : { seed: memory.seed, params: params.hardMemory },
   );
+  const observations =
+    options.observations ??
+    observationsFromAuction(state.auction, seat, options.policyKinds, state.activeSeats);
   const totals = legal.map(() => 0);
   const diffSq = legal.map(() => 0);
   const scores = legal.map(() => 0);
   let worldsDone = 0;
   while (worldsDone < cap) {
     if (deadline !== undefined && now() - start >= deadline) break;
-    const base = determinize(state, sampleWorld(constraints, rng));
+    const base = determinize(
+      state,
+      sampleHiddenWorld(constraints, rng, options.calibration, observations),
+    );
     for (let i = 0; i < actions.length; i++) {
       scores[i] = playout(base, actions[i] as Action, seat, rng, policies, trickWeight);
       totals[i] = (totals[i] as number) + (scores[i] as number);

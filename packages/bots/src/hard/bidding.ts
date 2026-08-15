@@ -62,6 +62,9 @@ import { MediumPolicy, endgameHeadroom } from '../medium.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
+import type { CalibrationArtifact } from '@five-hundred/learn';
+import type { CallObservation } from './priors.js';
+import { sampleHiddenWorld } from './priors.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
 
@@ -93,6 +96,10 @@ export interface HardBidOptions {
   readonly slamMargin?: number;
   /** Strategy constants; defaults to DEFAULT_PARAMS. */
   readonly params?: BotParams;
+  /** Loaded calibration; absent/null keeps the uniform (or fh-zpg) sampler. */
+  readonly calibration?: CalibrationArtifact | null;
+  /** Auction-call evidence for the prior-conditioned sampler. */
+  readonly observations?: readonly CallObservation[];
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -477,12 +484,16 @@ export function chooseBidByRollout(
   if (candidates.length === 0) return indicationOrPass();
 
   const constraints = unseenConstraints(sorted);
+  const artifact = options.calibration;
+  const observations = options.observations ?? [];
   const sampled: SampledWorld[] = [];
   for (let i = 0; i < worlds; i++) {
     sampled.push(
-      partnerStrain === null
-        ? sampleWorld(constraints, rng)
-        : samplePartnerIndicationWorld(constraints, partnerStrain, rng, params),
+      artifact !== undefined && artifact !== null
+        ? sampleHiddenWorld(constraints, rng, artifact, observations)
+        : partnerStrain === null
+          ? sampleWorld(constraints, rng)
+          : samplePartnerIndicationWorld(constraints, partnerStrain, rng, params),
     );
   }
 
@@ -575,7 +586,12 @@ export function considerSlamByRollout(
   const constraints = unseenConstraints(sorted);
   let diff = 0;
   for (let i = 0; i < worlds; i++) {
-    const world = sampleWorld(constraints, rng);
+    const world = sampleHiddenWorld(
+      constraints,
+      rng,
+      options.calibration,
+      options.observations ?? [],
+    );
     diff += rolloutSlamVariant(sorted, world, contract, true, rng, params);
     diff -= rolloutSlamVariant(sorted, world, contract, false, rng, params);
   }

@@ -88,3 +88,66 @@ export function samplePriorConditionedWorld(
   }
   return best as SampledWorld;
 }
+
+/**
+ * Hidden-hand determinization: prior-conditioned when a calibration artifact
+ * is loaded, otherwise the uniform {@link sampleWorld}. Bidding, keeps, and
+ * play all go through this so a missing artifact stays byte-identical to
+ * today's sampler (fh-azx.5).
+ */
+export function sampleHiddenWorld(
+  constraints: ObservedConstraints,
+  rng: Rng,
+  artifact?: CalibrationArtifact | null,
+  observations: readonly CallObservation[] = [],
+): SampledWorld {
+  if (artifact === undefined || artifact === null) return sampleWorld(constraints, rng);
+  return samplePriorConditionedWorld(constraints, observations, artifact, rng);
+}
+
+/** Resolve a seat's policy kind: unknown seats are Hard, never guessed human. */
+export function policyKindForSeat(
+  policyKinds: readonly (PolicyKind | string | null | undefined)[] | undefined,
+  seat: number,
+): PolicyKind {
+  const k = policyKinds?.[seat];
+  if (k === 'human' || k === 'easy' || k === 'medium' || k === 'hard') return k;
+  return 'hard';
+}
+
+/**
+ * Build {@link CallObservation}s from the public auction log. Skips the
+ * viewer and any seat not in `hiddenSeats` (sat-out partners are not hidden
+ * seats — do not invent an observation for them). Empty/missing auction
+ * yields no observations, so {@link samplePriorConditionedWorld} falls back
+ * to one uniform draw.
+ */
+export function observationsFromAuction(
+  auction:
+    | {
+        readonly history: readonly {
+          readonly seat: number;
+          readonly bid: { readonly kind: string; readonly strain: number };
+        }[];
+      }
+    | null
+    | undefined,
+  viewer: number,
+  policyKinds?: readonly (PolicyKind | string | null | undefined)[],
+  hiddenSeats?: readonly number[],
+): CallObservation[] {
+  if (auction === null || auction === undefined) return [];
+  const allowed = hiddenSeats === undefined ? null : new Set(hiddenSeats);
+  const out: CallObservation[] = [];
+  for (const entry of auction.history) {
+    if (entry.seat === viewer) continue;
+    if (allowed !== null && !allowed.has(entry.seat)) continue;
+    out.push({
+      seat: entry.seat,
+      policyKind: policyKindForSeat(policyKinds, entry.seat),
+      callKind: entry.bid.kind,
+      strain: entry.bid.strain,
+    });
+  }
+  return out;
+}
