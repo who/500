@@ -159,7 +159,18 @@ export async function runCalibrate(args: string[], hooks: CalibrateHooks = {}): 
 
   const artifact = fitCalibration(records);
   if (artifact.meta.makeSamples < artifact.minSamples) {
+    const need = artifact.minSamples - artifact.meta.makeSamples;
+    const sources: string[] = [];
+    if (useStore) sources.push('source=store');
+    if (inPath !== undefined) sources.push(`in=${inPath}`);
     log('skipped: thin corpus');
+    log(
+      `[calibrate] games=${artifact.meta.games} hands=${artifact.meta.hands} ` +
+        `makeSamples=${artifact.meta.makeSamples} minSamples=${artifact.minSamples}` +
+        (sources.length > 0 ? ` ${sources.join(' ')}` : ''),
+    );
+    log(`need ${need} more numbered (7–10) hands to fit`);
+    log('numbered contracts count; nulla / redeals / unfinished games do not');
     return;
   }
 

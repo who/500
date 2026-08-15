@@ -146,17 +146,30 @@ describe('learn:calibrate (fh-azx.3)', () => {
   it('AC-1: a fixture corpus below minSamples exits 0 and writes nothing', async () => {
     const corpus = writeJsonl('thin.jsonl', []);
     const outDir = join(tmp, 'ac1-out');
-    await runCalibrate(['--in', corpus, '--out-dir', outDir]);
+    const lines: string[] = [];
+    await runCalibrate(['--in', corpus, '--out-dir', outDir], {
+      log: (line) => lines.push(line),
+    });
     expect(existsSync(join(outDir, 'local.json'))).toBe(false);
     expect(existsSync(join(outDir, 'calibration.json'))).toBe(false);
     expect(existsSync(outDir)).toBe(false);
+    const text = lines.join('\n');
+    expect(text).toContain('skipped: thin corpus');
+    expect(text).toMatch(/makeSamples=\d+/);
+    expect(text).toMatch(/minSamples=\d+/);
+    expect(text).toMatch(/need [1-9]\d* more numbered \(7–10\) hands to fit/);
+    expect(text).toContain(`in=${corpus}`);
   });
 
   it('AC-2: a thick fixture with --skip-sprt writes overlay + calibration', async () => {
     const records = Array.from({ length: 40 }, (_, i) => game(`thick-${i}`, [numberedHand(i % 5 !== 0)]));
     const corpus = writeJsonl('thick.jsonl', records);
     const outDir = join(tmp, 'ac2-out');
-    await runCalibrate(['--in', corpus, '--out-dir', outDir, '--skip-sprt']);
+    const lines: string[] = [];
+    await runCalibrate(['--in', corpus, '--out-dir', outDir, '--skip-sprt'], {
+      log: (line) => lines.push(line),
+    });
+    expect(lines.join('\n')).toMatch(/\[calibrate\] games=\d+/);
 
     const overlayText = readFileSync(join(outDir, 'local.json'), 'utf8');
     const overlay = JSON.parse(overlayText) as {
