@@ -31,6 +31,9 @@ A bid names a number of tricks and a trump suit (or no-trump), or is a special b
 | 8 | 240 | 260 | 280 | 300 | 320 |
 | 9 | 340 | 360 | 380 | 400 | 420 |
 | 10 | 440 | 460 | 480 | 500 | 520 |
+| Slam | 500 | 500 | 500 | 500 | 500 |
+
+Slam is a declaration on a winning numbered bid, not a ladder bid. Its score is always **500**, regardless of the underlying bid's Avondale value.
 
 ### Special bids
 
@@ -52,9 +55,9 @@ The winning bidder **picks up the 5-card middle, then discards 5** face-down (th
 After picking up the middle — **while still evaluating the hand and choosing discards** — the bidder may declare a **slam**: a bid to take **all 10 tricks**.
 
 - On declaring, the bidder **calls for their partner's single best card**. The partner hands it over and then **sits out** — a slam is played **solo**. The bidder discards the extra card back into the middle discards, returning to 10.
-- **Success (all 10 tricks): +250 added on top of the underlying bid value.**
-- **Failure: the underlying bid is lost (subtracted), and a further 250 is subtracted.**
-- Because of that swing (~500 either way), a slam tends to **win or lose the whole game** — it's essentially pass/fail.
+- **Success (all 10 tricks): +500.**
+- **Failure: −500.** The stake does not add 250 to the underlying bid value — it is always 500.
+- Because 500 is the game threshold, a slam **wins or loses the whole game** from zero — it's pass/fail.
 - **No slam on nulla or double nulla** — taking every trick is the opposite of the goal.
 
 ## The joker & following suit
@@ -71,7 +74,8 @@ You must follow the led suit if you can.
 
 - **Make your bid:** score the bid's point value.
 - **Set (fail your bid):** subtract the bid's point value.
-- **Defenders (numbered bids):** score **10 points per trick** they take.
+- **Slam:** made = **+500**; set = **−500**. Independent of the underlying numbered bid's Avondale value.
+- **Defenders (numbered bids and slams):** score **10 points per trick** they take.
 - **Nulla / double nulla:** made = +250 / +500; set = **−250 / −500**. On these bids, defenders instead score **10 points for every trick they force the bidder's team to take**.
 
 ## Carried-over defaults (standard 500)
