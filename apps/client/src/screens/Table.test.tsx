@@ -1,5 +1,7 @@
 // @vitest-environment jsdom
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { act } from 'react';
 import { fireEvent } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -619,6 +621,27 @@ describe('deal choreography (fh-8t1)', () => {
     expect(app.queryByTestId('deal-overlay')).toBeNull();
     expect(chipTexts(app, 1)).toEqual(['7♠']);
     expect(app.getByTestId('middle-pile').querySelectorAll('.card-back')).toHaveLength(5);
+  });
+
+  it('parks the middle pile above the bid grid so auction cells stay clear', () => {
+    const { app } = renderTable(auctionHand());
+    fireEvent.click(tableRoot(app));
+    const pile = app.getByTestId('middle-pile');
+    const panel = app.getByTestId('bid-panel');
+    expect(pile.querySelectorAll('.card-back')).toHaveLength(5);
+    expect(panel.querySelector('.bid-grid')).not.toBeNull();
+    expect(panel.querySelector('.bid-actions')).not.toBeNull();
+    expect(panel.contains(pile)).toBe(false);
+
+    // Assert against the real App.css (vitest stubs CSS imports to '').
+    const css = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
+    const pileBlock = css.slice(css.indexOf('.middle-pile {'), css.indexOf('.middle-pile-card'));
+    expect(pileBlock).toContain('z-index: 0');
+    expect(pileBlock).toContain('align-self: start');
+    expect(pileBlock).toContain('pointer-events: none');
+    const panelBlock = css.slice(css.indexOf('.bid-panel {'), css.indexOf('.bid-col-head'));
+    expect(panelBlock).toContain('z-index: 0');
+    expect(panelBlock).toContain('padding-top: calc(56 * var(--su) + 1.2rem)');
   });
 
   it('snaps to the dealt state under prefers-reduced-motion with no flying nodes', () => {

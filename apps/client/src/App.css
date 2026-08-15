@@ -699,11 +699,11 @@ button.primary {
 /* --- Trick area ---------------------------------------------------------- */
 
 /* Stacking contract for the shared 'trick' grid cell: felt layers
-   (.trick-area, .bid-panel) sit at z-index 0; every status/overlay sharing
-   the cell (.exchange-status and friends) sits at z-index 1. Without this,
-   position: relative here paints the felt over static siblings regardless of
-   DOM order — new overlays in this cell must declare z-index 1, not rely on
-   source position. */
+   (.trick-area, .bid-panel, .middle-pile) sit at z-index 0; every
+   status/overlay sharing the cell (.exchange-status and friends) sits
+   at z-index 1. Without this, position: relative here paints the felt
+   over static siblings regardless of DOM order — new overlays in this
+   cell must declare z-index 1, not rely on source position. */
 .trick-area {
   grid-area: trick;
   position: relative;
@@ -723,8 +723,9 @@ button.primary {
 
 .middle-pile {
   grid-area: trick;
+  /* Felt layer: park at the top of the trick cell, not above the bid UI. */
   position: relative;
-  z-index: 1;
+  z-index: 0;
   align-self: start;
   justify-self: center;
   width: calc(40 * var(--su));
@@ -1015,6 +1016,8 @@ button.primary {
   gap: 0.4rem;
   width: min(100%, 22rem);
   padding: 0.5rem;
+  /* Reserved strip so the kitty stack sits above .bid-grid, not over it. */
+  padding-top: calc(56 * var(--su) + 1.2rem);
   border-radius: 16px;
   background: radial-gradient(circle at 45% 40%, #2f8f57, #1d6a3e);
   box-shadow: var(--shadow);
