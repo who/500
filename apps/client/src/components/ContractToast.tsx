@@ -52,8 +52,8 @@ export function ContractToast(props: ContractToastProps): ReactNode {
       clearTimeout(timer);
     };
   }, [count, onDismiss]);
-  // Slam stake matches the HUD's: contract value + 250, won or lost in full.
-  const stake = bidValue(contract) + (slam ? 250 : 0);
+  // Slam stake matches the HUD's: a flat 500, won or lost in full.
+  const stake = slam ? 500 : bidValue(contract);
   const name = slam ? `Slam ${spelledContract(contract)}` : spelledContract(contract);
   return (
     <div className="contract-toast" role="status" data-testid="contract-toast" data-count={count}>

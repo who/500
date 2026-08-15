@@ -90,21 +90,21 @@ function slamCommands(client: TestClient) {
 
 describe('SlamPanel', () => {
   it('words the offer with the exact all-or-nothing stake per contract (AC-1)', () => {
-    // 8H is worth 300, so the slam stake is 550.
+    // Slam is a flat 500 on every numbered bid.
     const { app } = renderOffer();
     expect(app.getByTestId('slam-offer-text').textContent).toBe(
-      'Declare slam — play alone for all 10 tricks: +550 or -550',
+      'Declare slam — play alone for all 10 tricks: +500 or -500',
     );
 
-    // Other rungs of the ladder: 7S (140) → 390, 10NT (520) → 770.
-    expect(slamStake(bid(NUM, 7, 0))).toBe(390);
-    expect(slamStake(bid(NUM, 10, NT))).toBe(770);
+    // Other rungs of the ladder stay 500 (7S was 390, 10NT was 770).
+    expect(slamStake(bid(NUM, 7, 0))).toBe(500);
+    expect(slamStake(bid(NUM, 10, NT))).toBe(500);
     const standalone = render(
       <SlamPanel contract={bid(NUM, 7, 0)} locked={false} onDeclare={() => {}} onDecline={() => {}} />,
     );
     expect(
       standalone.container.querySelector('[data-testid="slam-offer-text"]')?.textContent,
-    ).toContain('+390 or -390');
+    ).toContain('+500 or -500');
   });
 
   it('requires the confirm step before declareSlam goes out, then locks (AC-1)', () => {

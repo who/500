@@ -87,9 +87,9 @@ function renderHandEnd(
 
 describe('handEndHeadline', () => {
   it('spells out slam and nulla results in words', () => {
-    const slam = { ...MADE_8H, slam: true, made: false, declarerDelta: -550 };
-    expect(handEndHeadline(slam)).toBe('Slam failed: -550');
-    expect(handEndHeadline({ ...slam, made: true, declarerDelta: 550 })).toBe('Slam made: +550');
+    const slam = { ...MADE_8H, slam: true, made: false, declarerDelta: -500 };
+    expect(handEndHeadline(slam)).toBe('Slam failed: -500');
+    expect(handEndHeadline({ ...slam, made: true, declarerDelta: 500 })).toBe('Slam made: +500');
     expect(handEndHeadline(FAILED_NULLA)).toBe('Nulla failed: -250');
     expect(
       handEndHeadline({ ...FAILED_NULLA, contract: bid('DNULLA'), made: true, declarerDelta: 500 }),

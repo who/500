@@ -313,13 +313,13 @@ describe('§7.1 scoring for every contract class (incl. defender points on lose-
     expect(set.defenderDelta).toBe(30);
   });
 
-  it('slam: +/-(value + 250), lost even when 9 tricks are taken', () => {
+  it('slam: ±500, lost even when 9 tricks are taken', () => {
     const made = scoreHand(bid(NUM, 8, C), 1, true, [0, 10]);
     expect(made.made).toBe(true);
-    expect(made.declarerDelta).toBe(260 + 250);
+    expect(made.declarerDelta).toBe(500);
     const nine = scoreHand(bid(NUM, 8, C), 1, true, [1, 9]);
     expect(nine.made).toBe(false);
-    expect(nine.declarerDelta).toBe(-(260 + 250));
+    expect(nine.declarerDelta).toBe(-500);
     expect(nine.defenderDelta).toBe(10);
   });
 

@@ -21,7 +21,7 @@ import { driveGame } from './drive.js';
 
 // One-hand deciders: |declarer delta| >= 500 ends the game either way.
 const TEN_NT = bid(NUM, 10, NT); // 520
-const EIGHT_C = bid(NUM, 8, 1); // 260, +250 as a slam = 510
+const EIGHT_C = bid(NUM, 8, 1); // 260 as a numbered bid; slam is a flat 500
 
 const NUM_GAME = driveGame(1, { contract: TEN_NT });
 const SLAM_GAME = driveGame(2, { contract: EIGHT_C, slam: true });
@@ -51,7 +51,7 @@ describe('scripted full games through applyAction only (AC-1)', () => {
     expect(final.handResult?.slam).toBe(false);
   });
 
-  it('slam contract visits the slam sub-phases and scores value + 250', () => {
+  it('slam contract visits the slam sub-phases and scores a flat 500', () => {
     const { states, final } = SLAM_GAME;
     expect(final.phase).toBe('gameOver');
     expect(states.some((s) => s.phase === 'slamDecision')).toBe(true);
@@ -59,7 +59,7 @@ describe('scripted full games through applyAction only (AC-1)', () => {
     const play = states.find((s) => s.phase === 'play');
     expect(play?.slam).toBe(true);
     expect(play?.activeSeats).toHaveLength(3); // partner sits out
-    expect(Math.abs(final.handResult?.declarerDelta ?? 0)).toBe(510);
+    expect(Math.abs(final.handResult?.declarerDelta ?? 0)).toBe(500);
   });
 
   it('nulla contract sits the partner out and takes multiple hands', () => {

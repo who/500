@@ -7,11 +7,11 @@
  */
 
 import { useState, type ReactNode } from 'react';
-import { type Bid, bidValue } from '@five-hundred/engine';
+import { type Bid } from '@five-hundred/engine';
 
-/** Slam stake: contract value + 250, won or lost in full (engine scoreHand). */
-export function slamStake(contract: Bid): number {
-  return bidValue(contract) + 250;
+/** Slam stake: a flat 500, won or lost in full (engine scoreHand). */
+export function slamStake(_contract: Bid): number {
+  return 500;
 }
 
 export interface SlamPanelProps {

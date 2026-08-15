@@ -61,14 +61,22 @@ describe('scoreHand — lose-all contracts (AC-1)', () => {
 });
 
 describe('scoreHand — slams (AC-1)', () => {
-  it('made slam scores value + 250', () => {
-    const r = scoreHand(bid(NUM, 8, 3), 0, true, [10, 0]);
-    expect(r).toMatchObject({ made: true, declarerDelta: 550, defenderDelta: 0 });
+  it('made slam scores a flat 500 on any numbered bid', () => {
+    const eightH = scoreHand(bid(NUM, 8, 3), 0, true, [10, 0]);
+    expect(eightH).toMatchObject({ made: true, declarerDelta: 500, defenderDelta: 0 });
+    expect(scoreHand(bid(NUM, 7, 0), 0, true, [10, 0])).toMatchObject({
+      made: true,
+      declarerDelta: 500,
+    });
+    expect(scoreHand(bid(NUM, 10, NT), 0, true, [10, 0])).toMatchObject({
+      made: true,
+      declarerDelta: 500,
+    });
   });
 
-  it('failed slam loses value + 250 even with 9 tricks taken', () => {
+  it('failed slam loses a flat 500 even with 9 tricks taken', () => {
     const r = scoreHand(bid(NUM, 8, 3), 0, true, [9, 1]);
-    expect(r).toMatchObject({ made: false, declarerDelta: -550, defenderDelta: 10 });
+    expect(r).toMatchObject({ made: false, declarerDelta: -500, defenderDelta: 10 });
   });
 });
 

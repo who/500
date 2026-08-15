@@ -13,8 +13,8 @@ Implements the family ruleset:
   * Double Nulla (500): both partners lose-all; beaten only by 10H and 10NT;
     middle passes through declarer (keep 10, pass 5) then partner (keep 10)
   * Slamming: after middle pickup on a numbered bid, declarer may take
-    partner's best card, play solo for all 10 tricks; success = bid + 250,
-    failure = -(bid + 250)
+    partner's best card, play solo for all 10 tricks; success = +500,
+    failure = -500
   * Joker is the highest card and takes any trick
   * In no-trump / nulla hands the joker is every suit: you can never sluff
     while holding it, and played to a trick it silently assumes the led suit;
@@ -515,7 +515,7 @@ def play_hand(hands, middle, contract, declarer, policies, rng) -> HandResult:
         def_delta = 10 * decl_tricks          # tricks forced onto bidders
     elif slam:
         made = decl_tricks == 10
-        decl_delta = (value + 250) if made else -(value + 250)
+        decl_delta = 500 if made else -500
         def_delta = 10 * def_tricks
     else:
         made = decl_tricks >= contract.level

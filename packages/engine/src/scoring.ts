@@ -6,7 +6,7 @@
  *   lose-all (nulla/dnulla)  made = declarer side took 0 tricks;
  *                            defenders score 10 per trick FORCED ONTO the
  *                            bidding side.
- *   slam                     made = all 10 tricks; +/-(value + 250) even
+ *   slam                     made = all 10 tricks; ±500 even
  *                            when 9 tricks were taken.
  *   NUM                      made = declarer tricks >= level.
  *
@@ -56,7 +56,7 @@ export function scoreHand(
     defenderDelta = 10 * declTricks; // tricks forced onto bidders
   } else if (slam) {
     made = declTricks === 10;
-    declarerDelta = made ? value + 250 : -(value + 250);
+    declarerDelta = made ? 500 : -500;
     defenderDelta = 10 * defTricks;
   } else {
     made = declTricks >= contract.level;

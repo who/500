@@ -276,7 +276,7 @@ def traced_play_hand(hands, middle, contract, declarer, policies, rng,
         def_delta = 10 * decl_tricks          # tricks forced onto bidders
     elif slam:
         made = decl_tricks == 10
-        decl_delta = (value + 250) if made else -(value + 250)
+        decl_delta = 500 if made else -500
         def_delta = 10 * def_tricks
     else:
         made = decl_tricks >= contract.level

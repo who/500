@@ -19,8 +19,8 @@ export function Hud(props: { view: RedactedView; names: readonly string[] }): Re
   const them = 1 - us;
   const contract = view.contract;
   const loseAll = contract !== null && isLoseAll(contract);
-  // A declared slam plays for all 10 at value + 250 (engine scoreHand).
-  const stake = contract === null ? null : bidValue(contract) + (view.slam ? 250 : 0);
+  // A declared slam plays for all 10 at a flat 500 (engine scoreHand).
+  const stake = contract === null ? null : view.slam ? 500 : bidValue(contract);
   // Tricks the defenders have forced onto the bidding side (they want 0).
   const bidderTricks = view.declarer === null ? 0 : (view.sideTricks[view.declarer % 2] ?? 0);
   const set = biddersAreSet(view);
