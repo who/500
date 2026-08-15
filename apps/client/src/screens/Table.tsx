@@ -42,6 +42,11 @@
  * Debug tools (fh-q2m): a muted strip under the hand carries the flag-this-
  * trick marker button, which pins the trick on screen (lib/flagTarget.ts)
  * into the server's end-of-game JSONL record.
+ *
+ * Deal choreography (fh-8t1): the first auction view of each hand (and every
+ * redeal) plays packet flights before BidPanel appears; a face-down middle
+ * pile sits on the felt through the auction and flies to the declarer after
+ * ContractToast dismisses. Tap skips the in-flight sequence.
  */
 
 import { useState, type ReactNode } from 'react';
@@ -49,12 +54,14 @@ import { useStore } from 'zustand';
 import { type Bid, type Card, DNULLA, NULLA, partnerOf, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
 import { biddersAreSet } from '../lib/biddersSet.ts';
+import { useDealChoreography } from '../lib/dealChoreography.ts';
 import { flagTarget, type FlagTarget } from '../lib/flagTarget.ts';
 import { seatPosition } from '../lib/seating.ts';
 import { sortHand } from '../lib/handSort.ts';
 import { playLegality } from '../lib/playLegality.ts';
 import { BidPanel, bidLegality } from '../components/BidPanel.tsx';
 import { ContractToast } from '../components/ContractToast.tsx';
+import { DealOverlay, MiddleFly, MiddlePile } from '../components/DealOverlay.tsx';
 import { DebugPanel } from '../components/DebugPanel.tsx';
 import { ExchangePicker } from '../components/ExchangePicker.tsx';
 import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
@@ -106,12 +113,15 @@ export function Table(): ReactNode {
   // server error also releases the lock — the submission was rejected, so
   // the seat must be able to act again.
   const [lockedOn, setLockedOn] = useState<SubmitLock | null>(null);
+  const deal = useDealChoreography(seatView?.view ?? null, contractNotice !== null);
   if (seatView === null) return null; // the router only mounts Table with a view
 
   const view = seatView.view;
   const me = view.seat;
   const names = [0, 1, 2, 3].map((s) => seatName(room, s));
-  const hand = sortHand(view.hand, view.contract);
+  const sorted = sortHand(view.hand, view.contract);
+  const visibleCount = deal.seq === 'dealing' ? (deal.landed[me] ?? 0) : deal.seq === 'done' ? sorted.length : 10;
+  const hand = sorted.slice(0, visibleCount);
   const legality = playLegality(view, pendingActions?.actions ?? null);
   const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
   const exchanging = view.phase === 'middleExchange';
@@ -188,17 +198,30 @@ export function Table(): ReactNode {
         thinking={room?.seats[seat]?.occupant === 'bot'}
         sittingOut={!view.activeSeats.includes(seat)}
         sittingOutReason={view.contract?.kind === NULLA ? 'nulla' : view.slam ? 'slam' : undefined}
-        cardCount={view.handCounts[seat] ?? 0}
+        cardCount={deal.seq === 'dealing' ? (deal.landed[seat] ?? 0) : (view.handCounts[seat] ?? 0)}
         showBacks={seat !== me}
-        bidHistory={auctionLog?.filter((e) => e.seat === seat).map((e) => e.bid)}
+        bidHistory={
+          auctionLog === null
+            ? undefined
+            : deal.seq === 'dealing'
+              ? []
+              : auctionLog.filter((e) => e.seat === seat).map((e) => e.bid)
+        }
         bidders={bidders}
         biddersSet={biddersAreSet(view)}
       />
     );
   }
 
+  const skipDeal = deal.seq === 'dealing' || deal.seq === 'pickup';
+
   return (
-    <main data-screen="table" className="screen table-screen">
+    <main
+      data-screen="table"
+      className="screen table-screen"
+      data-deal={deal.seq}
+      onClick={skipDeal ? () => deal.skip() : undefined}
+    >
       <Hud view={view} names={names} />
       {redealNotice !== null && (
         <RedealToast
@@ -231,7 +254,7 @@ export function Table(): ReactNode {
             </div>
           );
         })}
-        {bidding ? (
+        {bidding && deal.showBidUi ? (
           <BidPanel
             active={bids.active}
             legal={bids.legal}
@@ -239,6 +262,8 @@ export function Table(): ReactNode {
             redealPass={view.dealer === me && (view.auction?.declarer ?? null) === null}
             onBid={submitBid}
           />
+        ) : bidding ? (
+          <div className="trick-area deal-felt" data-testid="deal-felt" />
         ) : (
           <>
             <TrickArea
@@ -252,7 +277,21 @@ export function Table(): ReactNode {
             <LastTrickPeek trick={view.lastTrick} names={names} />
           </>
         )}
-        {exchanging && view.toAct !== null && view.toAct !== me && (
+        {/* middle-pile: five CardBacks stay on the felt through the auction. */}
+        {deal.showMiddle && <MiddlePile count={deal.middleLanded} />}
+        {deal.seq === 'dealing' && (
+          <DealOverlay
+            dealer={view.dealer}
+            packets={deal.packets}
+            seed={deal.seed}
+            onLand={deal.landPacket}
+            onComplete={deal.completeDeal}
+          />
+        )}
+        {deal.seq === 'pickup' && view.declarer !== null && (
+          <MiddleFly declarer={view.declarer} seed={deal.seed} onComplete={deal.completePickup} />
+        )}
+        {exchanging && !deal.holdPostAuction && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
             {passThrough
               ? view.declarer === me
@@ -261,12 +300,12 @@ export function Table(): ReactNode {
               : `${seatName(room, view.toAct)} picked up the middle and is discarding ${Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…`}
           </div>
         )}
-        {view.phase === 'slamDecision' && !slamOffer && (
+        {view.phase === 'slamDecision' && !slamOffer && !deal.holdPostAuction && (
           <div className="exchange-status" role="status" data-testid="slam-status">
             {seatName(room, view.declarer ?? 0)} is considering a slam…
           </div>
         )}
-        {view.phase === 'partnerCard' && !givingCard && view.declarer !== null && (
+        {view.phase === 'partnerCard' && !givingCard && !deal.holdPostAuction && view.declarer !== null && (
           <div className="exchange-status" role="status" data-testid="slam-status">
             {view.declarer === me
               ? `Slam declared — waiting for ${seatName(room, partnerOf(view.declarer))} to give you their best card…`
@@ -291,7 +330,7 @@ export function Table(): ReactNode {
             {lastError.message}
           </div>
         )}
-        {slamOffer && view.contract !== null && (
+        {slamOffer && !deal.holdPostAuction && view.contract !== null && (
           <SlamPanel
             contract={view.contract}
             locked={locked || pendingActions === null}
@@ -299,7 +338,7 @@ export function Table(): ReactNode {
             onDecline={() => answerSlam(false)}
           />
         )}
-        {picking ? (
+        {picking && !deal.holdPostAuction ? (
           <ExchangePicker
             cards={hand}
             maxKeep={10}

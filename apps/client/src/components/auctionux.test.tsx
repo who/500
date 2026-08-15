@@ -37,10 +37,21 @@ import {
 beforeEach(() => {
   installFakeLocalStorage();
   history.replaceState(null, '', '/');
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion'),
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+    onchange: null,
+  }));
 });
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 const ROOM = roomViewFixture({

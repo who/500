@@ -27,6 +27,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllGlobals();
 });
 
 /** Seat the four names used across the specs: you, right, partner, left. */
@@ -542,3 +543,102 @@ describe('declaring-side Bidders chips (fh-3os)', () => {
     );
   });
 });
+
+describe('deal choreography (fh-8t1)', () => {
+  const TEN = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+
+  function auctionHand(overrides: Partial<RedactedView> = {}): RedactedView {
+    return redactedViewFixture(0, {
+      hand: TEN,
+      handCounts: [10, 10, 10, 10],
+      middleCount: 5,
+      dealer: 3,
+      toAct: 0,
+      auction: {
+        ladderPos: -1,
+        declarer: null,
+        indications: [],
+        indicated: [false, false, false, false],
+        history: [{ seat: 1, bid: bid(NUM, 7, 0) }],
+        turn: 0,
+        done: false,
+      },
+      ...overrides,
+    });
+  }
+
+  function tableRoot(app: ReturnType<typeof renderApp>): HTMLElement {
+    return app.container.querySelector('[data-screen="table"]') as HTMLElement;
+  }
+
+  it('holds the bid panel and chips until the deal is skipped, then shows the middle pile', () => {
+    const { app } = renderTable(auctionHand());
+    expect(app.queryByTestId('bid-panel')).toBeNull();
+    expect(app.getByTestId('deal-overlay')).toBeDefined();
+    expect(chipTexts(app, 1)).toEqual([]);
+    fireEvent.click(tableRoot(app));
+    expect(app.getByTestId('bid-panel')).toBeDefined();
+    expect(app.queryByTestId('deal-overlay')).toBeNull();
+    expect(chipTexts(app, 1)).toEqual(['7♠']);
+    expect(app.getByTestId('middle-pile').querySelectorAll('.card-back')).toHaveLength(5);
+  });
+
+  it('snaps to the dealt state under prefers-reduced-motion with no flying nodes', () => {
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+    }));
+    const { app } = renderTable(auctionHand());
+    expect(app.getByTestId('bid-panel')).toBeDefined();
+    expect(app.queryByTestId('deal-overlay')).toBeNull();
+    expect(app.queryByTestId('deal-flyer')).toBeNull();
+    expect(app.getByTestId('middle-pile').querySelectorAll('.card-back')).toHaveLength(5);
+    vi.unstubAllGlobals();
+  });
+
+  it('replays the deal on a redeal', () => {
+    const { client, app } = renderTable(auctionHand());
+    fireEvent.click(tableRoot(app));
+    expect(app.getByTestId('bid-panel')).toBeDefined();
+    applyEvent(
+      client,
+      env(2, { t: 'gameView', view: { view: auctionHand({ redeals: 1, dealer: 0, toAct: 1 }) } }),
+    );
+    expect(app.queryByTestId('bid-panel')).toBeNull();
+    expect(app.getByTestId('deal-overlay')).toBeDefined();
+    fireEvent.click(tableRoot(app));
+    expect(app.getByTestId('bid-panel')).toBeDefined();
+    expect(app.getByTestId('middle-pile')).toBeDefined();
+  });
+
+  it('flies the middle to the declarer after the contract toast, then drops the pile', () => {
+    vi.useFakeTimers();
+    const { client, app } = renderTable(auctionHand());
+    fireEvent.click(tableRoot(app));
+    expect(app.getByTestId('middle-pile')).toBeDefined();
+    applyEvent(
+      client,
+      env(2, {
+        t: 'gameView',
+        view: { view: auctionHand({ ...WON_8D, hand: TEN, middleCount: 5 }) },
+      }),
+    );
+    expect(app.getByTestId('contract-toast')).toBeDefined();
+    expect(app.getByTestId('middle-pile')).toBeDefined();
+    expect(app.queryByTestId('slam-status')).toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(CONTRACT_TOAST_MS);
+    });
+    expect(app.queryByTestId('contract-toast')).toBeNull();
+    expect(app.getByTestId('middle-fly')).toBeDefined();
+    fireEvent.click(tableRoot(app));
+    expect(app.queryByTestId('middle-pile')).toBeNull();
+    expect(app.queryByTestId('middle-fly')).toBeNull();
+    expect(app.getByTestId('slam-status')).toBeDefined();
+  });
+});
+
+function chipTexts(app: ReturnType<typeof renderApp>, seat: number): string[] {
+  const strip = app.container.querySelector(`[data-seat="${seat}"] [data-testid="bid-history"]`);
+  return [...(strip?.querySelectorAll('.bid-chip') ?? [])].map((c) => c.textContent ?? '');
+}

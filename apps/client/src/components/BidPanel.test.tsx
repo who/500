@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 
 import { fireEvent } from '@testing-library/react';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   type Action,
   type AuctionState,
@@ -35,6 +35,21 @@ import {
 beforeEach(() => {
   installFakeLocalStorage();
   history.replaceState(null, '', '/');
+  // Existing panel specs assert the auction UI, not the deal flights.
+  vi.stubGlobal('matchMedia', (query: string) => ({
+    matches: query.includes('prefers-reduced-motion'),
+    media: query,
+    addEventListener: () => undefined,
+    removeEventListener: () => undefined,
+    addListener: () => undefined,
+    removeListener: () => undefined,
+    dispatchEvent: () => false,
+    onchange: null,
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 const ROOM = roomViewFixture({
