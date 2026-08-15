@@ -64,7 +64,7 @@ import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
 import type { CalibrationArtifact } from '@five-hundred/learn';
 import type { CallObservation } from './priors.js';
-import { sampleHiddenWorld } from './priors.js';
+import { remapCallObservations, sampleHiddenWorld } from './priors.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 import { sampleWorld } from './worlds.js';
 
@@ -100,6 +100,11 @@ export interface HardBidOptions {
   readonly calibration?: CalibrationArtifact | null;
   /** Auction-call evidence for the prior-conditioned sampler. */
   readonly observations?: readonly CallObservation[];
+  /**
+   * Table seat of the deciding viewer. Slam rollouts have no BidContext, so
+   * they remap observations with this; chooseBid uses `context.seat` instead.
+   */
+  readonly viewer?: number;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -485,7 +490,7 @@ export function chooseBidByRollout(
 
   const constraints = unseenConstraints(sorted);
   const artifact = options.calibration;
-  const observations = options.observations ?? [];
+  const observations = remapCallObservations(options.observations ?? [], context.seat);
   const sampled: SampledWorld[] = [];
   for (let i = 0; i < worlds; i++) {
     sampled.push(
@@ -590,7 +595,7 @@ export function considerSlamByRollout(
       constraints,
       rng,
       options.calibration,
-      options.observations ?? [],
+      remapCallObservations(options.observations ?? [], options.viewer ?? ME),
     );
     diff += rolloutSlamVariant(sorted, world, contract, true, rng, params);
     diff -= rolloutSlamVariant(sorted, world, contract, false, rng, params);

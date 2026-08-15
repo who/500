@@ -105,6 +105,23 @@ export function sampleHiddenWorld(
   return samplePriorConditionedWorld(constraints, observations, artifact, rng);
 }
 
+/**
+ * Rotate table-seat observations into the Hard rollout frame, where the
+ * viewer is always seat 0. Bidding and keeps sample that way; play keeps
+ * table seats via deriveConstraints. Identity when `viewer` is 0.
+ */
+export function remapCallObservations(
+  observations: readonly CallObservation[],
+  viewer: number,
+): CallObservation[] {
+  const shift = ((viewer % 4) + 4) % 4;
+  if (shift === 0) return [...observations];
+  return observations.map((obs) => ({
+    ...obs,
+    seat: (obs.seat - shift + 4) % 4,
+  }));
+}
+
 /** Resolve a seat's policy kind: unknown seats are Hard, never guessed human. */
 export function policyKindForSeat(
   policyKinds: readonly (PolicyKind | string | null | undefined)[] | undefined,

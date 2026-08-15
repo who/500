@@ -34,6 +34,7 @@ import {
   type Policy,
   observationsFromAuction,
   policyKindForSeat,
+  remapCallObservations,
   sampleHiddenWorld,
   sampleKeepWorlds,
   samplePriorConditionedWorld,
@@ -319,6 +320,55 @@ describe('fh-azx.5: Hard sampler uses the loaded calibration artifact', () => {
       makeRng(11),
     );
     expect(cond).toBeLessThan(uncond - 0.3);
+  });
+
+  it('a seat-2 viewer remaps a seat-1 human onto the RHO hand, not world.hands[1]', () => {
+    const art = fitCalibration(biasedHumanCorpus(80), { minSamples: 20 });
+    const tableHuman: CallObservation[] = [
+      { seat: 1, policyKind: 'human', callKind: NUM, strain: 0 },
+    ];
+    expect(remapCallObservations(tableHuman, 2)).toEqual([
+      { seat: 3, policyKind: 'human', callKind: NUM, strain: 0 },
+    ]);
+
+    const cards = DECK.slice(0, 15);
+    const contract = bid(NUM, 7, 0);
+    const SAMPLES = 200;
+    const viewer = 2;
+    const uniformRho = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng)[0]!,
+      3,
+      0,
+      SAMPLES,
+      makeRng(19),
+    );
+    const uniformLho = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng)[0]!,
+      1,
+      0,
+      SAMPLES,
+      makeRng(19),
+    );
+    const condRho = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng, art, tableHuman, viewer)[0]!,
+      3,
+      0,
+      SAMPLES,
+      makeRng(19),
+    );
+    const condLho = meanSeatStrength(
+      (rng) => sampleKeepWorlds(cards, contract, 1, rng, art, tableHuman, viewer)[0]!,
+      1,
+      0,
+      SAMPLES,
+      makeRng(19),
+    );
+    // Table seat 1 is RHO of a seat-2 viewer → remapped seat 3.
+    expect(condRho).toBeLessThan(uniformRho - 0.3);
+    // world.hands[1] is the viewer's LHO (table seat 3), not the human —
+    // the weak-human prior must not pull that seat down the same way.
+    expect(condLho).toBeGreaterThan(condRho);
+    expect(condLho).toBeGreaterThan(uniformLho - 0.15);
   });
 
   it('with no artifact, the helper and keeps path stay on the uniform sampler', () => {

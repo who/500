@@ -89,6 +89,7 @@ port.on('message', (request: HardWorkerRequest) => {
       params: overlayParams(request),
       calibration,
       policyKinds,
+      viewer: request.seat,
       observations: observationsFromAuction(
         state.auction,
         request.seat,

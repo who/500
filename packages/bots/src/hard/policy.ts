@@ -66,6 +66,12 @@ export interface HardPolicyOptions {
   readonly observations?: readonly CallObservation[];
   /** Per-seat policy kinds used when rebuilding observations from GameState. */
   readonly policyKinds?: readonly PolicyKind[];
+  /**
+   * Table seat of this decision. Bidding remaps via BidContext.seat; keeps
+   * and slam rollouts use this so table-seat observations land on the ME=0
+   * hidden hands.
+   */
+  readonly viewer?: number;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -100,6 +106,7 @@ export class HardPolicy implements StateAwarePolicy {
       params: this.params,
       calibration: this.options.calibration,
       observations: this.options.observations,
+      viewer: this.options.viewer,
     });
   }
 
@@ -109,6 +116,7 @@ export class HardPolicy implements StateAwarePolicy {
       params: this.params,
       calibration: this.options.calibration,
       observations: this.options.observations,
+      viewer: this.options.viewer,
     });
   }
 

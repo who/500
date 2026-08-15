@@ -66,7 +66,7 @@ import {
 } from './bidding.js';
 import type { CalibrationArtifact } from '@five-hundred/learn';
 import type { CallObservation } from './priors.js';
-import { sampleHiddenWorld } from './priors.js';
+import { remapCallObservations, sampleHiddenWorld } from './priors.js';
 import type { ObservedConstraints, SampledWorld } from './worlds.js';
 
 // The keep gates below now live in BotParams (hardKeeps group, fh-sja.1); the
@@ -94,6 +94,8 @@ export interface HardKeepsOptions {
   readonly calibration?: CalibrationArtifact | null;
   /** Auction-call evidence for the prior-conditioned sampler. */
   readonly observations?: readonly CallObservation[];
+  /** Table seat of the deciding viewer; observations are remapped into ME=0. */
+  readonly viewer?: number;
 }
 
 const ascending = (a: Card, b: Card): number => a - b;
@@ -183,11 +185,13 @@ export function sampleKeepWorlds(
   rng: Rng,
   artifact?: CalibrationArtifact | null,
   observations: readonly CallObservation[] = [],
+  viewer: number = ME,
 ): SampledWorld[] {
   const constraints = keepsConstraints([...cards].sort(ascending), contract);
+  const remapped = remapCallObservations(observations, viewer);
   const worlds: SampledWorld[] = [];
   for (let i = 0; i < n; i++) {
-    worlds.push(sampleHiddenWorld(constraints, rng, artifact, observations));
+    worlds.push(sampleHiddenWorld(constraints, rng, artifact, remapped));
   }
   return worlds;
 }
@@ -281,6 +285,7 @@ export function chooseKeepsByRollout(
     rng,
     options.calibration,
     options.observations ?? [],
+    options.viewer ?? ME,
   );
   let best = candidates[0] as Card[];
   let bestEV = -Infinity;
