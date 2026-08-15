@@ -16,3 +16,5 @@ export * from './calibration.js';
 export * from './sprt.js';
 export * from './arena.js';
 export * from './tuner.js';
+export * from './s3.js';
+export * from './store.js';
