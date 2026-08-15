@@ -347,6 +347,26 @@ describe('Table', () => {
     expect(app.getByTestId('exchange-picker').querySelectorAll('[data-card]')).toHaveLength(15);
     expect(app.getByTestId('hud-contract').textContent).toBe('8H by Seat 1');
   });
+
+  it('Leave confirms, then sends leaveRoom and returns Home', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    const { client, app } = renderTable(midTrickView());
+    fireEvent.click(app.getByRole('button', { name: 'Leave' }));
+    expect(confirm).toHaveBeenCalledWith('Leave this game? Your seat becomes an AI player.');
+    expect(client.sent).toEqual([{ t: 'leaveRoom' }]);
+    expect(client.store.getState().seatView).toBeNull();
+    expect(app.container.querySelector('[data-screen="home"]')).not.toBeNull();
+    confirm.mockRestore();
+  });
+
+  it('Leave does nothing when the mid-game confirm is cancelled', () => {
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
+    const { client, app } = renderTable(midTrickView());
+    fireEvent.click(app.getByRole('button', { name: 'Leave' }));
+    expect(client.sent).toEqual([]);
+    expect(app.container.querySelector('[data-screen="table"]')).not.toBeNull();
+    confirm.mockRestore();
+  });
 });
 
 /**

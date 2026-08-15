@@ -31,6 +31,7 @@ import {
   type GameState,
 } from '@five-hundred/engine';
 import type {
+  BotDifficulty,
   ClientCommand,
   ConvertSeatToBotCommand,
   Envelope,
@@ -499,10 +500,20 @@ export function handleConvertSeatToBot(client: RoomClient, cmd: ConvertSeatToBot
   room.seats[cmd.seat] = { kind: 'bot', difficulty, name: pickBotName(takenBotNames(room)) };
   room.lastActivity = Date.now();
   broadcastAll(room, { t: 'roomState', room: roomView(room) });
-  session.driver?.addBot(cmd.seat, difficulty);
+  activateConvertedBot(room, cmd.seat, difficulty);
+}
+
+/**
+ * After a human seat has been replaced with a bot, register it on the
+ * driver and treat it as auto-ready in handScored. Shared by the host
+ * convertSeatToBot command and RoomStore.leaveRoom (self-convert).
+ */
+export function activateConvertedBot(room: Room, seat: number, difficulty: BotDifficulty): void {
+  const session = room.game;
+  if (!isGameSession(session)) return;
+  session.driver?.addBot(seat, difficulty);
   if (session.state.phase === 'handScored') {
-    // The converted seat is now a bot, hence auto-ready: tell everyone.
     broadcastHandReady(room, session);
-    advanceHandIfAllReady(room, session, cmd.seat);
+    advanceHandIfAllReady(room, session, seat);
   }
 }

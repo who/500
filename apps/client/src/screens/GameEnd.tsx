@@ -28,6 +28,11 @@ export function GameEnd(): ReactNode {
   const isHost = room !== null && room.hostSeat === me;
   const hostName = room?.hostSeat != null ? seatName(room, room.hostSeat) : 'the host';
 
+  function handleLeave(): void {
+    client.send({ t: 'leaveRoom' });
+    client.store.getState().leaveSession();
+  }
+
   return (
     <main data-screen="game-end" className="screen game-end-screen">
       <h1 data-testid="game-end-headline">{weWon ? 'You win!' : 'You lose'}</h1>
@@ -40,17 +45,22 @@ export function GameEnd(): ReactNode {
           Out the back! The losing side fell to {loserScore}.
         </p>
       )}
-      {isHost ? (
-        <button
-          type="button"
-          data-testid="game-end-rematch"
-          onClick={() => client.send({ t: 'rematch' })}
-        >
-          Rematch — same seats, same bots
+      <div className="game-end-actions">
+        {isHost ? (
+          <button
+            type="button"
+            data-testid="game-end-rematch"
+            onClick={() => client.send({ t: 'rematch' })}
+          >
+            Rematch — same seats, same bots
+          </button>
+        ) : (
+          <p data-testid="game-end-wait-host">Waiting for {hostName} to start a rematch.</p>
+        )}
+        <button type="button" title="Back to menu" onClick={handleLeave}>
+          Leave
         </button>
-      ) : (
-        <p data-testid="game-end-wait-host">Waiting for {hostName} to start a rematch.</p>
-      )}
+      </div>
     </main>
   );
 }

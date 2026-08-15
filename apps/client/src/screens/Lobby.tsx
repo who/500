@@ -77,6 +77,11 @@ export function Lobby(): ReactNode {
     client.send({ t: 'setAdaptiveBots', on });
   }
 
+  function handleLeave(): void {
+    client.send({ t: 'leaveRoom' });
+    client.store.getState().leaveSession();
+  }
+
   function renderSeat(seat: RoomSeatView): ReactNode {
     const isYou = mySeat === seat.seat;
     return (
@@ -119,9 +124,14 @@ export function Lobby(): ReactNode {
             </span>
           )}
         </h1>
-        <button type="button" onClick={handleCopy}>
-          {copied ? 'Copied!' : 'Copy invite link'}
-        </button>
+        <div className="room-code-actions">
+          <button type="button" onClick={handleCopy}>
+            {copied ? 'Copied!' : 'Copy invite link'}
+          </button>
+          <button type="button" title="Back to menu" onClick={handleLeave}>
+            Leave
+          </button>
+        </div>
       </header>
 
       <section className="lobby-guide">

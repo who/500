@@ -34,6 +34,7 @@ const validCommands: Record<string, unknown> = {
   // fh-q2m: the debug panel's trick marker; the note is optional.
   flagTrick: { t: 'flagTrick', hand: 2, trick: 5 },
   flagTrickNoted: { t: 'flagTrick', hand: 0, trick: 0, note: 'bot ducked its ace' },
+  leaveRoom: { t: 'leaveRoom' },
 };
 
 /** Malformed samples per command type: wrong, missing, or out-of-range fields. */

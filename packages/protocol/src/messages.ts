@@ -141,6 +141,11 @@ export interface FlagTrickCommand {
   readonly note?: string;
 }
 
+/** Detach this socket from its room and return the player to Home. */
+export interface LeaveRoomCommand {
+  readonly t: 'leaveRoom';
+}
+
 export type ClientCommand =
   | CreateRoomCommand
   | JoinRoomCommand
@@ -158,7 +163,8 @@ export type ClientCommand =
   | NextHandCommand
   | RematchCommand
   | RequestStateCommand
-  | FlagTrickCommand;
+  | FlagTrickCommand
+  | LeaveRoomCommand;
 
 export type CommandType = ClientCommand['t'];
 

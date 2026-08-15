@@ -14,7 +14,11 @@ import { type RedactedView, NULLA, bidValue, isLoseAll } from '@five-hundred/eng
 import { biddersAreSet } from '../lib/biddersSet.ts';
 import { contractToken } from '../lib/contractToken.ts';
 
-export function Hud(props: { view: RedactedView; names: readonly string[] }): ReactNode {
+export function Hud(props: {
+  view: RedactedView;
+  names: readonly string[];
+  onLeave?: () => void;
+}): ReactNode {
   const { view, names } = props;
   const us = view.seat % 2;
   const them = 1 - us;
@@ -63,6 +67,11 @@ export function Hud(props: { view: RedactedView; names: readonly string[] }): Re
         <div className="hud-cell hud-stake" data-testid="hud-stake">
           At stake: {stake}
         </div>
+      )}
+      {props.onLeave !== undefined && (
+        <button type="button" className="hud-leave" title="Back to menu" onClick={props.onLeave}>
+          Leave
+        </button>
       )}
     </header>
   );

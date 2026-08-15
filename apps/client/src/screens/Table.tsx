@@ -116,6 +116,12 @@ export function Table(): ReactNode {
   const deal = useDealChoreography(seatView?.view ?? null, contractNotice !== null);
   if (seatView === null) return null; // the router only mounts Table with a view
 
+  function handleLeave(): void {
+    if (!confirm('Leave this game? Your seat becomes an AI player.')) return;
+    client.send({ t: 'leaveRoom' });
+    client.store.getState().leaveSession();
+  }
+
   const view = seatView.view;
   const me = view.seat;
   const names = [0, 1, 2, 3].map((s) => seatName(room, s));
@@ -224,7 +230,7 @@ export function Table(): ReactNode {
       data-deal={deal.seq}
       onClick={skipDeal ? () => deal.skip() : undefined}
     >
-      <Hud view={view} names={names} />
+      <Hud view={view} names={names} onLeave={handleLeave} />
       {redealNotice !== null && (
         <RedealToast
           dealerName={seatName(room, redealNotice.dealer)}

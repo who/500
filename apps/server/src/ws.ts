@@ -10,6 +10,7 @@ import type { Server } from 'node:http';
 import { WebSocketServer, type WebSocket } from 'ws';
 import { isCommand, type ClientCommand, type Envelope } from '@five-hundred/protocol';
 import {
+  activateConvertedBot,
   createGameSession,
   handleConvertSeatToBot,
   handleFlagTrick,
@@ -77,6 +78,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
     case 'rematch':
       store.rematch(client);
       return;
+    case 'leaveRoom':
+      store.leaveRoom(client);
+      return;
     case 'convertSeatToBot':
       handleConvertSeatToBot(client, cmd);
       return;
@@ -105,7 +109,11 @@ export interface WsApp {
 /** Attach the ws server + room store (with GC running) to an HTTP server. */
 export function attachWs(
   server: Server,
-  store: RoomStore = new RoomStore({ startGame: defaultStartGame, resumeView }),
+  store: RoomStore = new RoomStore({
+    startGame: defaultStartGame,
+    resumeView,
+    onSeatConvertedToBot: activateConvertedBot,
+  }),
 ): WsApp {
   const wss = new WebSocketServer({ server });
   store.startGc();

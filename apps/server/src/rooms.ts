@@ -170,6 +170,11 @@ export class RoomStore {
       startGame?: (room: Room) => unknown;
       /** Reconnect leaf: resend a reattached client its current game view. */
       resumeView?: (room: Room, client: RoomClient) => void;
+      /**
+       * Mid-game leave: after this store has swapped the leaving seat to a
+       * Hard bot, wire the driver (and handScored auto-ready).
+       */
+      onSeatConvertedToBot?: (room: Room, seat: number, difficulty: BotDifficulty) => void;
     } = {},
   ) {}
 
@@ -440,6 +445,44 @@ export class RoomStore {
     room.game = this.opts.startGame?.(room) ?? { stub: true };
     this.touch(room);
     this.broadcastRoomState(room);
+  }
+
+  /**
+   * Explicit leave: detach this socket from the room but keep the connection
+   * open for the next create/join. Pre-game vacates the seat. Mid-game, if
+   * this socket is the seated human, convert that seat to a Hard bot (even
+   * when it is the host) so the table does not freeze; dispose the game if
+   * no human remains. A spectator or a kicked tab only detaches.
+   */
+  leaveRoom(client: RoomClient): void {
+    const room = client.room;
+    if (room === null) return;
+    const seat = client.seat;
+    const wasHost = room.host === client;
+    const seated = seat !== null ? room.seats[seat] : undefined;
+    const isSeatedHuman = seat !== null && seated?.kind === 'human';
+
+    if (room.game !== null && isSeatedHuman && seat !== null) {
+      const difficulty = DEFAULT_DIFFICULTY;
+      room.seats[seat] = {
+        kind: 'bot',
+        difficulty,
+        name: pickBotName(takenBotNames(room)),
+      };
+      this.opts.onSeatConvertedToBot?.(room, seat, difficulty);
+      if (!room.seats.some((s) => s.kind === 'human')) {
+        disposeGame(room.game);
+      }
+    } else if (room.game === null && isSeatedHuman && seat !== null) {
+      room.seats[seat] = emptySeat();
+    }
+
+    room.clients.delete(client);
+    client.room = null;
+    client.seat = null;
+    if (wasHost) room.host = this.nextHost(room);
+    this.touch(room);
+    if (room.clients.size > 0) this.broadcastRoomState(room);
   }
 
   /** Socket closed: vacate pre-game, mark disconnected mid-game, move host. */

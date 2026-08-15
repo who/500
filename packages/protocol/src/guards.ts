@@ -155,6 +155,7 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   requestState: () => true,
   flagTrick: (m) =>
     isIndex(m.hand) && isIndex(m.trick) && (m.note === undefined || typeof m.note === 'string'),
+  leaveRoom: () => true,
 };
 
 const EVENT_CHECKS: Record<ServerEvent['t'], (m: Rec) => boolean> = {

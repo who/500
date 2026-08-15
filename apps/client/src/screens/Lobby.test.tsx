@@ -293,4 +293,18 @@ describe('Lobby', () => {
     expect(hostView.container.querySelector('[data-screen="table"]')).not.toBeNull();
     expect(guestView.container.querySelector('[data-screen="table"]')).not.toBeNull();
   });
+
+  it('Leave sends leaveRoom, clears the session, and returns Home', async () => {
+    const user = userEvent.setup();
+    const host = makeClient();
+    const hostView = renderApp(host);
+    seatHost(host);
+    expect(hostView.container.querySelector('[data-screen="lobby"]')).not.toBeNull();
+
+    await user.click(within(hostView.container).getByRole('button', { name: 'Leave' }));
+    expect(host.sent).toContainEqual({ t: 'leaveRoom' });
+    expect(host.store.getState().roomView).toBeNull();
+    expect(host.store.getState().session).toBeNull();
+    expect(hostView.container.querySelector('[data-screen="home"]')).not.toBeNull();
+  });
 });

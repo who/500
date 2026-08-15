@@ -108,4 +108,13 @@ describe('GameEnd', () => {
     expect(app.container.querySelector('[data-screen="table"]')).not.toBeNull();
     expect(app.getByTestId('hud-scores').textContent).toBe('Score 0 / 0');
   });
+
+  it('Leave sits beside Rematch, sends leaveRoom, and returns Home', () => {
+    const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
+    expect(app.getByTestId('game-end-rematch')).not.toBeNull();
+    fireEvent.click(app.getByRole('button', { name: 'Leave' }));
+    expect(client.sent).toEqual([{ t: 'leaveRoom' }]);
+    expect(client.store.getState().roomView).toBeNull();
+    expect(app.container.querySelector('[data-screen="home"]')).not.toBeNull();
+  });
 });

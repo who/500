@@ -26,6 +26,7 @@ import type {
   ServerEvent,
 } from '@five-hundred/protocol';
 import {
+  activateConvertedBot,
   applyGameAction,
   createGameSession,
   isGameSession,
@@ -57,6 +58,7 @@ export async function startTestApp(
   const store = new RoomStore({
     startGame: (room) => createGameSession(room, seed, { bots: null, ...extra }),
     resumeView,
+    onSeatConvertedToBot: activateConvertedBot,
   });
   const app = attachWs(server, store);
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
