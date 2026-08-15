@@ -10,13 +10,17 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import type { GameState } from '@five-hundred/engine';
+import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
 import {
   GameRecorder,
   appendGameRecordSync,
+  createGameStore,
   type GameMarker,
+  type GameStore,
   type PlayerMeta,
   type PolicyKind,
 } from '@five-hundred/learn';
+import { OVERLAY_VERSION } from './botParams.js';
 import type { Room } from './rooms.js';
 
 /** Longest note a trick flag may carry; anything longer is truncated. */
@@ -61,6 +65,7 @@ export class GameLogger {
     private readonly path: string,
     seed: number,
     players: readonly PlayerMeta[],
+    private readonly store: GameStore | null = null,
   ) {
     this.recorder = new GameRecorder({
       source: 'server',
@@ -103,10 +108,19 @@ export class GameLogger {
 
   /** Append the finished game to the corpus (best-effort; logs on failure). */
   finish(state: GameState): void {
+    const record = this.recorder.finish(state);
     try {
-      appendGameRecordSync(this.path, this.recorder.finish(state));
+      appendGameRecordSync(this.path, record);
     } catch (err) {
       console.error('game-log write failed:', err instanceof Error ? err.message : err);
+    }
+    if (this.store === null) return;
+    try {
+      void this.store.putGame(record).catch((err: unknown) => {
+        console.error('game-log store upload failed:', err instanceof Error ? err.message : err);
+      });
+    } catch (err) {
+      console.error('game-log store upload failed:', err instanceof Error ? err.message : err);
     }
   }
 }
@@ -119,13 +133,15 @@ export function createGameLogger(
   room: Room,
   seed: number,
   config: GameLogConfig,
+  store?: GameStore | null,
 ): GameLogger | null {
   if (!config.enabled) return null;
+  const resolved = store !== undefined ? store : createGameStore(process.env);
   const players: PlayerMeta[] = [0, 1, 2, 3].map((seat) => ({
     seat,
     kind: seatKind(room, seat),
-    paramsSchemaVersion: null,
-    overlayHash: null,
+    paramsSchemaVersion: PARAMS_SCHEMA_VERSION,
+    overlayHash: OVERLAY_VERSION,
   }));
-  return new GameLogger(join(config.dir, config.file), seed, players);
+  return new GameLogger(join(config.dir, config.file), seed, players, resolved);
 }

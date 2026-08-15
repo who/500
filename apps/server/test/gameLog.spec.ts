@@ -12,9 +12,18 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { legalActions, toActSeat, type Action, type GameState } from '@five-hundred/engine';
-import { gameMarkers, readGameRecordsSync, validateGameRecord } from '@five-hundred/learn';
-import { MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
+import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
+import { legalActions, newGame, toActSeat, type Action, type GameState } from '@five-hundred/engine';
+import {
+  gameMarkers,
+  readGameRecordsSync,
+  validateGameRecord,
+  type GameRecord,
+  type GameStore,
+} from '@five-hundred/learn';
+import { OVERLAY_VERSION } from '../src/botParams.js';
+import { createGameLogger, MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
+import type { Room } from '../src/rooms.js';
 import { applyGameAction } from '../src/game.js';
 import {
   driveOpeningTrick,
@@ -91,6 +100,11 @@ describe('opt-in game logging', () => {
     expect(record.hands.length).toBeGreaterThan(0);
     // Seats 0/2 are human, 1/3 are bots in the shared fixture.
     expect(record.players.map((p) => p.kind)).toEqual(['human', 'hard', 'human', 'hard']);
+    expect(record.players).toHaveLength(4);
+    for (const player of record.players) {
+      expect(player.paramsSchemaVersion).toBe(PARAMS_SCHEMA_VERSION);
+      expect(player.overlayHash).toBe(OVERLAY_VERSION);
+    }
   });
 
   it('writes nothing when logging is disabled (AC-3)', async () => {
@@ -238,6 +252,110 @@ describe('flagged tricks (fh-q2m)', () => {
     expect(fx.ann.received.some((e) => e.event.t === 'error')).toBe(false);
     driveToGameOver(fx);
     expect(existsSync(join(dir, 'games.jsonl'))).toBe(false);
+  });
+});
+
+function stubRoom(): Room {
+  return {
+    code: 'TESTA',
+    seats: [
+      { kind: 'human', name: 'Ann', token: 'a', connected: true },
+      { kind: 'bot', difficulty: 'hard', name: 'B' },
+      { kind: 'human', name: 'Bob', token: 'b', connected: true },
+      { kind: 'bot', difficulty: 'hard', name: 'D' },
+    ],
+    host: null,
+    game: null,
+    seq: 0,
+    lastActivity: 0,
+    clients: new Set(),
+    adaptiveBots: false,
+  };
+}
+
+function stubStore(putGame: (record: GameRecord) => Promise<void>): GameStore {
+  return {
+    putGame,
+    getGame: async () => null,
+    listGames: async () => [],
+    readGames: async () => [],
+    putJson: async () => {},
+    getJson: async () => null,
+  };
+}
+
+describe('corpus store upload (fh-azx.2)', () => {
+  it('stamps schema version and overlay on every seat (AC-1)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-meta-'));
+    dirs.push(dir);
+    const logger = createGameLogger(stubRoom(), 7, { enabled: true, dir, file: 'games.jsonl' }, null);
+    expect(logger).not.toBeNull();
+    logger!.finish(newGame(7));
+
+    const record = readGameRecordsSync(join(dir, 'games.jsonl'))[0]!;
+    expect(record.players).toHaveLength(4);
+    for (const player of record.players) {
+      expect(player.paramsSchemaVersion).toBe(PARAMS_SCHEMA_VERSION);
+      expect(player.overlayHash).toBe(OVERLAY_VERSION);
+    }
+  });
+
+  it('puts the finished record to an injected store after the local append (AC-2)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-store-'));
+    dirs.push(dir);
+    const uploaded: GameRecord[] = [];
+    const store = stubStore(async (record) => {
+      uploaded.push(record);
+    });
+    const logger = createGameLogger(
+      stubRoom(),
+      11,
+      { enabled: true, dir, file: 'games.jsonl' },
+      store,
+    );
+    expect(logger).not.toBeNull();
+    logger!.finish(newGame(11));
+
+    const path = join(dir, 'games.jsonl');
+    const local = readGameRecordsSync(path);
+    expect(local).toHaveLength(1);
+    expect(uploaded).toHaveLength(1);
+    expect(uploaded[0]).toEqual(local[0]);
+  });
+
+  it('does not throw from finish when the store throws, and still writes JSONL (AC-3)', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-store-throw-'));
+    dirs.push(dir);
+    const store = stubStore(async () => {
+      throw new Error('bucket unavailable');
+    });
+    const logger = createGameLogger(
+      stubRoom(),
+      13,
+      { enabled: true, dir, file: 'games.jsonl' },
+      store,
+    );
+    expect(logger).not.toBeNull();
+    expect(() => logger!.finish(newGame(13))).not.toThrow();
+    expect(readGameRecordsSync(join(dir, 'games.jsonl'))).toHaveLength(1);
+  });
+
+  it('writes nothing and does not put when logging is disabled', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-store-off-'));
+    dirs.push(dir);
+    const uploaded: GameRecord[] = [];
+    const store = stubStore(async (record) => {
+      uploaded.push(record);
+    });
+    const logger = createGameLogger(
+      stubRoom(),
+      17,
+      { enabled: false, dir, file: 'games.jsonl' },
+      store,
+    );
+    expect(logger).toBeNull();
+    expect(existsSync(join(dir, 'games.jsonl'))).toBe(false);
+    expect(uploaded).toHaveLength(0);
   });
 });
 
