@@ -177,6 +177,8 @@ export function Table(): ReactNode {
   }
 
   function badge(seat: number): ReactNode {
+    const declarer = view.declarer;
+    const bidders = declarer !== null && seat % 2 === declarer % 2;
     return (
       <SeatBadge
         name={seatName(room, seat)}
@@ -189,6 +191,8 @@ export function Table(): ReactNode {
         cardCount={view.handCounts[seat] ?? 0}
         showBacks={seat !== me}
         bidHistory={auctionLog?.filter((e) => e.seat === seat).map((e) => e.bid)}
+        bidders={bidders}
+        biddersSet={biddersAreSet(view)}
       />
     );
   }

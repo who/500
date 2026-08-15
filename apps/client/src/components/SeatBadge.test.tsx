@@ -125,6 +125,52 @@ describe('turn handoff keeps the badge box invariant (AC-1/AC-2)', () => {
   });
 });
 
+describe('the reserved Bidders chip (fh-3os)', () => {
+  it('mounts an empty same-height slot until the seat is on the declaring side', () => {
+    const idle = renderBadge();
+    const slot = idle.badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
+    expect(slot.textContent).toBe('');
+    expect(slot.getAttribute('data-bidders')).toBeNull();
+
+    const filled = renderBadge({ bidders: true });
+    const chip = filled.badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
+    expect(chip.textContent).toBe('Bidders');
+    expect(chip.hasAttribute('data-bidders')).toBe(true);
+    expect(getComputedStyle(slot).minHeight).toBe(getComputedStyle(chip).minHeight);
+
+    const slotRule = /\.bidders-label \{[^}]*\}/.exec(CSS)?.[0];
+    expect(slotRule).toMatch(/min-height: 1\.15rem;/);
+
+    // Top and bottom seats pad by that same reserved row so filling the
+    // chip cannot grow them into the felt or the viewer's hand.
+    expect(/\.table-seat-top \{[^}]*padding-bottom: 1\.15rem;/.test(CSS)).toBe(true);
+    expect(/\.my-seat \{[^}]*padding-top: 1\.15rem;/.test(CSS)).toBe(true);
+  });
+
+  it('recolors the chip border with --danger when the side is set', () => {
+    const unset = renderBadge({ bidders: true });
+    const unsetChip = unset.badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
+    expect(unsetChip.className).not.toMatch(/bidders-label-set/);
+    expect(unsetChip.getAttribute('data-bidders-set')).toBeNull();
+
+    const set = renderBadge({ bidders: true, biddersSet: true });
+    const setChip = set.badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
+    expect(setChip.className).toMatch(/bidders-label-set/);
+    expect(setChip.hasAttribute('data-bidders-set')).toBe(true);
+
+    const setRule = /\.bidders-label-set \{[^}]*\}/.exec(CSS)?.[0];
+    expect(setRule).toMatch(/border-color: var\(--danger\);/);
+  });
+
+  it('a defender never shows the copy even if the side is set', () => {
+    const { app, badge } = renderBadge({ bidders: false, biddersSet: true });
+    const slot = badge.querySelector('[data-testid="bidders-label"]') as HTMLElement;
+    expect(slot.textContent).toBe('');
+    expect(slot.className).not.toMatch(/bidders-label-on|bidders-label-set/);
+    expect(app.container.contains(slot)).toBe(true);
+  });
+});
+
 describe('the thinking hint is the ActivityCard ring (fh-x25 AC-1/AC-2)', () => {
   it('a pondering bot grows a decorative ring plus the words for screen readers', () => {
     const { app, badge } = renderBadge({ isActing: true, thinking: true });

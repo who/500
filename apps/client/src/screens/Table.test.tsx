@@ -494,3 +494,51 @@ describe('contract-won announcement (fh-8kz)', () => {
     expect(app.queryByTestId('contract-toast')).toBeNull();
   });
 });
+
+describe('declaring-side Bidders chips (fh-3os)', () => {
+  it('labels both same-side seats and leaves the defenders empty', () => {
+    // Cleo (2) declared; Ana (0) is her partner. Ben (1) and the bot (3) defend.
+    const { app } = renderTable(midTrickView());
+    expect(seatEl(app, 0).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders',
+    );
+    expect(seatEl(app, 2).querySelector('[data-testid="bidders-label"]')?.textContent).toBe(
+      'Bidders',
+    );
+    expect(seatEl(app, 1).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
+    expect(seatEl(app, 3).querySelector('[data-testid="bidders-label"]')?.textContent).toBe('');
+  });
+
+  it('keeps every reserved slot empty while there is no declarer', () => {
+    const { app } = renderTable(redactedViewFixture(0, { declarer: null, contract: null }));
+    for (const seat of [0, 1, 2, 3]) {
+      const slot = seatEl(app, seat).querySelector('[data-testid="bidders-label"]');
+      expect(slot).not.toBeNull();
+      expect(slot?.textContent).toBe('');
+    }
+  });
+
+  it('recolors both chips the instant the side is set, including a sit-out partner', () => {
+    // Ben (1) declared nulla; Noah (3) sits out. One forced bidder trick sets it.
+    const { app } = renderTable(
+      midTrickView({
+        contract: bid(NULLA),
+        declarer: 1,
+        activeSeats: [0, 1, 2],
+        toAct: 1,
+        trick: null,
+        sideTricks: [2, 1],
+      }),
+    );
+    const bidder = seatEl(app, 1).querySelector('[data-testid="bidders-label"]');
+    const partner = seatEl(app, 3).querySelector('[data-testid="bidders-label"]');
+    expect(bidder?.textContent).toBe('Bidders');
+    expect(partner?.textContent).toBe('Bidders');
+    expect(bidder?.className).toMatch(/bidders-label-set/);
+    expect(partner?.className).toMatch(/bidders-label-set/);
+    expect(seatEl(app, 3).querySelector('[data-sitting-out]')).not.toBeNull();
+    expect(seatEl(app, 0).querySelector('[data-testid="bidders-label"]')?.className).not.toMatch(
+      /bidders-label-set/,
+    );
+  });
+});

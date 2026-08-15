@@ -6,7 +6,9 @@
  * actual hand renders below it. During the auction the badge also carries
  * the seat's bid history as ordered chips (PRD 6.2): latest emphasized,
  * indications visually distinct, passes muted, capped on phone layouts with
- * a "+n" toggle that expands the full run.
+ * a "+n" toggle that expands the full run. After a contract is won the
+ * declaring side also wears a reserved "Bidders" chip under the badge
+ * (empty on the other seats) so awarding it cannot grow the nameplate.
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
@@ -88,6 +90,11 @@ export interface SeatBadgeProps {
    *  renders even while empty — a fixed-size reserve (fh-8sw) so the first
    *  chip landing can't resize the badge and reflow the table. */
   bidHistory?: readonly Bid[];
+  /** Declaring-side seat once a contract is won. The reserved slot still
+   *  mounts when false so filling the chip cannot grow the badge. */
+  bidders?: boolean;
+  /** Declaring side can no longer make: the chip border uses --danger. */
+  biddersSet?: boolean;
 }
 
 export function SeatBadge(props: SeatBadgeProps): ReactNode {
@@ -141,6 +148,20 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
           Sitting out{props.sittingOutReason !== undefined && ` (${props.sittingOutReason})`}
         </span>
       )}
+      <div
+        className={[
+          'bidders-label',
+          props.bidders === true && 'bidders-label-on',
+          props.bidders === true && props.biddersSet === true && 'bidders-label-set',
+        ]
+          .filter(Boolean)
+          .join(' ')}
+        data-testid="bidders-label"
+        data-bidders={props.bidders === true || undefined}
+        data-bidders-set={(props.bidders === true && props.biddersSet === true) || undefined}
+      >
+        {props.bidders === true ? 'Bidders' : null}
+      </div>
     </div>
   );
 }
