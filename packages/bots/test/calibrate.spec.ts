@@ -18,10 +18,17 @@ import { afterAll, describe, expect, it } from 'vitest';
 import { NUM, bid } from '@five-hundred/engine';
 import {
   type GameRecord,
+  type GameStore,
   type HandRecord,
   type PromotionDecision,
   parseCalibration,
 } from '@five-hundred/learn';
+import {
+  DEFAULT_GAME_SERVICE_ID,
+  LEARNED_VERSION_VAR,
+  RAILWAY_GRAPHQL_URL,
+  applyLearnedVersion,
+} from '../src/applyOverlay.js';
 import { PARAMS_SCHEMA_VERSION } from '../src/params.js';
 import { overlayVersion } from '../src/tune.js';
 import { runCalibrate } from '../src/calibrate.js';
@@ -106,6 +113,35 @@ function refusePromote(): Promise<PromotionDecision> {
   });
 }
 
+function acceptPromote(): Promise<PromotionDecision> {
+  return Promise.resolve({
+    promote: true,
+    vsIncumbent: {
+      promote: true,
+      gamesPlayed: 1,
+      seedsPlayed: 1,
+      confidence: 1,
+      verdict: 'accept-h1',
+      wins: 1,
+      losses: 0,
+      winRate: 1,
+      llr: 1,
+    },
+    vsAnchor: null,
+  });
+}
+
+function stubStore(): GameStore {
+  return {
+    putGame: async () => {},
+    getGame: async () => null,
+    listGames: async () => [],
+    readGames: async () => [],
+    putJson: async () => {},
+    getJson: async () => null,
+  };
+}
+
 describe('learn:calibrate (fh-azx.3)', () => {
   it('AC-1: a fixture corpus below minSamples exits 0 and writes nothing', async () => {
     const corpus = writeJsonl('thin.jsonl', []);
@@ -171,5 +207,106 @@ describe('learn:calibrate (fh-azx.3)', () => {
     for (const flag of ['--in', '--store', '--out-dir', '--upload', '--confirm-games', '--seed']) {
       expect(text).toContain(flag);
     }
+    expect(text).toContain('RAILWAY_TOKEN');
+    expect(text).toContain('FH_GAME_SERVICE_ID');
+  });
+});
+
+describe('learn:calibrate apply overlay (fh-azx.8)', () => {
+  it('AC-1: mocked promote+upload invokes applyLearnedVersion with the overlay version', async () => {
+    const records = Array.from({ length: 40 }, (_, i) => game(`azx8-ac1-${i}`, [numberedHand(true)]));
+    const corpus = writeJsonl('azx8-ac1.jsonl', records);
+    const outDir = join(tmp, 'azx8-ac1-out');
+    const applied: string[] = [];
+
+    await runCalibrate(['--in', corpus, '--out-dir', outDir, '--upload'], {
+      promoteIfBetter: acceptPromote,
+      createGameStore: () => stubStore(),
+      env: {},
+      applyLearnedVersion: async (version) => {
+        applied.push(version);
+      },
+    });
+
+    const overlay = JSON.parse(readFileSync(join(outDir, 'local.json'), 'utf8')) as {
+      version?: unknown;
+    };
+    expect(typeof overlay.version).toBe('string');
+    expect((overlay.version as string).length).toBeGreaterThan(0);
+    expect(applied).toEqual([overlay.version]);
+  });
+
+  it('AC-2: thin-corpus skip and SPRT reject do not invoke applyLearnedVersion', async () => {
+    const applied: string[] = [];
+    const apply = async (version: string): Promise<void> => {
+      applied.push(version);
+    };
+
+    const thin = writeJsonl('azx8-ac2-thin.jsonl', []);
+    await runCalibrate(['--in', thin, '--out-dir', join(tmp, 'azx8-ac2-thin'), '--upload'], {
+      createGameStore: () => stubStore(),
+      env: {},
+      applyLearnedVersion: apply,
+    });
+
+    const thick = writeJsonl(
+      'azx8-ac2-reject.jsonl',
+      Array.from({ length: 40 }, (_, i) => game(`azx8-ac2-${i}`, [numberedHand(true)])),
+    );
+    await runCalibrate(['--in', thick, '--out-dir', join(tmp, 'azx8-ac2-reject'), '--upload'], {
+      promoteIfBetter: refusePromote,
+      createGameStore: () => stubStore(),
+      env: {},
+      applyLearnedVersion: apply,
+    });
+
+    expect(applied).toEqual([]);
+  });
+
+  it('AC-3: missing RAILWAY_TOKEN warns and still exits 0 after a successful upload', async () => {
+    const records = Array.from({ length: 40 }, (_, i) => game(`azx8-ac3-${i}`, [numberedHand(true)]));
+    const corpus = writeJsonl('azx8-ac3.jsonl', records);
+    const outDir = join(tmp, 'azx8-ac3-out');
+    const lines: string[] = [];
+    const fetches: unknown[] = [];
+
+    await applyLearnedVersion('should-not-fetch', {}, {
+      fetch: async (...args: Parameters<typeof fetch>) => {
+        fetches.push(args);
+        return new Response('{}', { status: 200 });
+      },
+      warn: (line) => lines.push(line),
+      log: (line) => lines.push(line),
+    });
+    expect(fetches).toEqual([]);
+    expect(lines.join('\n')).toMatch(/RAILWAY_TOKEN/);
+
+    const runLines: string[] = [];
+    await runCalibrate(['--in', corpus, '--out-dir', outDir, '--upload', '--skip-sprt'], {
+      createGameStore: () => stubStore(),
+      env: {},
+      log: (line) => runLines.push(line),
+    });
+
+    expect(existsSync(join(outDir, 'local.json'))).toBe(true);
+    expect(existsSync(join(outDir, 'calibration.json'))).toBe(true);
+    expect(runLines.join('\n')).toMatch(/RAILWAY_TOKEN/);
+    expect(runLines.join('\n')).toMatch(/PROMOTED/);
+  });
+
+  it('applyLearnedVersion posts variableUpsert when RAILWAY_TOKEN is set', async () => {
+    const calls: Array<{ url: string; body: unknown }> = [];
+    await applyLearnedVersion('1.deadbeef', { RAILWAY_TOKEN: 'tok' }, {
+      fetch: async (url, init) => {
+        calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+        return new Response(JSON.stringify({ data: { variableUpsert: true } }), { status: 200 });
+      },
+    });
+    expect(calls).toHaveLength(1);
+    expect(calls[0]?.url).toBe(RAILWAY_GRAPHQL_URL);
+    const input = (calls[0]?.body as { variables: { input: Record<string, string> } }).variables.input;
+    expect(input.name).toBe(LEARNED_VERSION_VAR);
+    expect(input.value).toBe('1.deadbeef');
+    expect(input.serviceId).toBe(DEFAULT_GAME_SERVICE_ID);
   });
 });

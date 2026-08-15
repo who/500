@@ -26,6 +26,7 @@ import {
   readGameRecordsSync,
   serializeCalibration,
 } from '@five-hundred/learn';
+import { applyLearnedVersion } from './applyOverlay.js';
 import { makeHardMatchRunner } from './arena-runner.js';
 import {
   type BotParams,
@@ -49,6 +50,11 @@ Options:
   --store              Read the corpus from the game store (AWS env)
   --out-dir <dir>      Output directory (default: packages/bots/params)
   --upload             Also put artifacts/overlay.json and artifacts/calibration.json
+                       After a successful upload, bump FH_LEARNED_VERSION on
+                       the game service (RAILWAY_TOKEN, optional
+                       FH_GAME_SERVICE_ID / FH_RAILWAY_PROJECT_ID /
+                       FH_RAILWAY_ENVIRONMENT_ID). Missing token warns and
+                       still exits 0.
   --confirm-games <n>  SPRT confirmation budget (default: 80)
   --seed <n>           SPRT seed (default: 0)
   --skip-sprt          Test-only: write without running promoteIfBetter
@@ -72,6 +78,11 @@ export interface CalibrateHooks {
   readonly loadParams?: () => BotParams;
   /** Store factory for `--store` / `--upload`. */
   readonly createGameStore?: (env: StoreEnv) => GameStore | null;
+  /**
+   * Post-upload Railway bump. Tests inject a stub; production calls
+   * {@link applyLearnedVersion}.
+   */
+  readonly applyLearnedVersion?: (version: string, env: StoreEnv) => Promise<void>;
   readonly env?: StoreEnv;
   readonly log?: (line: string) => void;
 }
@@ -209,6 +220,17 @@ export async function runCalibrate(args: string[], hooks: CalibrateHooks = {}): 
   if (upload && store !== null) {
     await store.putJson(OVERLAY_KEY, overlay);
     await store.putJson(CALIBRATION_KEY, artifact);
+    const apply =
+      hooks.applyLearnedVersion ??
+      ((version: string, applyEnv: StoreEnv) =>
+        applyLearnedVersion(version, applyEnv, { warn: log, log }));
+    try {
+      await apply(overlay.version, env);
+    } catch (err) {
+      log(
+        `[calibrate] applyLearnedVersion failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
   }
 
   log(`✅ PROMOTED — wrote overlay ${overlay.version} to ${overlayPath}`);
