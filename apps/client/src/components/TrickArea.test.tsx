@@ -655,7 +655,7 @@ describe('trick rest pose', () => {
         tricksPlayed={3}
       />,
     );
-    const expected = trickRestPose(1, T1.plays[0]!.card, trickPoseKey(2, 3, true));
+    const expected = trickRestPose(1, T1.plays[0]!.card, trickPoseKey(2, 3, true), 'left');
     const liveVars = restVars(live.container as HTMLElement, '1');
     expect(liveVars.rot).toBe(`${expected.rotate}deg`);
     expect(liveVars.x).toBe(`${expected.x}px`);

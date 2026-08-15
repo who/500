@@ -119,12 +119,17 @@ export function cardJitter(seed: number, packet: number, card: number): CardJitt
   };
 }
 
+/** Viewer-relative inbound axis from the seat that played the card. */
+export type TrickSpoke = 'bottom' | 'left' | 'top' | 'right';
+
+const SPOKES: readonly TrickSpoke[] = ['bottom', 'left', 'top', 'right'];
+
 export interface TrickRestPose {
   /** Signed rest rotation in degrees, magnitude in [8, 18]. */
   readonly rotate: number;
-  /** Extra x offset in px, magnitude in [4, 10]. */
+  /** Spoke-biased x offset in px; along-spoke prefers outward. */
   readonly x: number;
-  /** Extra y offset in px, magnitude in [4, 10]. */
+  /** Spoke-biased y offset in px; along-spoke prefers outward. */
   readonly y: number;
 }
 
@@ -138,19 +143,55 @@ export function trickPoseKey(handNumber: number, tricksPlayed: number, inProgres
   return (((handNumber + 1) * 0x9e3779b9) ^ ((trickIndex + 1) * 0x85ebca6b)) >>> 0;
 }
 
-/** Deterministic per-play rest pose from (seat, card, trick identity). */
-export function trickRestPose(seat: number, card: number, trickKey: number): TrickRestPose {
+/** South-anchored spoke for a seat when the caller does not pass one. */
+function defaultSpoke(seat: number): TrickSpoke {
+  return SPOKES[(((seat % 4) + 4) % 4)] as TrickSpoke;
+}
+
+/**
+ * Deterministic per-play rest pose from (seat, card, trick identity).
+ * Offset is spoke-biased along the inbound seat axis and prefers outward
+ * so two neighbors cannot walk over each other. Inward is capped at 3px;
+ * cross-spoke jitter stays in (-3, 3).
+ */
+export function trickRestPose(
+  seat: number,
+  card: number,
+  trickKey: number,
+  spoke: TrickSpoke = defaultSpoke(seat),
+): TrickRestPose {
   const rng = makeRng((trickKey ^ Math.imul(seat + 1, 0x9e3779b9) ^ Math.imul(card + 1, 0x85ebca6b)) >>> 0);
   const rotMag = 8 + rng.random() * 10;
   const rotSign = rng.random() < 0.5 ? -1 : 1;
-  const xMag = 4 + rng.random() * 6;
-  const xSign = rng.random() < 0.5 ? -1 : 1;
-  const yMag = 4 + rng.random() * 6;
-  const ySign = rng.random() < 0.5 ? -1 : 1;
+  const outMag = 4 + rng.random() * 6;
+  const pullIn = rng.random() < 0.25;
+  const inMag = 1 + rng.random() * 2;
+  const along = pullIn ? -inMag : outMag;
+  const cross = (rng.random() - 0.5) * 6;
+  let x: number;
+  let y: number;
+  switch (spoke) {
+    case 'bottom':
+      x = cross;
+      y = along;
+      break;
+    case 'top':
+      x = cross;
+      y = -along;
+      break;
+    case 'left':
+      x = -along;
+      y = cross;
+      break;
+    case 'right':
+      x = along;
+      y = cross;
+      break;
+  }
   return {
     rotate: rotSign * rotMag,
-    x: xSign * xMag,
-    y: ySign * yMag,
+    x,
+    y,
   };
 }
 

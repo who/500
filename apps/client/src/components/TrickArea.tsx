@@ -133,7 +133,12 @@ export function TrickArea(props: {
           ]
             .filter(Boolean)
             .join(' ');
-          const pose = trickRestPose(play.seat, play.card, poseKey);
+          const pose = trickRestPose(
+            play.seat,
+            play.card,
+            poseKey,
+            seatPosition(play.seat, props.anchor),
+          );
           const poseStyle = {
             ['--rest-rot']: `${pose.rotate}deg`,
             ['--rest-x']: `${pose.x}px`,

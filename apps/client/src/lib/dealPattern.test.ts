@@ -67,15 +67,35 @@ describe('dealPattern recipes', () => {
     expect(liveKey).toBe(lingerKey);
     expect(trickPoseKey(2, 4, true)).not.toBe(liveKey);
 
-    const a = trickRestPose(1, 14, liveKey);
-    const b = trickRestPose(1, 14, lingerKey);
+    const a = trickRestPose(1, 14, liveKey, 'left');
+    const b = trickRestPose(1, 14, lingerKey, 'left');
     expect(a).toEqual(b);
     expect(Math.abs(a.rotate)).toBeGreaterThanOrEqual(8);
     expect(Math.abs(a.rotate)).toBeLessThanOrEqual(18);
-    expect(Math.abs(a.x)).toBeGreaterThanOrEqual(4);
-    expect(Math.abs(a.x)).toBeLessThanOrEqual(10);
-    expect(Math.abs(a.y)).toBeGreaterThanOrEqual(4);
-    expect(Math.abs(a.y)).toBeLessThanOrEqual(10);
-    expect(trickRestPose(1, 14, trickPoseKey(3, 3, true))).not.toEqual(a);
+    expect(trickRestPose(1, 14, trickPoseKey(3, 3, true), 'left')).not.toEqual(a);
+  });
+
+  it('biases rest offset along the seat spoke and prefers outward', () => {
+    const spokes = ['bottom', 'left', 'top', 'right'] as const;
+    for (const spoke of spokes) {
+      let outward = 0;
+      for (let k = 0; k < 80; k++) {
+        const p = trickRestPose(0, k, trickPoseKey(k, 1, true), spoke);
+        const along =
+          spoke === 'bottom' ? p.y : spoke === 'top' ? -p.y : spoke === 'left' ? -p.x : p.x;
+        const cross = spoke === 'bottom' || spoke === 'top' ? p.x : p.y;
+        expect(along).toBeGreaterThanOrEqual(-3);
+        expect(Math.abs(cross)).toBeLessThanOrEqual(3);
+        if (along > 0) {
+          outward += 1;
+          expect(along).toBeGreaterThanOrEqual(4);
+          expect(along).toBeLessThanOrEqual(10);
+        } else {
+          expect(Math.abs(along)).toBeGreaterThanOrEqual(1);
+          expect(Math.abs(along)).toBeLessThanOrEqual(3);
+        }
+      }
+      expect(outward).toBeGreaterThan(40);
+    }
   });
 });

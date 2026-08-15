@@ -854,19 +854,19 @@ button.primary {
 }
 
 .trick-bottom {
-  transform: translate(-50%, -14%);
+  transform: translate(-50%, -10%);
   --fly-y: calc(70 * var(--su));
 }
 .trick-top {
-  transform: translate(-50%, -86%);
+  transform: translate(-50%, -90%);
   --fly-y: calc(-70 * var(--su));
 }
 .trick-left {
-  transform: translate(-92%, -50%);
+  transform: translate(-94%, -50%);
   --fly-x: calc(-70 * var(--su));
 }
 .trick-right {
-  transform: translate(-8%, -50%);
+  transform: translate(-6%, -50%);
   --fly-x: calc(70 * var(--su));
 }
 
