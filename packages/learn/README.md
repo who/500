@@ -78,21 +78,28 @@ the record does not store post-exchange hands twice.
 
 ## Producing a corpus
 
-### Server (opt-in, off by default)
+### Server (`resolveGameLogConfig`)
 
-Logging is **disabled unless explicitly enabled**. Set the environment
-variables before starting the server:
+Logging is **on by default** so a corpus accumulates for
+`pnpm learn:calibrate`. Set `FH_GAME_LOG` to `0` or `false` to opt out.
 
 | variable            | default          | meaning                                   |
 | ------------------- | ---------------- | ----------------------------------------- |
-| `FH_GAME_LOG`       | _(unset = off)_  | `1`/`true` enables logging                 |
+| `FH_GAME_LOG`       | on (unset)       | `0`/`false` disables logging              |
 | `FH_GAME_LOG_DIR`   | `logs/games`     | directory for the corpus file             |
 | `FH_GAME_LOG_FILE`  | `games.jsonl`    | corpus filename within the directory      |
 
 ```bash
-FH_GAME_LOG=1 pnpm --filter @five-hundred/server start
+pnpm --filter @five-hundred/server start
 # finished games append to logs/games/games.jsonl
+# FH_GAME_LOG=0 pnpm --filter @five-hundred/server start   # opt out
 ```
+
+When all of `AWS_ENDPOINT_URL`, `AWS_ACCESS_KEY_ID`,
+`AWS_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME`, and `AWS_DEFAULT_REGION` are
+set, `createGameStore` also uploads each finished game (production bucket:
+`fh-play-logs`). The calibrator reads that corpus with `--store`; a
+local-only operator uses `--in logs/games/games.jsonl` with no AWS env.
 
 ### Sim (headless self-play)
 
