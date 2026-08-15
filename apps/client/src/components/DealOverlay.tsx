@@ -4,7 +4,7 @@
  * reduced-motion callers never mount this overlay (the reducer snaps).
  */
 
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react';
 import { cardJitter, type Packet } from '../lib/dealPattern.ts';
 import { prefersReducedMotion } from '../lib/dealChoreography.ts';
 import { CardBack } from './Card.tsx';
@@ -43,6 +43,24 @@ function flyerStyle(from: Point, to: Point, jitter: { rotate: number; delay: num
   };
 }
 
+/** Measure seat/felt centers after the overlay is in the tree; first paint has no box. */
+function useMeasuredPath(
+  overlayRef: RefObject<HTMLDivElement | null>,
+  fromSel: string | null,
+  toSel: string | null,
+): { from: Point; to: Point } | null {
+  const [path, setPath] = useState<{ from: Point; to: Point } | null>(null);
+  useLayoutEffect(() => {
+    const root = overlayRef.current;
+    if (root === null || fromSel === null || toSel === null) {
+      setPath(null);
+      return;
+    }
+    setPath({ from: centerOf(root, fromSel), to: centerOf(root, toSel) });
+  }, [overlayRef, fromSel, toSel]);
+  return path;
+}
+
 export function MiddlePile(props: { count: number }): ReactNode {
   if (props.count <= 0) return null;
   return (
@@ -75,6 +93,13 @@ export function DealOverlay(props: {
   const onComplete = useRef(props.onComplete);
   onLand.current = props.onLand;
   onComplete.current = props.onComplete;
+  const destSel =
+    flying === null
+      ? null
+      : flying.packet.dest.kind === 'middle'
+        ? '.deal-felt, .middle-pile, .trick-area, .bid-panel'
+        : `[data-seat="${flying.packet.dest.seat}"]`;
+  const path = useMeasuredPath(rootRef, flying === null ? null : `[data-seat="${props.dealer}"]`, destSel);
 
   useEffect(() => {
     if (prefersReducedMotion()) {
@@ -111,19 +136,10 @@ export function DealOverlay(props: {
     };
   }, [props.packets, props.seed]);
 
-  const root = rootRef.current;
-  const from = root === null ? { x: 0, y: 0 } : centerOf(root, `[data-seat="${props.dealer}"]`);
-  const destSel =
-    flying === null
-      ? ''
-      : flying.packet.dest.kind === 'middle'
-        ? '.deal-felt, .middle-pile, .trick-area, .bid-panel'
-        : `[data-seat="${flying.packet.dest.seat}"]`;
-  const to = root === null || flying === null ? from : centerOf(root, destSel);
-
   return (
     <div ref={rootRef} className="deal-overlay" data-testid="deal-overlay" aria-hidden="true">
       {flying !== null &&
+        path !== null &&
         Array.from({ length: flying.packet.count }, (_, c) => {
           const jitter = cardJitter(props.seed, flying.index, c);
           return (
@@ -132,7 +148,7 @@ export function DealOverlay(props: {
               className="deal-flyer"
               data-testid="deal-flyer"
               data-dest={flying.packet.dest.kind === 'seat' ? `seat-${flying.packet.dest.seat}` : 'middle'}
-              style={flyerStyle(from, to, jitter, PACKET_FLIGHT_MS)}
+              style={flyerStyle(path.from, path.to, jitter, PACKET_FLIGHT_MS)}
             >
               <CardBack />
             </div>
@@ -150,6 +166,11 @@ export function MiddleFly(props: {
   const rootRef = useRef<HTMLDivElement>(null);
   const onComplete = useRef(props.onComplete);
   onComplete.current = props.onComplete;
+  const path = useMeasuredPath(
+    rootRef,
+    '.trick-area, .bid-panel, .deal-felt, .middle-pile',
+    `[data-seat="${props.declarer}"]`,
+  );
 
   useEffect(() => {
     if (prefersReducedMotion()) {
@@ -162,26 +183,23 @@ export function MiddleFly(props: {
     };
   }, [props.declarer, props.seed]);
 
-  const root = rootRef.current;
-  const from = root === null ? { x: 0, y: 0 } : centerOf(root, '.trick-area, .bid-panel, .deal-felt');
-  const to = root === null ? from : centerOf(root, `[data-seat="${props.declarer}"]`);
-
   return (
     <div ref={rootRef} className="deal-overlay" data-testid="middle-fly" aria-hidden="true">
-      {Array.from({ length: 5 }, (_, c) => {
-        const jitter = cardJitter(props.seed, 99, c);
-        return (
-          <div
-            key={c}
-            className="deal-flyer deal-flyer-pickup"
-            data-testid="deal-flyer"
-            data-dest={`seat-${props.declarer}`}
-            style={flyerStyle(from, to, jitter, PICKUP_FLIGHT_MS)}
-          >
-            <CardBack />
-          </div>
-        );
-      })}
+      {path !== null &&
+        Array.from({ length: 5 }, (_, c) => {
+          const jitter = cardJitter(props.seed, 99, c);
+          return (
+            <div
+              key={c}
+              className="deal-flyer deal-flyer-pickup"
+              data-testid="deal-flyer"
+              data-dest={`seat-${props.declarer}`}
+              style={flyerStyle(path.from, path.to, jitter, PICKUP_FLIGHT_MS)}
+            >
+              <CardBack />
+            </div>
+          );
+        })}
     </div>
   );
 }
