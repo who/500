@@ -22,6 +22,13 @@
  */
 
 import { existsSync, readFileSync } from 'node:fs';
+import {
+  CALIBRATION_KEY,
+  OVERLAY_KEY,
+  parseCalibration,
+  validateCalibration,
+  type CalibrationArtifact,
+} from '@five-hundred/learn';
 import defaultParamsJson from '../params/default.json' with { type: 'json' };
 
 /**
@@ -309,14 +316,34 @@ export function validateParams(candidate: unknown): ValidationResult {
 /** Default git-ignored overlay location, relative to this package's root. */
 export const DEFAULT_OVERLAY_PATH = 'params/local.json';
 
+/** Explicit overlay file; when set, store and {@link DEFAULT_OVERLAY_PATH} are not consulted. */
+export const OVERLAY_PATH_ENV = 'FH_OVERLAY_PATH';
+
+/** Explicit calibration file; when set, store is not consulted. There is no default artifact. */
+export const CALIBRATION_PATH_ENV = 'FH_CALIBRATION_PATH';
+
 export interface LoadParamsOptions {
   /**
-   * Overlay file path; defaults to {@link DEFAULT_OVERLAY_PATH} resolved from
-   * this package's root. Pass an absolute path in callers with a different cwd.
+   * Overlay file path override. Wins over {@link OVERLAY_PATH_ENV}, the store,
+   * and {@link DEFAULT_OVERLAY_PATH}.
    */
   readonly overlayPath?: string;
-  /** Reads and JSON-parses the overlay; returns null when it does not exist. */
+  /** Calibration file path override. Wins over {@link CALIBRATION_PATH_ENV} and the store. */
+  readonly calibrationPath?: string;
+  /**
+   * Env for path/store lookup. Defaults to `process.env`. Pass a plain object
+   * in tests so a developer's shell env cannot change the rung under test.
+   */
+  readonly env?: Record<string, string | undefined>;
+  /** Reads and JSON-parses a file; returns null when it does not exist. */
   readonly readOverlay?: (path: string) => unknown;
+  /** Filesystem reader for calibration; defaults to {@link readOverlay} or the real fs. */
+  readonly readCalibration?: (path: string) => unknown;
+  /**
+   * Sync store getter (tests inject; boot prefetches). Returning null on
+   * {@link OVERLAY_KEY} falls through to {@link DEFAULT_OVERLAY_PATH}.
+   */
+  readonly readStore?: (key: string) => unknown;
   /** Loud warning sink (defaults to console.warn), so tests can capture it. */
   readonly warn?: (message: string) => void;
 }
@@ -339,29 +366,67 @@ export interface OverlayInfo {
 
 const NO_OVERLAY: OverlayInfo = { present: false, version: null, params: DEFAULT_PARAMS };
 
+type ArtifactSource = { readonly label: string; readonly read: () => unknown };
+
 /**
- * Load the effective params plus overlay metadata: defaults with the optional
- * overlay merged in. Any failure — unreadable file, malformed JSON, wrong
- * schema version, a non-finite leaf after merge — logs a loud warning and
- * reports `present: false` with DEFAULT_PARAMS unchanged. With no overlay
- * present, reports `present: false` silently.
+ * Overlay lookup: explicit path, else {@link OVERLAY_PATH_ENV}, else store
+ * {@link OVERLAY_KEY}, else {@link DEFAULT_OVERLAY_PATH}. An explicit path or
+ * env path that is missing does not fall through.
  */
-export function loadOverlayInfo(options: LoadParamsOptions = {}): OverlayInfo {
-  const warn = options.warn ?? ((m: string) => console.warn(m));
-  const path = options.overlayPath ?? resolveDefaultOverlayPath();
-  const read = options.readOverlay ?? defaultReadOverlay;
-
-  let raw: unknown;
-  try {
-    raw = read(path);
-  } catch (err) {
-    warn(`[BotParams] overlay ${path} unreadable, using defaults: ${errText(err)}`);
-    return NO_OVERLAY;
+function overlaySources(
+  options: LoadParamsOptions,
+  readFile: (path: string) => unknown,
+): Iterable<ArtifactSource> {
+  const env = options.env ?? process.env;
+  if (options.overlayPath !== undefined) {
+    return [{ label: options.overlayPath, read: () => readFile(options.overlayPath as string) }];
   }
-  if (raw === null || raw === undefined) return NO_OVERLAY; // no overlay: defaults
+  const envPath = env[OVERLAY_PATH_ENV];
+  if (envPath !== undefined && envPath !== '') {
+    return [{ label: envPath, read: () => readFile(envPath) }];
+  }
+  const sources: ArtifactSource[] = [];
+  if (options.readStore !== undefined) {
+    const readStore = options.readStore;
+    sources.push({ label: OVERLAY_KEY, read: () => readStore(OVERLAY_KEY) });
+  }
+  const fallback = resolveDefaultOverlayPath();
+  sources.push({ label: fallback, read: () => readFile(fallback) });
+  return sources;
+}
 
+/**
+ * Calibration lookup: explicit path, else {@link CALIBRATION_PATH_ENV}, else
+ * store {@link CALIBRATION_KEY}. No checked-in default artifact.
+ */
+function calibrationSources(
+  options: LoadParamsOptions,
+  readFile: (path: string) => unknown,
+): Iterable<ArtifactSource> {
+  const env = options.env ?? process.env;
+  if (options.calibrationPath !== undefined) {
+    return [
+      { label: options.calibrationPath, read: () => readFile(options.calibrationPath as string) },
+    ];
+  }
+  const envPath = env[CALIBRATION_PATH_ENV];
+  if (envPath !== undefined && envPath !== '') {
+    return [{ label: envPath, read: () => readFile(envPath) }];
+  }
+  if (options.readStore !== undefined) {
+    const readStore = options.readStore;
+    return [{ label: CALIBRATION_KEY, read: () => readStore(CALIBRATION_KEY) }];
+  }
+  return [];
+}
+
+function interpretOverlay(
+  raw: unknown,
+  label: string,
+  warn: (message: string) => void,
+): OverlayInfo {
   if (typeof raw !== 'object') {
-    warn(`[BotParams] overlay ${path} is not an object, using defaults`);
+    warn(`[BotParams] overlay ${label} is not an object, using defaults`);
     return NO_OVERLAY;
   }
   const overlay = raw as PartialBotParams;
@@ -369,7 +434,7 @@ export function loadOverlayInfo(options: LoadParamsOptions = {}): OverlayInfo {
   // shape we may not understand.
   if (overlay.schemaVersion !== undefined && overlay.schemaVersion !== PARAMS_SCHEMA_VERSION) {
     warn(
-      `[BotParams] overlay ${path} schemaVersion ${String(overlay.schemaVersion)} != ` +
+      `[BotParams] overlay ${label} schemaVersion ${String(overlay.schemaVersion)} != ` +
         `${PARAMS_SCHEMA_VERSION}, using defaults`,
     );
     return NO_OVERLAY;
@@ -377,12 +442,83 @@ export function loadOverlayInfo(options: LoadParamsOptions = {}): OverlayInfo {
   const merged = mergeParams(DEFAULT_PARAMS, overlay);
   const result = validateParams(merged);
   if (!result.ok) {
-    warn(`[BotParams] overlay ${path} invalid (${result.error}), using defaults`);
+    warn(`[BotParams] overlay ${label} invalid (${result.error}), using defaults`);
     return NO_OVERLAY;
   }
   const rawVersion = (raw as { version?: unknown }).version;
   const version = typeof rawVersion === 'string' && rawVersion.length > 0 ? rawVersion : null;
   return { present: true, version, params: deepFreeze(result.params) };
+}
+
+function interpretCalibration(
+  raw: unknown,
+  label: string,
+  warn: (message: string) => void,
+): CalibrationArtifact | null {
+  try {
+    if (typeof raw === 'string') {
+      return parseCalibration(raw);
+    }
+    const result = validateCalibration(raw);
+    if (!result.ok) {
+      warn(`[BotParams] calibration ${label} invalid (${result.error}), ignoring`);
+      return null;
+    }
+    return result.artifact;
+  } catch (err) {
+    warn(`[BotParams] calibration ${label} unreadable, ignoring: ${errText(err)}`);
+    return null;
+  }
+}
+
+/**
+ * Load the effective params plus overlay metadata: defaults with the optional
+ * overlay merged in. Lookup is explicit path, then {@link OVERLAY_PATH_ENV},
+ * then store {@link OVERLAY_KEY}, then {@link DEFAULT_OVERLAY_PATH}. Any
+ * failure — unreadable file, malformed JSON, wrong schema version, a
+ * non-finite leaf after merge — logs a loud warning and reports
+ * `present: false` with DEFAULT_PARAMS unchanged. With no overlay present,
+ * reports `present: false` silently.
+ */
+export function loadOverlayInfo(options: LoadParamsOptions = {}): OverlayInfo {
+  const warn = options.warn ?? ((m: string) => console.warn(m));
+  const readFile = options.readOverlay ?? defaultReadOverlay;
+
+  for (const src of overlaySources(options, readFile)) {
+    let raw: unknown;
+    try {
+      raw = src.read();
+    } catch (err) {
+      warn(`[BotParams] overlay ${src.label} unreadable, using defaults: ${errText(err)}`);
+      return NO_OVERLAY;
+    }
+    if (raw === null || raw === undefined) continue;
+    return interpretOverlay(raw, src.label, warn);
+  }
+  return NO_OVERLAY;
+}
+
+/**
+ * Load a {@link CalibrationArtifact}: explicit path, then
+ * {@link CALIBRATION_PATH_ENV}, then store {@link CALIBRATION_KEY}, else null.
+ * Missing or invalid artifacts warn (when readable-but-bad) and return null.
+ */
+export function loadCalibrationInfo(options: LoadParamsOptions = {}): CalibrationArtifact | null {
+  const warn = options.warn ?? ((m: string) => console.warn(m));
+  const readFile = options.readCalibration ?? options.readOverlay ?? defaultReadOverlay;
+
+  for (const src of calibrationSources(options, readFile)) {
+    let raw: unknown;
+    try {
+      raw = src.read();
+    } catch (err) {
+      warn(`[BotParams] calibration ${src.label} unreadable, ignoring: ${errText(err)}`);
+      return null;
+    }
+    if (raw === null || raw === undefined) continue;
+    return interpretCalibration(raw, src.label, warn);
+  }
+  return null;
 }
 
 /**

@@ -5,9 +5,21 @@
  * default.json against the constants the bots re-export, so the AC-1
  * byte-identity guarantee cannot silently drift (a default.json edit that
  * changes a value fails these).
+ *
+ * fh-azx.4 extends the loader with FH_OVERLAY_PATH / FH_CALIBRATION_PATH and
+ * an injected store reader; AC-1..AC-3 live in the lookup-rung block below.
  */
 
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
+import {
+  CALIBRATION_KEY,
+  CALIBRATION_SCHEMA_VERSION,
+  DEFAULT_STRENGTH_WEIGHTS,
+  OVERLAY_KEY,
+} from '@five-hundred/learn';
 import {
   BID_HEADROOM,
   BID_MARGIN,
@@ -26,6 +38,7 @@ import {
   PLAY_WORLDS_FLOOR,
   ROLLOUT_WORLDS,
   SLAM_MARGIN,
+  loadCalibrationInfo,
   loadOverlayInfo,
   loadParams,
   mergeParams,
@@ -246,5 +259,184 @@ describe('loadOverlayInfo (fh-sja.6 overlay metadata)', () => {
     expect(info.version).toBeNull();
     expect(info.params).toBe(DEFAULT_PARAMS);
     expect(warn).toHaveBeenCalledOnce();
+  });
+});
+
+function scratchDir(): string {
+  return mkdtempSync(join(tmpdir(), 'fh-azx4-'));
+}
+
+function validOverlay(version: string) {
+  return {
+    schemaVersion: PARAMS_SCHEMA_VERSION,
+    version,
+    bidding: { headroom: 8 },
+  };
+}
+
+function validCalibration() {
+  return {
+    v: CALIBRATION_SCHEMA_VERSION,
+    weights: DEFAULT_STRENGTH_WEIGHTS,
+    minSamples: 30,
+    shrinkage: 20,
+    make: { cells: {} },
+    priors: { histograms: {}, bucketWidth: 0.5 },
+    meta: { games: 0, hands: 0, makeSamples: 0, priorSamples: 0 },
+  };
+}
+
+describe('loadOverlayInfo path/store rungs (fh-azx.4)', () => {
+  it('AC-1: FH_OVERLAY_PATH at a valid overlay reports present with that version', () => {
+    const dir = scratchDir();
+    try {
+      const path = join(dir, 'overlay.json');
+      writeFileSync(path, JSON.stringify(validOverlay('1.ac1')));
+      const info = loadOverlayInfo({ env: { FH_OVERLAY_PATH: path }, warn: vi.fn() });
+      expect(info.present).toBe(true);
+      expect(info.version).toBe('1.ac1');
+      expect(info.params.bidding.headroom).toBe(8);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-2: invalid overlay JSON at FH_OVERLAY_PATH yields present false and defaults', () => {
+    const dir = scratchDir();
+    try {
+      const path = join(dir, 'bad.json');
+      writeFileSync(path, '{not json');
+      const warn = vi.fn();
+      const info = loadOverlayInfo({ env: { FH_OVERLAY_PATH: path }, warn });
+      expect(info.present).toBe(false);
+      expect(info.params).toBe(DEFAULT_PARAMS);
+      expect(warn).toHaveBeenCalledOnce();
+      expect(warn.mock.calls[0]?.[0]).toContain('unreadable');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-2: schemaVersion mismatch at FH_OVERLAY_PATH yields present false and defaults', () => {
+    const dir = scratchDir();
+    try {
+      const path = join(dir, 'mismatch.json');
+      writeFileSync(
+        path,
+        JSON.stringify({ ...validOverlay('1.nope'), schemaVersion: PARAMS_SCHEMA_VERSION + 1 }),
+      );
+      const warn = vi.fn();
+      const info = loadOverlayInfo({ env: { FH_OVERLAY_PATH: path }, warn });
+      expect(info.present).toBe(false);
+      expect(info.params).toBe(DEFAULT_PARAMS);
+      expect(warn.mock.calls[0]?.[0]).toContain('schemaVersion');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('does not fall through to store when FH_OVERLAY_PATH is set to a missing file', () => {
+    const info = loadOverlayInfo({
+      env: { FH_OVERLAY_PATH: join(tmpdir(), 'fh-azx4-missing-overlay.json') },
+      readStore: () => validOverlay('1.store'),
+      warn: vi.fn(),
+    });
+    expect(info.present).toBe(false);
+    expect(info.params).toBe(DEFAULT_PARAMS);
+  });
+
+  it('uses the store overlay when path env is unset', () => {
+    const info = loadOverlayInfo({
+      env: {},
+      readStore: (key) => (key === OVERLAY_KEY ? validOverlay('1.store') : null),
+      readOverlay: () => null,
+      warn: vi.fn(),
+    });
+    expect(info.present).toBe(true);
+    expect(info.version).toBe('1.store');
+  });
+
+  it('falls through to the default overlay path when the store returns null', () => {
+    const info = loadOverlayInfo({
+      env: {},
+      readStore: () => null,
+      readOverlay: () => validOverlay('1.local'),
+      warn: vi.fn(),
+    });
+    expect(info.present).toBe(true);
+    expect(info.version).toBe('1.local');
+  });
+
+  it('lets overlayPath override FH_OVERLAY_PATH', () => {
+    const dir = scratchDir();
+    try {
+      const envPath = join(dir, 'env.json');
+      const overridePath = join(dir, 'override.json');
+      writeFileSync(envPath, JSON.stringify(validOverlay('1.env')));
+      writeFileSync(overridePath, JSON.stringify(validOverlay('1.override')));
+      const info = loadOverlayInfo({
+        env: { FH_OVERLAY_PATH: envPath },
+        overlayPath: overridePath,
+        warn: vi.fn(),
+      });
+      expect(info.version).toBe('1.override');
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe('loadCalibrationInfo (fh-azx.4)', () => {
+  it('AC-3: returns a parsed artifact from a valid file', () => {
+    const dir = scratchDir();
+    try {
+      const path = join(dir, 'calibration.json');
+      const artifact = validCalibration();
+      writeFileSync(path, JSON.stringify(artifact));
+      const loaded = loadCalibrationInfo({ env: { FH_CALIBRATION_PATH: path }, warn: vi.fn() });
+      expect(loaded).toEqual(artifact);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('AC-3: returns null from a missing file', () => {
+    const loaded = loadCalibrationInfo({
+      env: { FH_CALIBRATION_PATH: join(tmpdir(), 'fh-azx4-missing-calibration.json') },
+      warn: vi.fn(),
+    });
+    expect(loaded).toBeNull();
+  });
+
+  it('returns null and warns when the artifact schema version mismatches', () => {
+    const warn = vi.fn();
+    const loaded = loadCalibrationInfo({
+      env: {},
+      calibrationPath: 'injected.json',
+      readCalibration: () => ({ ...validCalibration(), v: CALIBRATION_SCHEMA_VERSION + 1 }),
+      warn,
+    });
+    expect(loaded).toBeNull();
+    expect(warn.mock.calls[0]?.[0]).toContain('invalid');
+  });
+
+  it('uses the store artifact when path env is unset', () => {
+    const artifact = validCalibration();
+    const loaded = loadCalibrationInfo({
+      env: {},
+      readStore: (key) => (key === CALIBRATION_KEY ? artifact : null),
+      warn: vi.fn(),
+    });
+    expect(loaded).toEqual(artifact);
+  });
+
+  it('returns null when the store has no calibration (no default file)', () => {
+    const loaded = loadCalibrationInfo({
+      env: {},
+      readStore: () => null,
+      readOverlay: () => validCalibration(),
+      warn: vi.fn(),
+    });
+    expect(loaded).toBeNull();
   });
 });
