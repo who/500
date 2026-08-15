@@ -102,3 +102,139 @@ make-rate sample count is below the fitter's `minSamples` logs `skipped:
 thin corpus` and writes nothing. A candidate that fails the SPRT gate is
 report-only. Artifacts land in `--out-dir` (default `packages/bots/params`)
 only on promote, or immediately under test-only `--skip-sprt`.
+
+### Strategy parameters (`BotParams`)
+
+Every number the bots use for “how good is this hand?” and “should I bid /
+slam / keep this card?” lives in `packages/bots/params/default.json`. An
+**overlay** is a small JSON patch on top of that file (only the keys that
+changed). The server deep-merges the overlay into Hard seats only.
+
+Two different searches write overlays, and they touch **different keys**:
+
+| Pipeline | What it changes | What it does *not* change |
+|---|---|---|
+| `learn:calibrate` | `bidding.headroom` only (a bounded nudge, at most ±1) | Hard rollout knobs, memory, Easy/Medium |
+| `learn:tune` (CEM) | `hardBidding.bidMargin`, `slamMargin`, `nullaCandLowness`, `dnullaCandLowness` | Shared Medium thresholds, world counts |
+
+If a night of calibrate prints `bidding.headroom 4 -> 4.17` and then
+`NOT PROMOTED`, the fit ran; the confirmation match just could not prove
+the new Hard was better. The corpus is still in the store.
+
+#### Learning terms, plainly
+
+None of this is a neural net. It is counting, a small search, and a
+statistical gate.
+
+| Term | What it means here |
+|---|---|
+| **Overlay** | A JSON patch of a few numbers, merged over `default.json`. Same idea as a config diff, not a new model. |
+| **Make-rate** | Among numbered contracts in the corpus, the fraction that actually made. Target is 50%. Over-safe play (make-rate high) → raise `bidding.headroom` so Hard bids one extra level; over-reaching → lower it. |
+| **Calibration** | Count make/set by strain, level, hand strength, and seat; shrink thin buckets toward coarser totals so a rare 10NT does not swing the numbers. Also builds **priors**: “hands that pass / indicate / bid this suit usually look like *this*.” Hard uses those priors when it imagines hidden hands. |
+| **minSamples** | Floor of 30 numbered hands. Below that, calibrate logs `skipped: thin corpus` and writes nothing. Nulla, redeals, and unfinished games do not count. |
+| **World / rollout** | Hard does not “know” the other hands. It deals many legal hidden hands (worlds), plays the rest of the deal in its head, and averages the score. More worlds = slower, less noisy. |
+| **CEM** (cross-entropy method) | `learn:tune` only. Sample a population of Hard bidding knobs, play them against the incumbent, keep the winners, recenter the search. Repeat for *N* generations. |
+| **SPRT** | Sequential test on win/loss. Default: is the candidate’s win-rate at least 55%, versus “it’s just 50/50”? Promote only on a clear **yes** (`accept-h1`). Budget exhausted with no decision (`continue`) or a **no** (`accept-h0`) → not promoted. Mirror matches (swap seats) double the games per seed, which is why `--confirm-games 80` can report 160 games. |
+| **Incumbent / anchor** | Incumbent = Hard as loaded today (defaults + current overlay). Anchor = frozen `default.json`. A promote must beat the incumbent *and* not lose to the anchor, so a lucky overlay cannot walk Hard downhill. |
+
+#### `suitStrength.*` — how many tricks a suit is worth
+
+Used when Medium (and Hard’s first cut) estimates a hand. Units are
+roughly “expected tricks.” Defaults:
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `joker` | 1.0 | Joker is one sure trick. |
+| `bower` | 0.95 | Right or left bower. |
+| `trumpHonor` | 0.55 | Trump queen or better (bowers already counted). |
+| `trumpLow` | 0.35 | Smaller natural trump. |
+| `sideAce` | 0.75 | Off-trump ace. |
+| `sideKing` | 0.25 | Off-trump king. |
+| `ntAce` | 0.9 | Ace in no-trump. |
+| `ntKing` | 0.5 | King in no-trump. |
+| `ntQueen` | 0.2 | Queen in no-trump. |
+
+#### `bidding.*` — when to bid, indicate, or go nulla
+
+`maxLevel ≈ min(10, floor(strengthEstimate + headroom))`. Raising
+`headroom` makes the bot willing to name a higher contract.
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `headroom` | 4.0 | Extra levels above the raw strength estimate. Calibrate nudges this toward a 50% make-rate (max ±1). Higher = more aggressive numbered bids. |
+| `indicateEst` | 4.5 | Minimum estimate to fire a 6-level indication, and the strength that indication promises partner. |
+| `partnerIndicationBonus` | 2.0 | Extra support credited when partner has indicated. |
+| `nullaLowness` | 8.6 | How “low” the hand must look before Medium considers Nulla. |
+| `nullaMaxRank` | 11 | Highest card allowed in a Nulla try (11 = jack). |
+
+#### `slam.*` and `endgame.*`
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `slam.est` | 8.0 | Suit-strength at or above which the declarer declares slam after the middle. |
+| `endgame.cheapestContract` | 140 | Points for 7♠ — the cheapest winning bid. Used as a scale, not bid as such. |
+| `endgame.headroom` | 1.5 | Extra bid headroom when the opponents can win the *game* by taking this auction. |
+| `endgame.desperateHeadroom` | 2.5 | Still more headroom when four defender tricks would also finish the game. |
+| `endgame.desperateScore` | 460 | Opponent score at which those four defender tricks (40 points) reach 500. |
+
+#### `hardBidding.*` — Hard’s auction search (what `learn:tune` actually moves)
+
+Hard samples hidden worlds, plays out the rest of the deal, and only bids
+if the average score beats passing by `bidMargin` points.
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `rolloutWorlds` | 16 | Hidden hands sampled per bid/slam decision. Compute budget; not tuned. |
+| `bidMargin` | 10 | Extra expected points over “pass” required to bid. Lower = more willing to bid. **Tuned.** |
+| `slamMargin` | 25 | Extra expected points of slamming vs not. Lower = more slams. **Tuned.** |
+| `nullaCandLowness` | 8.0 | Looser Nulla gate than Medium, so Hard will even *consider* Nulla. **Tuned.** |
+| `nullaCandMaxRank` | 12 | Highest rank still allowed in a Nulla candidate (12 = queen). |
+| `dnullaCandLowness` | 8.6 | Same idea for double Nulla. **Tuned.** |
+| `dnullaCandMaxRank` | 11 | Highest rank for a double-Nulla candidate (11 = jack). |
+| `indWorldTries` | 20 | How many times Hard retries a random world so it matches partner’s indication. |
+
+#### `hardKeeps.*` — what to keep from the middle
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `keepWorlds` | 30 | Worlds per keep/discard decision. |
+| `marginalKeeps` | 3 | Borderline kept cards Hard is allowed to swap out. |
+| `nearMarginalDiscards` | 4 | Borderline discarded cards it may swap back in. |
+| `maxCandidates` | 12 | Cap on keep-sets it scores (base set plus those swaps). |
+
+#### `hardPlay.*` — which card to play
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `worldsFloor` | 20 | Fewest playouts a card-play average may rest on. |
+| `worldsCap` | 200 | Most playouts in a hard, high-stakes spot. |
+| `trickWeight` | 8 | Extra reward per own-side trick (flipped on Nulla). Small enough that it cannot prefer a set with more tricks over a make. |
+| `mediumTiebreakEps` | 5 | If Hard’s best card beats Medium’s pick by fewer than this many points, play Medium’s card. |
+| `mediumTiebreakZ` | 2 | Same idea, but in standard errors of the rollout noise. Stops Hard from “improving” on a coin flip. |
+
+#### `hardMemory.*` — what Hard is allowed to forget
+
+Not a neural memory. Each seen card gets a **salience** (how memorable)
+and a **horizon** in tricks. After that many tricks, the observation can
+drop so Hard no longer counts the card as known. Shipped values were
+calibrated so about 14% of played spot cards fade, while jokers/bowers
+never do.
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `jokerSalience` | 1.0 | Joker is the most memorable card. |
+| `bowerSalience` | 0.95 | Right or left bower, in trump. |
+| `aceSalience` | 0.8 | Any ace. |
+| `kingSalience` | 0.6 | Any king. |
+| `queenSalience` | 0.45 | Any queen. |
+| `jackSalience` | 0.35 | A jack that is not a bower. |
+| `spotSalience` | 0.1 | A 4 — easiest card to forget. |
+| `spotRankStep` | 0.02 | Added per rank above 4, so a 10 sticks a bit more than a 5. |
+| `trumpBonus` | 0.6 | Extra salience if the card counts as trump. |
+| `permanentSalience` | 0.7 | At or above this, the card is kept for the whole hand. |
+| `baseHorizon` | 2.0 | Tricks a zero-salience card is remembered. |
+| `salienceHorizon` | 12.0 | Extra tricks of memory per unit of salience. |
+| `jitter` | 0.35 | Random spread on that horizon (0 = none). |
+| `graceTricks` | 1 | The immediately previous trick is never forgotten. |
+| `voidHorizon` | 12.0 | How long an observed void is remembered. |
+| `voidDecay` | 0.34 | How much of that void horizon the distant past may lose. |
