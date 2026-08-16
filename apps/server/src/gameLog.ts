@@ -10,6 +10,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import type { GameState } from '@five-hundred/engine';
+import type { GameLogHand } from '@five-hundred/protocol';
 import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
 import {
   GameRecorder,
@@ -45,6 +46,28 @@ export function resolveGameLogConfig(env: NodeJS.ProcessEnv = process.env): Game
     enabled,
     dir: env.FH_GAME_LOG_DIR ?? 'logs/games',
     file: env.FH_GAME_LOG_FILE ?? 'games.jsonl',
+  };
+}
+
+/**
+ * Condense one scored hand into its game-log summary row (fh-y2a.2): dealer,
+ * the live auction in call order, each trick's leader and winner, and the
+ * running totals. Pure and independent of the JSONL logger, so the client's
+ * game-log view is populated even when disk logging is opted out.
+ * `priorDealsDrawn` is the cumulative dealsDrawn before this hand, making the
+ * difference (less the live deal) the hand's own thrown-in auctions.
+ */
+export function summarizeHand(state: GameState, priorDealsDrawn = 0): GameLogHand {
+  if (state.phase !== 'handScored' || state.auction === null || state.play === null) {
+    throw new Error('summarizeHand requires a scored hand (phase handScored)');
+  }
+  return {
+    handNumber: state.handNumber,
+    dealer: state.dealer,
+    redeals: Math.max(0, state.dealsDrawn - priorDealsDrawn - 1),
+    auction: state.auction.history.map((e) => ({ seat: e.seat, bid: e.bid })),
+    tricks: state.play.tricks.map((t) => ({ leader: t.leader, winner: t.winner })),
+    scores: [state.game.scores[0], state.game.scores[1]],
   };
 }
 

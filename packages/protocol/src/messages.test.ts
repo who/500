@@ -133,6 +133,37 @@ const validEvents: Record<string, unknown> = {
   handReady: { t: 'handReady', ready: [0, 1, 3] },
   handReadyEmpty: { t: 'handReady', ready: [] },
   gameOver: { t: 'gameOver', winner: 0, scores: [520, 180] },
+  // fh-y2a.2: the end-of-game hand-by-hand summary.
+  gameLog: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 3,
+        redeals: 1,
+        auction: [
+          { seat: 0, bid: { kind: 'NUM', level: 7, strain: 0 } },
+          { seat: 1, bid: { kind: 'PASS', level: 0, strain: -1 } },
+          { seat: 2, bid: { kind: 'IND', level: 6, strain: 2 } },
+          { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
+        ],
+        tricks: [
+          { leader: 0, winner: 2 },
+          { leader: 2, winner: 0 },
+        ],
+        scores: [140, 20],
+      },
+      {
+        handNumber: 1,
+        dealer: 0,
+        redeals: 0,
+        auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
+        tricks: [{ leader: 1, winner: 3 }],
+        scores: [140, 270],
+      },
+    ],
+  },
+  gameLogNoHands: { t: 'gameLog', hands: [] },
   error: { t: 'error', code: 'notYourTurn', message: 'it is seat 1 to act' },
 };
 
@@ -202,6 +233,46 @@ const malformedEvents: Record<string, unknown> = {
   handReadyMissing: { t: 'handReady' },
   handReadyBadSeat: { t: 'handReady', ready: [0, 4] },
   gameOverBadWinner: { t: 'gameOver', winner: 2, scores: [500, 100] },
+  gameLogMissingHands: { t: 'gameLog' },
+  gameLogHandsNotArray: { t: 'gameLog', hands: {} },
+  gameLogBadDealer: {
+    t: 'gameLog',
+    hands: [
+      { handNumber: 0, dealer: 4, redeals: 0, auction: [], tricks: [], scores: [0, 0] },
+    ],
+  },
+  gameLogBadBidKind: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [{ seat: 0, bid: { kind: 'MISERE', level: 7, strain: 0 } }],
+        tricks: [],
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogTrickMissingWinner: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        tricks: [{ leader: 1 }],
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogScoresNotPair: {
+    t: 'gameLog',
+    hands: [
+      { handNumber: 0, dealer: 0, redeals: 0, auction: [], tricks: [], scores: [40] },
+    ],
+  },
   errorUnknownCode: { t: 'error', code: 'kaboom', message: 'x' },
   errorMissingMessage: { t: 'error', code: 'badToken' },
 };

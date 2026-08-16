@@ -18,6 +18,7 @@ import type {
   ClientCommand,
   Envelope,
   ErrorEvent as ProtocolErrorEvent,
+  GameLogEvent,
   GameOverEvent,
   HandScoredEvent,
   RoomView,
@@ -148,6 +149,12 @@ export interface ClientState {
    */
   contractNotice: { readonly declarer: number; readonly count: number } | null;
   gameOver: Pick<GameOverEvent, 'winner' | 'scores'> | null;
+  /**
+   * The finished game's hand-by-hand summary (fh-y2a.2), delivered by the
+   * gameLog event at game end (and re-delivered on reconnect/recovery).
+   * Cleared by any live view — a rematch's fresh auction — and on leave.
+   */
+  gameLog: GameLogEvent['hands'] | null;
   lastError: Pick<ProtocolErrorEvent, 'code' | 'message'> | null;
   seat: number | null;
   token: string | null;
@@ -214,6 +221,7 @@ const HOME_RESET: Partial<ClientState> = {
   lingerTrick: null,
   redealNotice: null,
   contractNotice: null,
+  gameLog: null,
   rejoining: false,
   seatLost: false,
   soloStarting: false,
@@ -348,6 +356,9 @@ export function createStore(deps: StoreDeps): ClientStore {
             patch.gameEndRevealed = false;
             patch.reviewingTable = false;
           }
+          // The summary belongs to the finished game; any live view (a
+          // rematch's fresh auction) retires it.
+          if (get().gameLog !== null) patch.gameLog = null;
         } else if (!get().gameEndRevealed && revealTimer === null) {
           const live =
             prev !== undefined && prev.phase !== 'gameOver' && lastSeq !== null && !recovering;
@@ -407,6 +418,9 @@ export function createStore(deps: StoreDeps): ClientStore {
           patch.gameOver = { winner: event.winner, scores: event.scores };
           patch.pendingActions = null;
           break;
+        case 'gameLog':
+          patch.gameLog = event.hands;
+          break;
       }
       set(patch);
     }
@@ -423,6 +437,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       redealNotice: null,
       contractNotice: null,
       gameOver: null,
+      gameLog: null,
       lastError: null,
       seat: null,
       token: null,

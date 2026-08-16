@@ -130,6 +130,21 @@ function isTrick(x: unknown): boolean {
   );
 }
 
+/** One hand of the fh-y2a.2 game-log summary. */
+function isGameLogHand(x: unknown): boolean {
+  return (
+    isRec(x) &&
+    isIndex(x.handNumber) &&
+    isSeat(x.dealer) &&
+    isIndex(x.redeals) &&
+    Array.isArray(x.auction) &&
+    x.auction.every((c) => isRec(c) && isSeat(c.seat) && isBid(c.bid)) &&
+    Array.isArray(x.tricks) &&
+    x.tricks.every((t) => isRec(t) && isSeat(t.leader) && isSeat(t.winner)) &&
+    isScores(x.scores)
+  );
+}
+
 const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   createRoom: (m) => isNonEmptyString(m.name),
   joinRoom: (m) =>
@@ -167,6 +182,7 @@ const EVENT_CHECKS: Record<ServerEvent['t'], (m: Rec) => boolean> = {
   handScored: (m) => isRec(m.result) && isBid(m.result.contract) && isScores(m.scores),
   handReady: (m) => Array.isArray(m.ready) && m.ready.every(isSeat),
   gameOver: (m) => (m.winner === 0 || m.winner === 1) && isScores(m.scores),
+  gameLog: (m) => Array.isArray(m.hands) && m.hands.every(isGameLogHand),
   error: (m) =>
     typeof m.code === 'string' &&
     (ERROR_CODES as readonly string[]).includes(m.code) &&

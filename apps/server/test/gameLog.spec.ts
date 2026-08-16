@@ -381,3 +381,68 @@ describe('game-log config resolution (on by default, opt-out)', () => {
     expect(cfg).toMatchObject({ enabled: true, dir: '/tmp/corpus', file: 'run.jsonl' });
   });
 });
+
+/**
+ * fh-y2a.2: the client-facing game-log summary. Built beside the JSONL
+ * recorder but independent of it, broadcast once at game end, and re-sent on
+ * requestState while the game rests in gameOver. Disk logging stays OFF in
+ * these cases to pin the edge the issue calls out: an FH_GAME_LOG opt-out
+ * must not empty the log view.
+ */
+describe('game-log summary (fh-y2a.2)', () => {
+  it('broadcasts every hand with dealer, auction, tricks, and totals at game end (AC-1)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-summary-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: false, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    driveToGameOver(fx);
+
+    const envelope = await fx.ann.next('gameLog');
+    const hands = envelope.event.hands;
+    expect(hands.length).toBeGreaterThan(0);
+    hands.forEach((hand, i) => {
+      expect(hand.handNumber).toBe(i);
+      expect([0, 1, 2, 3]).toContain(hand.dealer);
+      expect(hand.redeals).toBeGreaterThanOrEqual(0);
+      // The live auction always holds at least the winning call, and every
+      // trick row names a real leader and winner.
+      expect(hand.auction.length).toBeGreaterThan(0);
+      expect(hand.tricks.length).toBeGreaterThan(0);
+      for (const call of hand.auction) expect([0, 1, 2, 3]).toContain(call.seat);
+      for (const trick of hand.tricks) {
+        expect([0, 1, 2, 3]).toContain(trick.leader);
+        expect([0, 1, 2, 3]).toContain(trick.winner);
+      }
+    });
+    // The last hand's running totals are the final score, and the payload is
+    // exactly the session's accumulated summary — populated despite the disk
+    // opt-out, which also wrote no corpus line.
+    const state = fx.session.state;
+    expect(hands.at(-1)?.scores).toEqual([state.game.scores[0], state.game.scores[1]]);
+    expect(hands).toEqual(fx.session.log);
+    expect(existsSync(join(dir, 'games.jsonl'))).toBe(false);
+  });
+
+  it('re-delivers the summary on requestState while resting in gameOver (AC-4)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-summary-rs-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: false, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    driveToGameOver(fx);
+    const first = await fx.ann.next('gameLog');
+
+    fx.ann.send({ t: 'requestState' });
+    const view = await fx.ann.next('gameView');
+    const again = await fx.ann.next('gameLog');
+    expect(again.event.hands).toEqual(first.event.hands);
+    // The resend rides the same last-consumed seq as the recovery view, so it
+    // can never read as a gap on the recovering client.
+    expect(again.seq).toBe(view.seq);
+  });
+});

@@ -37,12 +37,19 @@ import type {
   Envelope,
   ErrorCode,
   FlagTrickCommand,
+  GameLogHand,
   StateBearingEvent,
 } from '@five-hundred/protocol';
 import type { FlaggedPlay } from '@five-hundred/learn';
 import { BotDriver, type BotDriverOptions } from './botDriver.js';
 import { pickBotName } from './botNames.js';
-import { createGameLogger, resolveGameLogConfig, type GameLogConfig, type GameLogger } from './gameLog.js';
+import {
+  createGameLogger,
+  resolveGameLogConfig,
+  summarizeHand,
+  type GameLogConfig,
+  type GameLogger,
+} from './gameLog.js';
 import {
   DEFAULT_DIFFICULTY,
   isPaused,
@@ -80,6 +87,13 @@ export interface GameSession {
   driver: BotDriver | null;
   /** Opt-in JSONL game logger, null when logging is disabled (the default). */
   logger: GameLogger | null;
+  /**
+   * Hand-by-hand summary for the client game log (fh-y2a.2). Grows as hands
+   * score, independent of `logger` so a disk opt-out never empties the view.
+   */
+  readonly log: GameLogHand[];
+  /** Cumulative dealsDrawn at the last summarized hand (redeal attribution). */
+  logDealsDrawn: number;
   /** Whose turn it is; rooms.ts duck-types this for the paused flag. */
   actingSeat(): number | null;
   /** True once the game reached gameOver; rooms.ts duck-types this for rematch. */
@@ -124,6 +138,8 @@ export function createGameSession(
     ready: new Set(),
     driver: null,
     logger: createGameLogger(room, seed, opts.log ?? resolveGameLogConfig()),
+    log: [],
+    logDealsDrawn: 0,
     actingSeat(): number | null {
       return toActSeat(session.state);
     },
@@ -229,16 +245,19 @@ export function applyGameAction(room: Room, action: Action): ApplyResult {
     broadcastAll(room, { t: 'roomState', room: roomView(room) });
   }
   session.driver?.onAdvance();
-  // Opt-in game logging: snapshot each hand as it scores, and flush the whole
-  // record once the game is over. Both transitions are crossed exactly once,
-  // so each hand is recorded once and the record is written once.
-  if (session.logger !== null) {
-    if (prev.phase !== 'handScored' && result.state.phase === 'handScored') {
-      session.logger.recordHand(result.state);
-    }
-    if (prev.phase !== 'gameOver' && result.state.phase === 'gameOver') {
-      session.logger.finish(result.state);
-    }
+  // Game logging: each scored hand is summarized for the client game log
+  // (always) and snapshotted into the opt-in JSONL logger; at game end the
+  // record flushes to disk and the summary broadcasts to every client. Both
+  // transitions are crossed exactly once, so each hand is captured once, the
+  // record is written once, and the gameLog event goes out once.
+  if (prev.phase !== 'handScored' && result.state.phase === 'handScored') {
+    session.log.push(summarizeHand(result.state, session.logDealsDrawn));
+    session.logDealsDrawn = result.state.dealsDrawn;
+    session.logger?.recordHand(result.state);
+  }
+  if (prev.phase !== 'gameOver' && result.state.phase === 'gameOver') {
+    session.logger?.finish(result.state);
+    broadcastAll(room, { t: 'gameLog', hands: [...session.log] });
   }
   // A hand that decides the game needs no ready-up: gameOver supersedes it,
   // so apply the engine's nextHand at once (handScored -> gameOver).
@@ -323,10 +342,16 @@ function advanceHandIfAllReady(room: Room, session: GameSession, seat: number): 
  * treats a full view as a new seq baseline.
  */
 function handleRequestState(room: Room, session: GameSession, seat: number, client: RoomClient): void {
+  const seq = Math.max(0, room.seq - 1);
   client.send({
-    seq: Math.max(0, room.seq - 1),
+    seq,
     event: { t: 'gameView', view: { view: redactedView(session.state, seat) } },
   });
+  // A game resting in gameOver re-delivers its log summary (fh-y2a.2), so a
+  // recovering client repopulates the game-log view it may never have seen.
+  if (session.state.phase === 'gameOver') {
+    client.send({ seq, event: { t: 'gameLog', hands: [...session.log] } });
+  }
 }
 
 /**
@@ -458,6 +483,10 @@ export function resumeView(room: Room, client: RoomClient): void {
     event: { t: 'gameView', view: { view: redactedView(session.state, seat) } },
   });
   client.send({ seq, event: { t: 'actionRequest', seat, actions: legalActions(session.state, seat) } });
+  // Reattaching into a finished game also restores the log summary (fh-y2a.2).
+  if (session.state.phase === 'gameOver') {
+    client.send({ seq, event: { t: 'gameLog', hands: [...session.log] } });
+  }
 }
 
 /**

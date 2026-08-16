@@ -2,6 +2,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
+import type { GameLogHand } from '@five-hundred/protocol';
 import { derivePhase } from './router.tsx';
 import {
   applyEvent,
@@ -141,6 +142,66 @@ describe('GameEnd', () => {
     fireEvent.click(app.getByTestId('review-return'));
     expect(app.container.querySelector('[data-screen="table"]')).toBeNull();
     expect(app.container.querySelector('[data-screen="game-end"]')).not.toBeNull();
+  });
+
+  // fh-y2a.2 AC-3: the Game log toggle renders the stored summary — dealer
+  // names, the bid/pass sequence, trick leader/winner rows, running totals.
+  it('shows the game log behind its toggle from a stored summary', () => {
+    const hands: GameLogHand[] = [
+      {
+        handNumber: 0,
+        dealer: 3,
+        redeals: 0,
+        auction: [
+          { seat: 0, bid: { kind: 'NUM', level: 7, strain: 0 } },
+          { seat: 1, bid: { kind: 'PASS', level: 0, strain: -1 } },
+          { seat: 2, bid: { kind: 'PASS', level: 0, strain: -1 } },
+          { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
+        ],
+        tricks: [
+          { leader: 0, winner: 0 },
+          { leader: 0, winner: 2 },
+        ],
+        scores: [140, 20],
+      },
+      {
+        handNumber: 1,
+        dealer: 0,
+        redeals: 1,
+        auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
+        tricks: [{ leader: 1, winner: 3 }],
+        scores: [140, 270],
+      },
+    ];
+    const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
+    expect(app.queryByTestId('game-end-log')).toBeNull(); // no summary yet
+    applyEvent(client, env(3, { t: 'gameLog', hands }));
+
+    fireEvent.click(app.getByTestId('game-end-log'));
+    expect(app.getAllByTestId('game-log-dealer').map((el) => el.textContent)).toEqual([
+      'Hand 1 — dealt by AI Noah',
+      'Hand 2 — dealt by Ana',
+    ]);
+    expect(app.getAllByTestId('game-log-auction').map((el) => el.textContent)).toEqual([
+      'Ana: 7S, AI Liam: Pass, Cleo: Pass, AI Noah: Pass',
+      'AI Liam: Nulla',
+    ]);
+    expect(app.getAllByTestId('game-log-trick').map((el) => el.textContent)).toEqual([
+      'Trick 1: Ana led, Ana won',
+      'Trick 2: Ana led, Cleo won',
+      'Trick 1: AI Liam led, AI Noah won',
+    ]);
+    expect(app.getAllByTestId('game-log-scores').map((el) => el.textContent)).toEqual([
+      'After: Us 140 – Them 20',
+      'After: Us 140 – Them 270',
+    ]);
+    // Only the redealt hand mentions its thrown-in auction.
+    expect(app.getAllByTestId('game-log-redeals').map((el) => el.textContent)).toEqual([
+      'Thrown in once before this deal — every seat passed.',
+    ]);
+
+    fireEvent.click(app.getByTestId('game-end-log')); // toggle back off
+    expect(app.queryByTestId('game-log')).toBeNull();
   });
 
   it('Leave sits beside Rematch, sends leaveRoom, and returns Home', () => {

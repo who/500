@@ -5,9 +5,10 @@
  * validates and reseeds). Non-hosts see who can start the rematch.
  */
 
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { OUT_THE_BACK } from '@five-hundred/engine';
+import { GameLogView } from '../components/GameLogView.tsx';
 import { seatName } from './Table.tsx';
 import { useGameClient } from './router.tsx';
 
@@ -24,6 +25,8 @@ export function GameEnd(): ReactNode {
   const client = useGameClient();
   const seatView = useStore(client.store, (s) => s.seatView);
   const room = useStore(client.store, (s) => s.roomView);
+  const gameLog = useStore(client.store, (s) => s.gameLog);
+  const [showLog, setShowLog] = useState(false);
   if (seatView === null) return null;
 
   const view = seatView.view;
@@ -79,10 +82,26 @@ export function GameEnd(): ReactNode {
         >
           Review the table
         </button>
+        {gameLog !== null && (
+          <button
+            type="button"
+            data-testid="game-end-log"
+            onClick={() => setShowLog((on) => !on)}
+          >
+            {showLog ? 'Hide game log' : 'Game log'}
+          </button>
+        )}
         <button type="button" title="Back to menu" onClick={handleLeave}>
           Leave
         </button>
       </div>
+      {showLog && gameLog !== null && (
+        <GameLogView
+          hands={gameLog}
+          names={[0, 1, 2, 3].map((s) => seatName(room, s))}
+          us={us}
+        />
+      )}
     </main>
   );
 }

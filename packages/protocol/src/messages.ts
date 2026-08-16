@@ -229,6 +229,43 @@ export interface GameOverEvent {
   readonly scores: readonly [number, number];
 }
 
+/** One auction call in the order it was made (fh-y2a.2 game log). */
+export interface GameLogCall {
+  readonly seat: number;
+  readonly bid: Bid;
+}
+
+/** One trick condensed to who led it and who took it. */
+export interface GameLogTrick {
+  readonly leader: number;
+  readonly winner: number;
+}
+
+/** One finished hand in the game-log summary. */
+export interface GameLogHand {
+  /** 0-based index of the hand within the game. */
+  readonly handNumber: number;
+  readonly dealer: number;
+  /** Dead (passed-out) auctions thrown in before this hand's live one. */
+  readonly redeals: number;
+  /** The live auction's calls, in the order they were made. */
+  readonly auction: readonly GameLogCall[];
+  readonly tricks: readonly GameLogTrick[];
+  /** Running game totals per side (index = seat % 2) after this hand. */
+  readonly scores: readonly [number, number];
+}
+
+/**
+ * The finished game's hand-by-hand story (fh-y2a.2): broadcast once when the
+ * game ends, and re-sent to a socket that reattaches or requests state while
+ * the game rests in gameOver, so a reconnecting client can rebuild the log.
+ * Server-built so the history survives joins that never saw the early hands.
+ */
+export interface GameLogEvent {
+  readonly t: 'gameLog';
+  readonly hands: readonly GameLogHand[];
+}
+
 export interface ErrorEvent {
   readonly t: 'error';
   readonly code: ErrorCode;
@@ -255,7 +292,8 @@ export type StateBearingEvent =
   | TrickResolvedEvent
   | HandScoredEvent
   | HandReadyEvent
-  | GameOverEvent;
+  | GameOverEvent
+  | GameLogEvent;
 
 /** Events addressed to a single socket; their envelopes may omit seq. */
 export type PrivateEvent = ErrorEvent | SeatGrantedEvent;

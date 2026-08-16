@@ -1742,6 +1742,35 @@ span.suit-glyph {
   flex-wrap: wrap;
 }
 
+/* Game log (fh-y2a.2): a scrollable hand-by-hand story under the actions. */
+.game-log {
+  margin: 1rem auto 0;
+  max-width: 32rem;
+  max-height: 50vh;
+  overflow-y: auto;
+  text-align: left;
+}
+
+.game-log-hands {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  gap: 1rem;
+}
+
+.game-log-hand h3 {
+  margin: 0 0 0.25rem;
+}
+
+.game-log-tricks {
+  margin: 0.25rem 0;
+  padding-left: 1.25rem;
+}
+
+.game-log-scores {
+  font-weight: 600;
+}
+
 .game-end-otb {
   font-weight: 600;
 }
