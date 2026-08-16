@@ -63,7 +63,10 @@
  *
  * Both tests carry a CI-sized 1_200_000ms timeout: ~97s per cell on a dev
  * machine stretches past 180s on a 2-vCPU hosted runner (see the note at the
- * describe block).
+ * describe block). Measured on such a runner (Actions run 31978851025,
+ * 2026-08-16): side 0 finished in ~304s and side 1 in ~215s, comfortably
+ * inside the ceiling — so a run that actually hits the timeout signals a
+ * hang or regression in the rollout stack, not merely slow hardware.
  */
 
 import { describe, expect, it } from 'vitest';
