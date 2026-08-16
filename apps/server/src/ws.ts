@@ -15,6 +15,7 @@ import {
   handleConvertSeatToBot,
   handleFlagTrick,
   handleGameCommand,
+  handleRateBots,
   resumeView,
 } from './game.js';
 import { RoomStore, type Room, type RoomClient } from './rooms.js';
@@ -86,6 +87,9 @@ function dispatch(store: RoomStore, client: RoomClient, cmd: ClientCommand): voi
       return;
     case 'flagTrick':
       handleFlagTrick(client, cmd);
+      return;
+    case 'rateBots':
+      handleRateBots(client, cmd);
       return;
     case 'bid':
     case 'discardKeeps':

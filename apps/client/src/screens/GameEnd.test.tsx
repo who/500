@@ -204,6 +204,31 @@ describe('GameEnd', () => {
     expect(app.queryByTestId('game-log')).toBeNull();
   });
 
+  // fh-y2a.3 AC-3: the thumbs send one rateBots command, then lock with the
+  // recorded choice shown; further clicks send nothing.
+  it('sends one bot rating and locks the thumbs afterwards', () => {
+    const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
+    const up = app.getByTestId('rate-bots-up') as HTMLButtonElement;
+    const down = app.getByTestId('rate-bots-down') as HTMLButtonElement;
+    expect(up.disabled).toBe(false);
+    expect(down.disabled).toBe(false);
+    expect(app.getByTestId('rate-bots-status').textContent).toBe('');
+
+    fireEvent.click(up);
+    expect(client.sent).toEqual([{ t: 'rateBots', verdict: 'up' }]);
+    expect(up.disabled).toBe(true);
+    expect(down.disabled).toBe(true);
+    expect(up.getAttribute('aria-pressed')).toBe('true');
+    expect(down.getAttribute('aria-pressed')).toBe('false');
+    expect(app.getByTestId('rate-bots-status').textContent).toBe(
+      'Thanks — thumbs up recorded.',
+    );
+
+    fireEvent.click(down);
+    fireEvent.click(up);
+    expect(client.sent).toEqual([{ t: 'rateBots', verdict: 'up' }]);
+  });
+
   it('Leave sits beside Rematch, sends leaveRoom, and returns Home', () => {
     const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
     expect(app.getByTestId('game-end-rematch')).not.toBeNull();

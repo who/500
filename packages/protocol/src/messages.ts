@@ -141,6 +141,17 @@ export interface FlagTrickCommand {
   readonly note?: string;
 }
 
+/**
+ * End-game bot feedback (fh-y2a.3): one thumbs verdict per human seat on how
+ * the bots played the finished game. Accepted only while the game rests in
+ * gameOver; persisted beside the game corpus keyed by gameId, and a silent
+ * no-op when the server is not logging games.
+ */
+export interface RateBotsCommand {
+  readonly t: 'rateBots';
+  readonly verdict: 'up' | 'down';
+}
+
 /** Detach this socket from its room and return the player to Home. */
 export interface LeaveRoomCommand {
   readonly t: 'leaveRoom';
@@ -164,6 +175,7 @@ export type ClientCommand =
   | RematchCommand
   | RequestStateCommand
   | FlagTrickCommand
+  | RateBotsCommand
   | LeaveRoomCommand;
 
 export type CommandType = ClientCommand['t'];

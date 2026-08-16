@@ -1734,6 +1734,15 @@ span.suit-glyph {
   z-index: 30;
 }
 
+/* Bot feedback thumbs (fh-y2a.3): a quiet one-liner above the actions. */
+.game-end-feedback {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
 .game-end-actions {
   display: flex;
   justify-content: center;

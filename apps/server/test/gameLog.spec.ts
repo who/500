@@ -8,7 +8,7 @@
  * Trick markers (fh-q2m) are the exception: they arrive as a real ws command
  * from a seated client, so those cases go over the socket.
  */
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
@@ -22,7 +22,7 @@ import {
   type GameStore,
 } from '@five-hundred/learn';
 import { OVERLAY_VERSION } from '../src/botParams.js';
-import { createGameLogger, MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
+import { createGameLogger, FEEDBACK_FILE, MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
 import type { Room } from '../src/rooms.js';
 import { applyGameAction } from '../src/game.js';
 import {
@@ -444,5 +444,93 @@ describe('game-log summary (fh-y2a.2)', () => {
     // The resend rides the same last-consumed seq as the recovery view, so it
     // can never read as a gap on the recovering client.
     expect(again.seq).toBe(view.seq);
+  });
+});
+
+/**
+ * fh-y2a.3: end-game thumbs feedback on the bots, appended beside the corpus
+ * keyed by gameId so analysis can join a verdict to its recorded game.
+ */
+describe('bot feedback (fh-y2a.3)', () => {
+  it('appends a verdict keyed by the recorded game while resting in gameOver (AC-2)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-feedback-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: true, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    driveToGameOver(fx);
+    // Fast-forward the consume cursor to the end-of-game broadcast so the
+    // settle() below waits on a genuinely fresh round trip.
+    await fx.ann.next('gameLog');
+    fx.ann.send({ t: 'rateBots', verdict: 'up' });
+    await settle(fx);
+    expect(fx.ann.received.filter((e) => e.event.t === 'error')).toEqual([]);
+
+    const record = readGameRecordsSync(join(dir, 'games.jsonl'))[0]!;
+    const path = join(dir, FEEDBACK_FILE);
+    const readLines = () =>
+      readFileSync(path, 'utf8')
+        .trim()
+        .split('\n')
+        .map((l) => JSON.parse(l) as Record<string, unknown>);
+    const lines = readLines();
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatchObject({
+      type: 'botFeedback',
+      gameId: record.gameId,
+      seat: 0,
+      verdict: 'up',
+    });
+    expect(typeof lines[0]?.at).toBe('string');
+
+    // A repeat verdict from the same seat appends a newer line rather than
+    // rewriting anything; the latest line wins at read time.
+    fx.ann.send({ t: 'rateBots', verdict: 'down' });
+    await settle(fx);
+    const again = readLines();
+    expect(again).toHaveLength(2);
+    expect(again.at(-1)).toMatchObject({ gameId: record.gameId, seat: 0, verdict: 'down' });
+    expect(fx.ann.received.some((e) => e.event.t === 'error')).toBe(false);
+  });
+
+  it('rejects a rating while the game is live or after a rematch reseeds (AC-4)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-feedback-stale-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: true, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    // Mid-game: the phase gate rejects the verdict before anything writes.
+    fx.ann.send({ t: 'rateBots', verdict: 'up' });
+    expect(await fx.ann.nextError()).toBe('badCommand');
+
+    driveToGameOver(fx);
+    await fx.ann.next('gameLog'); // fast-forward the cursor to game end
+    fx.ann.send({ t: 'rematch' }); // Ann is the host; the room reseeds.
+    await fx.ann.next('roomState');
+    fx.ann.send({ t: 'rateBots', verdict: 'up' });
+    expect(await fx.ann.nextError()).toBe('badCommand');
+    expect(existsSync(join(dir, FEEDBACK_FILE))).toBe(false);
+  });
+
+  it('acknowledges but writes nothing with logging disabled (AC-4)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'fh-server-feedback-off-'));
+    dirs.push(dir);
+    const t = await startTestApp(0xc0ffee, { log: { enabled: false, dir, file: 'games.jsonl' } });
+    apps.push(t);
+    const fx = await setupGame(t);
+    fixtures.push(fx);
+
+    driveToGameOver(fx);
+    await fx.ann.next('gameLog'); // fast-forward the cursor to game end
+    fx.ann.send({ t: 'rateBots', verdict: 'down' });
+    await settle(fx);
+
+    expect(fx.session.logger).toBeNull();
+    expect(fx.ann.received.some((e) => e.event.t === 'error')).toBe(false);
+    expect(existsSync(join(dir, FEEDBACK_FILE))).toBe(false);
   });
 });

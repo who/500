@@ -27,6 +27,7 @@ export function GameEnd(): ReactNode {
   const room = useStore(client.store, (s) => s.roomView);
   const gameLog = useStore(client.store, (s) => s.gameLog);
   const [showLog, setShowLog] = useState(false);
+  const [rated, setRated] = useState<'up' | 'down' | null>(null);
   if (seatView === null) return null;
 
   const view = seatView.view;
@@ -43,6 +44,15 @@ export function GameEnd(): ReactNode {
   function handleLeave(): void {
     client.send({ t: 'leaveRoom' });
     client.store.getState().leaveSession();
+  }
+
+  // One verdict per game (fh-y2a.3): the first click sends, then both thumbs
+  // lock and the recorded choice is echoed back. The server keys the verdict
+  // to the finished game, so there is nothing to re-enable client-side.
+  function rateBots(verdict: 'up' | 'down'): void {
+    if (rated !== null) return;
+    client.send({ t: 'rateBots', verdict });
+    setRated(verdict);
   }
 
   // The fade-in gets its class only when motion is welcome, so reduced-motion
@@ -63,6 +73,32 @@ export function GameEnd(): ReactNode {
           Out the back! The losing side fell to {loserScore}.
         </p>
       )}
+      <div className="game-end-feedback" data-testid="bot-feedback">
+        <span>How did the bots play?</span>
+        <button
+          type="button"
+          data-testid="rate-bots-up"
+          aria-label="Thumbs up for the bots"
+          aria-pressed={rated === 'up'}
+          disabled={rated !== null}
+          onClick={() => rateBots('up')}
+        >
+          👍
+        </button>
+        <button
+          type="button"
+          data-testid="rate-bots-down"
+          aria-label="Thumbs down for the bots"
+          aria-pressed={rated === 'down'}
+          disabled={rated !== null}
+          onClick={() => rateBots('down')}
+        >
+          👎
+        </button>
+        <span role="status" data-testid="rate-bots-status">
+          {rated === null ? '' : `Thanks — thumbs ${rated} recorded.`}
+        </span>
+      </div>
       <div className="game-end-actions">
         {isHost ? (
           <button

@@ -38,6 +38,7 @@ import type {
   ErrorCode,
   FlagTrickCommand,
   GameLogHand,
+  RateBotsCommand,
   StateBearingEvent,
 } from '@five-hundred/protocol';
 import type { FlaggedPlay } from '@five-hundred/learn';
@@ -425,6 +426,38 @@ export function handleFlagTrick(client: RoomClient, cmd: FlagTrickCommand): void
     heldCards: heldCardsAt(session.state, seat),
     flaggedPlay: flaggedPlayAt(session.state, cmd.hand, cmd.trick),
   });
+}
+
+/**
+ * End-game bot rating (fh-y2a.3): append one thumbs verdict beside the game
+ * corpus, keyed by the finished game's gameId. Accepted only from a seated
+ * human while the game rests in gameOver — after a rematch reseeds, the new
+ * session is live again and the command errors as stale. With logging
+ * disabled the logger is null and the command is an acknowledged no-op,
+ * matching the corpus opt-out.
+ */
+export function handleRateBots(client: RoomClient, cmd: RateBotsCommand): void {
+  const room = client.room;
+  if (room === null) {
+    sendError(client, 'badCommand', 'Not in a room.');
+    return;
+  }
+  const session = room.game;
+  if (!isGameSession(session)) {
+    sendError(client, 'badCommand', 'The game has not started.');
+    return;
+  }
+  const seat = client.seat;
+  if (seat === null || room.seats[seat]?.kind !== 'human') {
+    sendError(client, 'badToken', 'No seat is bound to this connection.');
+    return;
+  }
+  if (!session.isOver()) {
+    sendError(client, 'badCommand', 'The game is not over yet.');
+    return;
+  }
+  room.lastActivity = Date.now();
+  session.logger?.appendFeedback(seat, cmd.verdict);
 }
 
 /**

@@ -34,6 +34,9 @@ const validCommands: Record<string, unknown> = {
   // fh-q2m: the debug panel's trick marker; the note is optional.
   flagTrick: { t: 'flagTrick', hand: 2, trick: 5 },
   flagTrickNoted: { t: 'flagTrick', hand: 0, trick: 0, note: 'bot ducked its ace' },
+  // fh-y2a.3: end-game thumbs verdict on the bots.
+  rateBotsUp: { t: 'rateBots', verdict: 'up' },
+  rateBotsDown: { t: 'rateBots', verdict: 'down' },
   leaveRoom: { t: 'leaveRoom' },
 };
 
@@ -71,6 +74,9 @@ const malformedCommands: Record<string, unknown> = {
   flagTrickStringHand: { t: 'flagTrick', hand: '1', trick: 0 },
   flagTrickFractionTrick: { t: 'flagTrick', hand: 1, trick: 2.5 },
   flagTrickNumericNote: { t: 'flagTrick', hand: 1, trick: 0, note: 7 },
+  rateBotsMissingVerdict: { t: 'rateBots' },
+  rateBotsUnknownVerdict: { t: 'rateBots', verdict: 'sideways' },
+  rateBotsBooleanVerdict: { t: 'rateBots', verdict: true },
 };
 
 const validEvents: Record<string, unknown> = {

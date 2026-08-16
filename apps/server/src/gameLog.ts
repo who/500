@@ -8,9 +8,10 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { join } from 'node:path';
+import { appendFileSync, mkdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import type { GameState } from '@five-hundred/engine';
-import type { GameLogHand } from '@five-hundred/protocol';
+import type { GameLogHand, RateBotsCommand } from '@five-hundred/protocol';
 import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
 import {
   GameRecorder,
@@ -26,6 +27,9 @@ import type { Room } from './rooms.js';
 
 /** Longest note a trick flag may carry; anything longer is truncated. */
 export const MAX_MARKER_NOTE = 200;
+
+/** Where bot-feedback verdicts land, beside the game corpus (fh-y2a.3). */
+export const FEEDBACK_FILE = 'feedback.jsonl';
 
 export interface GameLogConfig {
   readonly enabled: boolean;
@@ -84,15 +88,19 @@ function seatKind(room: Room, seat: number): PolicyKind {
 export class GameLogger {
   private readonly recorder: GameRecorder;
 
+  /** Corpus key for this game; feedback lines join on it (fh-y2a.3). */
+  readonly gameId: string;
+
   constructor(
     private readonly path: string,
     seed: number,
     players: readonly PlayerMeta[],
     private readonly store: GameStore | null = null,
   ) {
+    this.gameId = randomUUID();
     this.recorder = new GameRecorder({
       source: 'server',
-      gameId: randomUUID(),
+      gameId: this.gameId,
       seed,
       createdAt: new Date().toISOString(),
       players,
@@ -127,6 +135,30 @@ export class GameLogger {
   /** Markers flagged so far this game (test/inspection hook). */
   get markers(): readonly GameMarker[] {
     return this.recorder.flaggedMarkers;
+  }
+
+  /**
+   * Append one thumbs verdict on the bots (fh-y2a.3) beside the corpus,
+   * keyed by gameId so analysis can join it to the recorded game. Append-only
+   * like the corpus itself: a repeat verdict from the same seat lands as a
+   * newer line and wins at read time. Best-effort — a write failure is logged
+   * and dropped, never thrown into the room.
+   */
+  appendFeedback(seat: number, verdict: RateBotsCommand['verdict']): void {
+    const line = JSON.stringify({
+      type: 'botFeedback',
+      gameId: this.gameId,
+      seat,
+      verdict,
+      at: new Date().toISOString(),
+    });
+    try {
+      const dir = dirname(this.path);
+      mkdirSync(dir, { recursive: true });
+      appendFileSync(join(dir, FEEDBACK_FILE), line + '\n');
+    } catch (err) {
+      console.error('bot-feedback write failed:', err instanceof Error ? err.message : err);
+    }
   }
 
   /** Append the finished game to the corpus (best-effort; logs on failure). */

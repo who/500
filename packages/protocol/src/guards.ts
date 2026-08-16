@@ -170,6 +170,7 @@ const COMMAND_CHECKS: Record<ClientCommand['t'], (m: Rec) => boolean> = {
   requestState: () => true,
   flagTrick: (m) =>
     isIndex(m.hand) && isIndex(m.trick) && (m.note === undefined || typeof m.note === 'string'),
+  rateBots: (m) => m.verdict === 'up' || m.verdict === 'down',
   leaveRoom: () => true,
 };
 
