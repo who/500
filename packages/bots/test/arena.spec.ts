@@ -35,7 +35,11 @@ const run = makeHardMatchRunner({ bidWorlds: 2, keepWorlds: 2, playWorlds: 1 });
  */
 const CRIPPLED_MAX_SEEDS = 200;
 
-describe('Hard-vs-Hard arena', () => {
+// Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
+// tests only, and these SPRT matches play tens of real Hard-vs-Hard games
+// (GitHub sets CI=true; a shell with CI exported skips it too). The suite
+// stays part of a plain local `pnpm --filter @five-hundred/bots test`.
+describe.skipIf(process.env.CI === 'true')('Hard-vs-Hard arena', () => {
   it('AC-2: a reckless-overbid side loses decisively and is rejected', async () => {
     const crippled = recklessBidParams();
     // Candidate = crippled, incumbent = default: candidate must be rejected.

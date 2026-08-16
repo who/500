@@ -365,7 +365,12 @@ function hardSweep(hands: number, params: BotParams = DEFAULT_PARAMS): Recall {
   return out;
 }
 
-describe('Hard plays the world it remembers (AC-1)', () => {
+// Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
+// tests only, and this sweep drives real HardPolicy rollouts for ~11s (GitHub
+// sets CI=true; a shell with CI exported skips it too). It stays part of a
+// plain local `pnpm --filter @five-hundred/bots test`. The Medium-recall
+// suite above is light and keeps running in CI.
+describe.skipIf(process.env.CI === 'true')('Hard plays the world it remembers (AC-1)', () => {
   it('a seeded sweep changes real cards, not just beliefs', () => {
     const sweep = hardSweep(40);
     const rate = sweep.divergent / sweep.decisions;
@@ -382,7 +387,10 @@ describe('Hard plays the world it remembers (AC-1)', () => {
   }, 60_000);
 });
 
-describe('memory fidelity is a difficulty dial (AC-3)', () => {
+// Skipped under CI (fh-xj5): the head-to-head dial sweep alone plays 240 full
+// Hard-vs-Hard games (~80s locally) — a statistical simulation, not a light
+// integration test, so it runs locally rather than in GitHub Actions.
+describe.skipIf(process.env.CI === 'true')('memory fidelity is a difficulty dial (AC-3)', () => {
   it('a looser curve forgets more, and changes more of the cards it plays', () => {
     const tight = mediumSweep(60);
     const loose = mediumSweep(60, LOOSE_MEMORY);

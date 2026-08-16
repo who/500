@@ -70,7 +70,11 @@ function fitnessVs(incumbent = DEFAULT_PARAMS): FitnessFn {
   };
 }
 
-describe('Self-play tuner (real Hard arena)', () => {
+// Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
+// tests only, and this suite spends minutes on real Hard arena games (GitHub
+// sets CI=true; a shell with CI exported skips it too). It stays part of a
+// plain local `pnpm --filter @five-hundred/bots test`.
+describe.skipIf(process.env.CI === 'true')('Self-play tuner (real Hard arena)', () => {
   it('AC-1: a seeded run with the real runner is reproducible', async () => {
     const a = await runCem(cem(), fitnessVs());
     const b = await runCem(cem(), fitnessVs());

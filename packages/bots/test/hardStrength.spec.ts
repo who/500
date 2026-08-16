@@ -61,12 +61,13 @@
  * the defaults (the only row that clears 60% on both sides with margin) are
  * the robust choice.
  *
- * Both tests carry a CI-sized 1_200_000ms timeout: ~97s per cell on a dev
- * machine stretches past 180s on a 2-vCPU hosted runner (see the note at the
- * describe block). Measured on such a runner (Actions run 31978851025,
- * 2026-08-16): side 0 finished in ~304s and side 1 in ~215s, comfortably
- * inside the ceiling — so a run that actually hits the timeout signals a
- * hang or regression in the rollout stack, not merely slow hardware.
+ * CI does not run this suite (fh-xj5): GitHub Actions is for unit and light
+ * integration tests, and each cell here plays 200 full Hard-vs-Medium games —
+ * ~97s on a dev machine, ~304s/~215s measured on a 2-vCPU hosted runner
+ * (Actions run 31978851025). The describe below skips itself when CI=true;
+ * the gate runs in a plain local
+ *   pnpm --filter @five-hundred/bots test
+ * under a 180_000ms per-test timeout sized for developer hardware.
  */
 
 import { describe, expect, it } from 'vitest';
@@ -98,19 +99,24 @@ const SUITE_BUDGET = {
 const hard = (): HardPolicy => new HardPolicy({ ...SUITE_BUDGET, memory: { seed: SEED } });
 const medium = (): MediumPolicy => new MediumPolicy().withMemory(SEED);
 
-describe('Hard-beats-Medium strength gate', () => {
-  // 20-minute ceiling: each side's seeded loop takes ~97s on a dev machine
-  // but past 180s on a 2-vCPU CI runner. The rng stream is fixed, so extra
-  // wall-clock never changes the outcome — the timeout only needs to admit
-  // the slowest hardware the suite runs on.
-  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 1_200_000 }, async () => {
+// Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
+// tests only, and this gate plays 400 full games through HardPolicy. GitHub
+// sets CI=true on every runner; a shell with CI exported skips it too, which
+// the run summary makes visible as skipped tests. The gate stays part of a
+// plain local `pnpm --filter @five-hundred/bots test`.
+describe.skipIf(process.env.CI === 'true')('Hard-beats-Medium strength gate', () => {
+  // 3-minute ceiling: each side's seeded loop takes ~97s on a dev machine,
+  // and CI no longer runs this suite. The rng stream is fixed, so extra
+  // wall-clock never changes the outcome — a run that hits the timeout
+  // signals a hang in the rollout stack, not slow hardware.
+  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
     const policies = [hard(), medium(), hard(), medium()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[0] / GAMES).toBeGreaterThanOrEqual(GATE);
   });
 
-  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 1_200_000 }, async () => {
+  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
     const policies = [medium(), hard(), medium(), hard()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
