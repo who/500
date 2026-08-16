@@ -60,6 +60,10 @@
  * Win rate is noisy and non-monotonic in the budget at this sample size, so
  * the defaults (the only row that clears 60% on both sides with margin) are
  * the robust choice.
+ *
+ * Both tests carry a CI-sized 1_200_000ms timeout: ~97s per cell on a dev
+ * machine stretches past 180s on a 2-vCPU hosted runner (see the note at the
+ * describe block).
  */
 
 import { describe, expect, it } from 'vitest';
