@@ -12,4 +12,11 @@ export default tseslint.config(
     ],
   },
   ...tseslint.configs.recommended,
+  {
+    rules: {
+      // The codebase marks intentionally-unused parameters with a leading
+      // underscore (e.g. API-shaped callbacks); honour that convention.
+      '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
+    },
+  },
 );
