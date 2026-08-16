@@ -154,8 +154,26 @@ const validEvents: Record<string, unknown> = {
           { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
         ],
         tricks: [
-          { leader: 0, winner: 2 },
-          { leader: 2, winner: 0 },
+          {
+            leader: 0,
+            winner: 2,
+            plays: [
+              { seat: 0, card: 3 },
+              { seat: 1, card: 14 },
+              { seat: 2, card: 25 },
+              { seat: 3, card: 44 },
+            ],
+          },
+          {
+            leader: 2,
+            winner: 0,
+            plays: [
+              { seat: 2, card: 26 },
+              { seat: 3, card: 37 },
+              { seat: 0, card: 4 },
+              { seat: 1, card: 15 },
+            ],
+          },
         ],
         scores: [140, 20],
       },
@@ -164,7 +182,18 @@ const validEvents: Record<string, unknown> = {
         dealer: 0,
         redeals: 0,
         auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
-        tricks: [{ leader: 1, winner: 3 }],
+        // A nulla trick: three plays, the declarer's partner sitting out.
+        tricks: [
+          {
+            leader: 1,
+            winner: 3,
+            plays: [
+              { seat: 1, card: 5 },
+              { seat: 2, card: 16 },
+              { seat: 3, card: 27 },
+            ],
+          },
+        ],
         scores: [140, 270],
       },
     ],
@@ -269,6 +298,46 @@ const malformedEvents: Record<string, unknown> = {
         redeals: 0,
         auction: [],
         tricks: [{ leader: 1 }],
+        scores: [0, 0],
+      },
+    ],
+  },
+  // fh-0au: tricks must carry their plays, each with a real seat and card.
+  gameLogTrickMissingPlays: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        tricks: [{ leader: 1, winner: 3 }],
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogPlayBadSeat: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        tricks: [{ leader: 0, winner: 0, plays: [{ seat: 4, card: 3 }] }],
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogPlayBadCard: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        tricks: [{ leader: 0, winner: 0, plays: [{ seat: 0, card: 45 }] }],
         scores: [0, 0],
       },
     ],

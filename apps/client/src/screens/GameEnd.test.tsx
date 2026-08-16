@@ -159,8 +159,26 @@ describe('GameEnd', () => {
           { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
         ],
         tricks: [
-          { leader: 0, winner: 0 },
-          { leader: 0, winner: 2 },
+          {
+            leader: 0,
+            winner: 0,
+            plays: [
+              { seat: 0, card: 7 },
+              { seat: 1, card: 18 },
+              { seat: 2, card: 29 },
+              { seat: 3, card: 40 },
+            ],
+          },
+          {
+            leader: 0,
+            winner: 2,
+            plays: [
+              { seat: 0, card: 8 },
+              { seat: 1, card: 19 },
+              { seat: 2, card: 44 },
+              { seat: 3, card: 41 },
+            ],
+          },
         ],
         scores: [140, 20],
       },
@@ -169,7 +187,18 @@ describe('GameEnd', () => {
         dealer: 0,
         redeals: 1,
         auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
-        tricks: [{ leader: 1, winner: 3 }],
+        // AC-4: a nulla trick of three plays — one seat sat out.
+        tricks: [
+          {
+            leader: 1,
+            winner: 3,
+            plays: [
+              { seat: 1, card: 5 },
+              { seat: 2, card: 16 },
+              { seat: 3, card: 27 },
+            ],
+          },
+        ],
         scores: [140, 270],
       },
     ];
@@ -186,11 +215,44 @@ describe('GameEnd', () => {
       'Ana: 7S, AI Liam: Pass, Cleo: Pass, AI Noah: Pass',
       'AI Liam: Nulla',
     ]);
-    expect(app.getAllByTestId('game-log-trick').map((el) => el.textContent)).toEqual([
+    // fh-0au: each trick keeps its led/won prose as hidden accessible text...
+    expect(app.getAllByTestId('game-log-trick-text').map((el) => el.textContent)).toEqual([
       'Trick 1: Ana led, Ana won',
       'Trick 2: Ana led, Cleo won',
       'Trick 1: AI Liam led, AI Noah won',
     ]);
+    // ...and renders its cards graphically, seat-labelled in play order (AC-3).
+    const tricks = app.getAllByTestId('game-log-trick');
+    expect(tricks).toHaveLength(3);
+    const playsOf = (trick: HTMLElement) =>
+      Array.from(trick.querySelectorAll('[data-testid="game-log-play"]'));
+    const first = playsOf(tricks[0]!);
+    expect(first.map((p) => p.getAttribute('data-seat'))).toEqual(['0', '1', '2', '3']);
+    expect(first.map((p) => p.querySelector('.card')?.getAttribute('data-card'))).toEqual([
+      '7',
+      '18',
+      '29',
+      '40',
+    ]);
+    expect(first.map((p) => p.querySelector('.game-log-play-name')?.textContent)).toEqual([
+      'Ana',
+      'AI Liam',
+      'Cleo',
+      'AI Noah',
+    ]);
+    // The leader is chipped and the winner ringed via data-winner; here Ana
+    // both led and won, so the marks share a play.
+    expect(first.map((p) => p.hasAttribute('data-led'))).toEqual([true, false, false, false]);
+    expect(first.map((p) => p.hasAttribute('data-winner'))).toEqual([true, false, false, false]);
+    const second = playsOf(tricks[1]!);
+    expect(second.map((p) => p.hasAttribute('data-winner'))).toEqual([false, false, true, false]);
+    // The joker face renders inside a log row just as it does in the peek.
+    expect(second[2]!.querySelector('.card')?.getAttribute('aria-label')).toBe('Joker');
+    // AC-4: the three-play nulla trick renders three cards, led to won.
+    const nulla = playsOf(tricks[2]!);
+    expect(nulla.map((p) => p.getAttribute('data-seat'))).toEqual(['1', '2', '3']);
+    expect(nulla.map((p) => p.hasAttribute('data-led'))).toEqual([true, false, false]);
+    expect(nulla.map((p) => p.hasAttribute('data-winner'))).toEqual([false, false, true]);
     expect(app.getAllByTestId('game-log-scores').map((el) => el.textContent)).toEqual([
       'After: Us 140 – Them 20',
       'After: Us 140 – Them 270',

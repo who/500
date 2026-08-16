@@ -140,7 +140,14 @@ function isGameLogHand(x: unknown): boolean {
     Array.isArray(x.auction) &&
     x.auction.every((c) => isRec(c) && isSeat(c.seat) && isBid(c.bid)) &&
     Array.isArray(x.tricks) &&
-    x.tricks.every((t) => isRec(t) && isSeat(t.leader) && isSeat(t.winner)) &&
+    x.tricks.every(
+      (t) =>
+        isRec(t) &&
+        isSeat(t.leader) &&
+        isSeat(t.winner) &&
+        Array.isArray(t.plays) &&
+        t.plays.every((p) => isRec(p) && isSeat(p.seat) && isCard(p.card)),
+    ) &&
     isScores(x.scores)
   );
 }

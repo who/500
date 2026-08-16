@@ -55,8 +55,9 @@ export function resolveGameLogConfig(env: NodeJS.ProcessEnv = process.env): Game
 
 /**
  * Condense one scored hand into its game-log summary row (fh-y2a.2): dealer,
- * the live auction in call order, each trick's leader and winner, and the
- * running totals. Pure and independent of the JSONL logger, so the client's
+ * the live auction in call order, each trick's leader, winner, and cards in
+ * play order (fh-0au), and the running totals. Pure and independent of the
+ * JSONL logger, so the client's
  * game-log view is populated even when disk logging is opted out.
  * `priorDealsDrawn` is the cumulative dealsDrawn before this hand, making the
  * difference (less the live deal) the hand's own thrown-in auctions.
@@ -70,7 +71,11 @@ export function summarizeHand(state: GameState, priorDealsDrawn = 0): GameLogHan
     dealer: state.dealer,
     redeals: Math.max(0, state.dealsDrawn - priorDealsDrawn - 1),
     auction: state.auction.history.map((e) => ({ seat: e.seat, bid: e.bid })),
-    tricks: state.play.tricks.map((t) => ({ leader: t.leader, winner: t.winner })),
+    tricks: state.play.tricks.map((t) => ({
+      leader: t.leader,
+      winner: t.winner,
+      plays: t.plays.map((p) => ({ seat: p.seat, card: p.card })),
+    })),
     scores: [state.game.scores[0], state.game.scores[1]],
   };
 }

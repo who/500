@@ -247,10 +247,18 @@ export interface GameLogCall {
   readonly bid: Bid;
 }
 
-/** One trick condensed to who led it and who took it. */
+/** One card as it hit the table, in play order (fh-0au). */
+export interface GameLogPlay {
+  readonly seat: number;
+  readonly card: Card;
+}
+
+/** One trick: who led it, who took it, and the cards as they fell. */
 export interface GameLogTrick {
   readonly leader: number;
   readonly winner: number;
+  /** Play order (leader first); nulla-type tricks may hold three, not four. */
+  readonly plays: readonly GameLogPlay[];
 }
 
 /** One finished hand in the game-log summary. */

@@ -1,14 +1,20 @@
 /**
  * Game-log view (fh-y2a.2): the finished game hand by hand — who dealt, the
- * auction in call order, each trick's leader and winner, and the running
- * totals after the hand. Rendered from the server-built summary the gameLog
- * event delivers at game end (and re-delivers on reconnect), so the story
- * survives a reload straight into gameOver.
+ * auction in call order, each trick's cards as they fell (fh-0au), and the
+ * running totals after the hand. Rendered from the server-built summary the
+ * gameLog event delivers at game end (and re-delivers on reconnect), so the
+ * story survives a reload straight into gameOver.
+ *
+ * Trick rows are graphic in the Last Trick peek's visual language — compact
+ * seat-labelled faces in play order, the leader chipped and the winner ringed
+ * via data-winner — sized so a 10-trick hand scans as a column. The old
+ * "X led, Y won" prose stays as visually hidden text for assistive tech.
  */
 
 import type { ReactNode } from 'react';
 import { bidName, type Bid } from '@five-hundred/engine';
 import type { GameLogHand } from '@five-hundred/protocol';
+import { CardFace } from './Card.tsx';
 
 /** A call as prose: numeric bids via bidName, the named bids in words. */
 export function callName(bid: Bid): string {
@@ -48,8 +54,28 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
             </p>
             <ol className="game-log-tricks">
               {hand.tricks.map((trick, i) => (
-                <li key={i} data-testid="game-log-trick">
-                  Trick {i + 1}: {names[trick.leader]} led, {names[trick.winner]} won
+                <li key={i} className="game-log-trick" data-testid="game-log-trick">
+                  <span className="game-log-trick-num" aria-hidden="true">
+                    {i + 1}
+                  </span>
+                  <ul className="game-log-plays" aria-hidden="true">
+                    {trick.plays.map((play) => (
+                      <li
+                        key={play.seat}
+                        className="game-log-play"
+                        data-testid="game-log-play"
+                        data-seat={play.seat}
+                        data-led={play.seat === trick.leader || undefined}
+                        data-winner={play.seat === trick.winner || undefined}
+                      >
+                        <CardFace card={play.card} compact />
+                        <span className="game-log-play-name">{names[play.seat]}</span>
+                      </li>
+                    ))}
+                  </ul>
+                  <span className="visually-hidden" data-testid="game-log-trick-text">
+                    Trick {i + 1}: {names[trick.leader]} led, {names[trick.winner]} won
+                  </span>
                 </li>
               ))}
             </ol>

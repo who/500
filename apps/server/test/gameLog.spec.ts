@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
-import { legalActions, newGame, toActSeat, type Action, type GameState } from '@five-hundred/engine';
+import { legalActions, N_CARDS, newGame, toActSeat, type Action, type GameState } from '@five-hundred/engine';
 import {
   gameMarkers,
   readGameRecordsSync,
@@ -415,6 +415,18 @@ describe('game-log summary (fh-y2a.2)', () => {
       for (const trick of hand.tricks) {
         expect([0, 1, 2, 3]).toContain(trick.leader);
         expect([0, 1, 2, 3]).toContain(trick.winner);
+        // fh-0au: the cards as they fell — leader first, winner among them,
+        // three plays when a nulla-type hand sits a seat out.
+        expect(trick.plays.length).toBeGreaterThanOrEqual(3);
+        expect(trick.plays.length).toBeLessThanOrEqual(4);
+        expect(trick.plays[0]?.seat).toBe(trick.leader);
+        expect(trick.plays.map((p) => p.seat)).toContain(trick.winner);
+        for (const play of trick.plays) {
+          expect([0, 1, 2, 3]).toContain(play.seat);
+          expect(Number.isInteger(play.card)).toBe(true);
+          expect(play.card).toBeGreaterThanOrEqual(0);
+          expect(play.card).toBeLessThan(N_CARDS);
+        }
       }
     });
     // The last hand's running totals are the final score, and the payload is
