@@ -645,55 +645,15 @@ button.primary {
   fill: none;
 }
 
-/* Foil sheen on trump faces (fh-wye). In a trump contract every card that
-   counts as trump — natural trumps, the left bower, and the joker — takes a
-   slow holographic sweep, on the viewer's own hand and on the cards played to
-   the middle alike, so trump reads at a glance. The sheen is an SVG band
-   painted over the card ground and under the rank/pips (see Card.tsx), so it
-   is strictly a paint effect — no size, border, or box transform — and nothing
-   shifts layout. Multiply is the blend that shows on a near-white face (screen
-   would vanish); the glyphs paint at full opacity on top of it, so suit
-   contrast is untouched. Face-down backs never carry the class, so hidden
-   cards give nothing away. */
-.card-foil {
-  display: none;
-}
-.card-trump .card-foil {
-  display: block;
-}
-
-.card-trump .card-foil-sheen {
-  mix-blend-mode: multiply;
-  opacity: 0.75;
-  /* One tile is 63 user units wide, so travelling exactly 63 restarts on an
-     identical frame and the loop has no visible seam. */
-  animation: card-foil-sweep 5.5s linear infinite;
-}
-
-@keyframes card-foil-sweep {
-  from {
-    transform: translateX(-63px);
-  }
-  to {
-    transform: translateX(0);
-  }
-}
-
-/* Gold-leaf edge: a thicker, warmer gold stroke than the plain card border,
-   so trump reads as gilded. Stroke is centred on the ground path, so the card
-   keeps its footprint — no layout shift. */
+/* Cream-gold ground on trump faces (fh-8z0). In a trump contract every card
+   that counts as trump — natural trumps, the left bower, and the joker —
+   takes a warm fill on .card-ground, on the viewer's own hand and on the
+   cards played to the middle alike. Stroke stays the ordinary --card-edge /
+   1.5 inherited from .card-ground; there is no gilt border and no foil
+   sheen. Glyphs paint at full opacity on top, so suit contrast is untouched.
+   Face-down backs never carry the class, so hidden cards give nothing away. */
 .card-trump .card-ground {
-  stroke: var(--card-foil-edge);
-  stroke-width: 2.5;
-}
-
-/* Reduced motion keeps the foil, drops the travel: the band parks where it
-   sits, so trump still reads as foil — just static. */
-@media (prefers-reduced-motion: reduce) {
-  .card-trump .card-foil-sheen {
-    animation: none;
-    opacity: 0.6;
-  }
+  fill: var(--card-trump-ground);
 }
 
 /* --- Trick area ---------------------------------------------------------- */

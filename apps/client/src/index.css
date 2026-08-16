@@ -36,9 +36,10 @@
   --suit-black: light-dark(#1c1c1e, #14141a);
   --joker: light-dark(#8e44ad, #7d3c9a);
   --card-back: light-dark(#34558b, #2b4674);
-  /* Foil marking on trump faces (fh-wye): a gilt edge over the same near-white
-     ground, so trump reads as foil without touching the suit contrast. */
-  --card-foil-edge: light-dark(#caa53c, #b58a2a);
+  /* Cream-gold ground on trump faces (fh-8z0): a pale tint over the same
+     near-white card, so trump reads at a glance without a gilt stroke. Dark
+     scheme stays cream, not brown. */
+  --card-trump-ground: light-dark(#faedac, #e8da96);
 
   /* Translucent overlay panel (hand-end): dark-scheme gets a dark panel. */
   --overlay-panel: light-dark(rgba(255, 255, 255, 0.96), rgba(31, 32, 40, 0.97));

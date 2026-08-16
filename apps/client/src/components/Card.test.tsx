@@ -1,11 +1,11 @@
 // @vitest-environment jsdom
 
 /**
- * Foil marking on trump faces (fh-wye): the shared trump test and the class
- * it puts on a face. The sheen itself is CSS (jsdom does no painting), so the
- * observable surface here is exactly which faces carry .card-trump — natural
- * trumps, the left bower, and the joker under a trump contract; nothing under
- * NT/nulla; and never a face-down back.
+ * Cream-gold marking on trump faces (fh-8z0): the shared trump test and the
+ * class it puts on a face. The tint itself is CSS (jsdom does no painting),
+ * so the observable surface here is exactly which faces carry .card-trump —
+ * natural trumps, the left bower, and the joker under a trump contract;
+ * nothing under NT/nulla; and never a face-down back. There is no foil layer.
  */
 
 import { render } from '@testing-library/react';
@@ -41,7 +41,7 @@ describe('isTrumpCard (fh-wye)', () => {
   });
 });
 
-describe('CardFace / CardBack foil class', () => {
+describe('CardFace / CardBack trump class', () => {
   it('carries the class onto the face svg, joker included', () => {
     const face = render(<CardFace card={AH} className={trumpFaceClass(AH, HEARTS)} />);
     expect(face.container.querySelector('svg.card')?.classList.contains('card-trump')).toBe(true);
@@ -58,28 +58,21 @@ describe('CardFace / CardBack foil class', () => {
     expect(svg?.classList.contains('card-trump')).toBe(false);
   });
 
-  /* The sheen only paints if it sits between the ground and the glyphs and is
-     clipped to the card outline; CSS alone can't put it there, so pin the
-     markup. Ids are per-card so two faces on screen can't share a url(#…). */
-  it('paints the sheen over the ground, under the glyphs, clipped to the card', () => {
+  /* Membership is the class; the cream-gold fill is CSS on .card-ground.
+     There is no foil layer to pin. */
+  it('keeps the trump class and has no foil sheen markup', () => {
     const face = render(<CardFace card={AH} className={trumpFaceClass(AH, HEARTS)} />);
     const svg = face.container.querySelector('svg.card') as SVGElement;
-    const foil = svg.querySelector('.card-foil') as SVGElement;
-    expect(foil.getAttribute('clip-path')).toBe(`url(#foil-clip-${AH})`);
-    expect(svg.querySelector(`#foil-clip-${AH}`)).not.toBeNull();
-    expect(svg.querySelector('.card-foil-sheen')?.getAttribute('fill')).toBe(`url(#foil-${AH})`);
-
-    const painted = [...svg.children].map((el) => el.getAttribute('class') ?? el.tagName);
-    expect(painted.indexOf('card-foil')).toBeGreaterThan(painted.indexOf('card-ground'));
-    expect(painted.indexOf('card-foil')).toBeLessThan(painted.indexOf('card-corner-rank'));
+    expect(svg.classList.contains('card-trump')).toBe(true);
+    expect(svg.querySelector('.card-ground')).not.toBeNull();
+    expect(svg.querySelector('.card-foil')).toBeNull();
+    expect(svg.querySelector('.card-foil-sheen')).toBeNull();
   });
 
-  it('gives a non-trump face the same inert sheen markup', () => {
+  it('leaves a non-trump face unmarked and without foil markup', () => {
     const face = render(<CardFace card={KS} className={trumpFaceClass(KS, HEARTS)} />);
     const svg = face.container.querySelector('svg.card') as SVGElement;
-    // Present but unmarked: the CSS keys the sheen off .card-trump, so an
-    // untrumped face renders identically without a second code path.
-    expect(svg.querySelector('.card-foil')).not.toBeNull();
     expect(svg.classList.contains('card-trump')).toBe(false);
+    expect(svg.querySelector('.card-foil')).toBeNull();
   });
 });
