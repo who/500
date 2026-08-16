@@ -8,11 +8,15 @@
  * nothing under NT/nulla; and never a face-down back. There is no foil layer.
  */
 
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { render } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
 import { JOKER, makeCard } from '@five-hundred/engine';
 import { isTrumpCard, trumpFaceClass } from '../lib/trumpMark.ts';
 import { CardBack, CardFace } from './Card.tsx';
+
+const CSS = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
 
 const HEARTS = 3;
 const AH = makeCard(HEARTS, 14);
@@ -74,5 +78,33 @@ describe('CardFace / CardBack trump class', () => {
     const svg = face.container.querySelector('svg.card') as SVGElement;
     expect(svg.classList.contains('card-trump')).toBe(false);
     expect(svg.querySelector('.card-foil')).toBeNull();
+  });
+});
+
+describe('CardFace suit sizes stay on the px rules (fh-ba7)', () => {
+  let style: HTMLStyleElement;
+  beforeEach(() => {
+    style = document.createElement('style');
+    style.textContent = CSS;
+    document.head.appendChild(style);
+  });
+  afterEach(() => {
+    style.remove();
+  });
+
+  it('does not put suit-glyph on SVG text, so .card-pip stays 38px', () => {
+    const face = render(<CardFace card={AH} />);
+    const pip = face.container.querySelector('.card-pip') as SVGTextElement;
+    const corner = face.container.querySelector('.card-corner-suit') as SVGTextElement;
+    expect(pip.classList.contains('suit-glyph')).toBe(false);
+    expect(corner.classList.contains('suit-glyph')).toBe(false);
+    expect(pip.classList.contains('suit-red')).toBe(true);
+    expect(corner.classList.contains('suit-red')).toBe(true);
+    expect(getComputedStyle(pip).fontSize).toBe('38px');
+    expect(getComputedStyle(corner).fontSize).toBe('18px');
+
+    // The chrome bump is scoped to HTML spans so it cannot override those px rules.
+    expect(CSS).toMatch(/span\.suit-glyph \{[^}]*font-size: 1\.12em;/);
+    expect(CSS).not.toMatch(/(?<!span)\.suit-glyph \{[^}]*font-size:/);
   });
 });

@@ -96,10 +96,10 @@ export function CardFace(props: {
       <text x="7" y="20" className="card-corner-rank">
         {rank}
       </text>
-      <text x="7" y="36" className={`card-corner-suit suit-glyph ${suitTone(suit)}`}>
+      <text x="7" y="36" className={`card-corner-suit ${suitTone(suit)}`}>
         {glyph}
       </text>
-      <text x="32" y="66" textAnchor="middle" className={`card-pip suit-glyph ${suitTone(suit)}`}>
+      <text x="32" y="66" textAnchor="middle" className={`card-pip ${suitTone(suit)}`}>
         {glyph}
       </text>
       <g transform="rotate(180 32 45)" className="card-corner-flip">

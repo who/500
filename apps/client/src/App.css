@@ -993,7 +993,8 @@ button.primary {
   gap: 3px;
 }
 
-.suit-glyph {
+/* HTML chrome only — SVG .card-pip / .card-corner-suit keep their px sizes. */
+span.suit-glyph {
   font-size: 1.12em;
 }
 
