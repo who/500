@@ -155,6 +155,11 @@ export interface ClientState {
   lastSeq: number | null;
   /** True after sending requestState for a gap, until the full view lands. */
   recovering: boolean;
+  /**
+   * Set while a Single-player start is in flight (create + sit + startGame).
+   * Keeps Home mounted so the first roomState cannot flash the lobby.
+   */
+  soloStarting: boolean;
 }
 
 export interface ClientActions {
@@ -171,6 +176,8 @@ export interface ClientActions {
   clearContractNotice(): void;
   /** Forget the stored seat and return to the home flow. */
   leaveSession(): void;
+  /** Mark a Single-player start so roomState cannot mount the lobby. */
+  setSoloStarting(on: boolean): void;
 }
 
 export type ClientStore = StoreApi<ClientState & ClientActions>;
@@ -193,6 +200,7 @@ const HOME_RESET: Partial<ClientState> = {
   contractNotice: null,
   rejoining: false,
   seatLost: false,
+  soloStarting: false,
 };
 
 export function createStore(deps: StoreDeps): ClientStore {
@@ -248,6 +256,17 @@ export function createStore(deps: StoreDeps): ClientStore {
         // auto-rejoin (it would steal the seat back) until a fresh
         // seatGranted clears the flag.
         Object.assign(patch, { seatLost: true, seat: null, token: null, rejoining: false });
+      } else if (get().soloStarting) {
+        // Solo start failed after create/sit: drop the half-started room so
+        // Home stays up with the inline error instead of flashing Lobby.
+        const hadRoom = get().roomView !== null;
+        clearSession(storage);
+        Object.assign(patch, HOME_RESET, {
+          lastError: { code: event.code, message: event.message },
+          lastSeq: null,
+          recovering: false,
+        });
+        if (hadRoom) deps.send({ t: 'leaveRoom' });
       } else {
         patch.rejoining = false;
       }
@@ -266,6 +285,7 @@ export function createStore(deps: StoreDeps): ClientStore {
           pendingActions: null,
           lastSeq: seq,
           recovering: false,
+          soloStarting: false,
         };
         // A redeals increment means the auction just died: raise the toast
         // (replacing any still showing). Resends carry an equal count, and a
@@ -360,6 +380,7 @@ export function createStore(deps: StoreDeps): ClientStore {
       rejoining: false,
       lastSeq: null,
       recovering: false,
+      soloStarting: false,
 
       applyServerEvent(envelope: Envelope): void {
         const event = envelope.event;
@@ -388,6 +409,16 @@ export function createStore(deps: StoreDeps): ClientStore {
       },
 
       setConnection(status: ConnectionStatus): void {
+        if (status !== 'open' && get().soloStarting) {
+          clearSession(storage);
+          set({
+            connection: status,
+            ...HOME_RESET,
+            lastSeq: null,
+            recovering: false,
+          });
+          return;
+        }
         set({ connection: status });
       },
 
@@ -411,6 +442,10 @@ export function createStore(deps: StoreDeps): ClientStore {
         clearSession(storage);
         cancelLinger();
         set({ ...HOME_RESET, lastSeq: null, recovering: false });
+      },
+
+      setSoloStarting(on: boolean): void {
+        set({ soloStarting: on });
       },
     };
   });

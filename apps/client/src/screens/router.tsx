@@ -48,10 +48,13 @@ export type Phase = 'home' | 'lobby' | 'table' | 'gameEnd';
 export function derivePhase(state: {
   seatView: SeatGameView | null;
   roomView: RoomView | null;
+  soloStarting?: boolean;
 }): Phase {
   if (state.seatView !== null) {
     return state.seatView.view.phase === 'gameOver' ? 'gameEnd' : 'table';
   }
+  // Solo start holds Home so the first roomState cannot mount Lobby.
+  if (state.soloStarting) return 'home';
   if (state.roomView !== null) return 'lobby';
   return 'home';
 }
@@ -76,7 +79,9 @@ function syncHash(roomCode: string | null): void {
 export function Router(): ReactNode {
   const client = useGameClient();
   const phase = useStore(client.store, derivePhase);
-  const roomCode = useStore(client.store, (s) => s.roomView?.roomCode ?? null);
+  const roomCode = useStore(client.store, (s) =>
+    s.soloStarting ? null : (s.roomView?.roomCode ?? null),
+  );
 
   useEffect(() => {
     syncHash(roomCode);

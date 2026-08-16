@@ -52,6 +52,7 @@ describe('Lobby', () => {
     const host = makeClient();
     const hostView = renderApp(host);
     await user.type(within(hostView.container).getByLabelText('Your name'), 'Ana');
+    await user.click(within(hostView.container).getByRole('button', { name: 'Multiplayer' }));
     await user.click(within(hostView.container).getByRole('button', { name: 'Create room' }));
     expect(host.sent).toEqual([
       { t: 'createRoom', name: 'Ana' },

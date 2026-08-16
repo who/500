@@ -1,7 +1,8 @@
 /**
- * Home screen (PRD section 6.1 screen 1): display name plus create-room and
- * join-by-code flows. The name persists in localStorage across visits; the
- * join code is prefilled from a shared #/room/CODE link. Server errors
+ * Home screen (PRD section 6.1 screen 1): display name plus Single player
+ * (create + sit + start, skip lobby) and Multiplayer (create-room / join-by-code).
+ * The name persists in localStorage across visits; a shared #/room/CODE link
+ * opens the Multiplayer pane and prefills the join code. Server errors
  * (unknown code, full room, game already started) render inline.
  */
 
@@ -40,19 +41,28 @@ export function Home(): ReactNode {
   const seatLost = useStore(client.store, (s) => s.seatLost);
   const lastError = useStore(client.store, (s) => s.lastError);
   const storeName = useStore(client.store, (s) => s.name);
+  const soloStarting = useStore(client.store, (s) => s.soloStarting);
 
+  const hashCode = roomCodeFromHash(typeof location === 'undefined' ? '' : location.hash) ?? '';
   const [name, setName] = useState(() => storeName ?? loadStoredName());
-  const [joinCode, setJoinCode] = useState(
-    () => roomCodeFromHash(typeof location === 'undefined' ? '' : location.hash) ?? '',
-  );
+  const [joinCode, setJoinCode] = useState(() => hashCode);
+  const [showMultiplayer, setShowMultiplayer] = useState(() => hashCode !== '');
 
-  const ready = connection === 'open' && !rejoining;
+  const ready = connection === 'open' && !rejoining && !soloStarting;
   const displayName = name.trim() === '' ? DEFAULT_NAME : name.trim();
 
   function commitName(): void {
     client.store.getState().clearError();
     client.store.getState().setName(displayName);
     persistName(displayName);
+  }
+
+  function handleSolo(): void {
+    commitName();
+    client.store.getState().setSoloStarting(true);
+    client.send({ t: 'createRoom', name: displayName });
+    client.send({ t: 'sit', seat: 0 });
+    client.send({ t: 'startGame' });
   }
 
   function handleCreate(): void {
@@ -78,6 +88,7 @@ export function Home(): ReactNode {
         <p className="notice">{connection === 'connecting' ? 'Connecting…' : 'Reconnecting…'}</p>
       )}
       {rejoining && <p className="notice">Rejoining your game…</p>}
+      {soloStarting && <p className="notice">Starting…</p>}
       {seatLost && (
         <p className="notice">Your seat was taken over by a newer connection (another tab?).</p>
       )}
@@ -98,30 +109,52 @@ export function Home(): ReactNode {
         <button
           type="button"
           className="primary"
-          data-testid="create-room"
+          data-testid="single-player"
           disabled={!ready}
-          onClick={handleCreate}
+          onClick={handleSolo}
         >
-          Create room
+          Single player
+        </button>
+        <button
+          type="button"
+          data-testid="multiplayer"
+          disabled={!ready}
+          onClick={() => setShowMultiplayer(true)}
+        >
+          Multiplayer
         </button>
 
-        <form className="join" onSubmit={handleJoin}>
-          <label className="field">
-            Room code
-            <input
-              type="text"
-              value={joinCode}
-              placeholder="e.g. ABCDE"
-              autoCapitalize="characters"
-              autoCorrect="off"
-              spellCheck={false}
-              onChange={(e) => setJoinCode(normalizeCode(e.target.value))}
-            />
-          </label>
-          <button type="submit" disabled={!ready || normalizeCode(joinCode) === ''}>
-            Join room
-          </button>
-        </form>
+        {showMultiplayer && (
+          <>
+            <button
+              type="button"
+              className="primary"
+              data-testid="create-room"
+              disabled={!ready}
+              onClick={handleCreate}
+            >
+              Create room
+            </button>
+
+            <form className="join" onSubmit={handleJoin}>
+              <label className="field">
+                Room code
+                <input
+                  type="text"
+                  value={joinCode}
+                  placeholder="e.g. ABCDE"
+                  autoCapitalize="characters"
+                  autoCorrect="off"
+                  spellCheck={false}
+                  onChange={(e) => setJoinCode(normalizeCode(e.target.value))}
+                />
+              </label>
+              <button type="submit" disabled={!ready || normalizeCode(joinCode) === ''}>
+                Join room
+              </button>
+            </form>
+          </>
+        )}
       </section>
 
       {lastError !== null && (
