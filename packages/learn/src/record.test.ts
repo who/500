@@ -41,7 +41,9 @@ function firstAction(state: GameState): Action {
   const seat = toActSeat(state);
   if (seat === null) throw new Error(`no actor in phase ${state.phase}`);
   const actions = legalActions(state, seat);
-  const action = actions[0];
+  // Never declare a slam: a failed slam scores a constant -500 (fh-wku), which
+  // ends the game on the first hand — these fixtures need multi-hand games.
+  const action = actions.find((a) => a.type !== 'declareSlam') ?? actions[0];
   if (action === undefined) throw new Error(`no legal action for seat ${seat}`);
   if (action.type === 'discardKeeps') {
     return { type: 'discardKeeps', seat, keeps: (state.hands[seat] ?? []).slice(0, 10) };
