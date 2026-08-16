@@ -7,7 +7,7 @@
  */
 
 import type { ReactNode } from 'react';
-import { SUIT_GLYPHS } from './Card.tsx';
+import { SuitGlyph } from './Card.tsx';
 
 const SUIT_NAMES = ['Spades', 'Clubs', 'Diamonds', 'Hearts'] as const;
 
@@ -32,9 +32,7 @@ export function JokerSuitPicker(props: {
             data-suit={suit}
             onClick={() => props.onPick(suit)}
           >
-            <span className="joker-picker-glyph" aria-hidden="true">
-              {SUIT_GLYPHS[suit]}
-            </span>
+            <SuitGlyph suit={suit} className="joker-picker-glyph" aria-hidden />
             {name}
           </button>
         ))}

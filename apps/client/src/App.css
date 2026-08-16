@@ -601,11 +601,11 @@ button.primary {
 }
 
 .card-corner-suit {
-  font-size: 15px;
+  font-size: 18px;
 }
 
 .card-pip {
-  font-size: 34px;
+  font-size: 38px;
 }
 
 /* Compact face (PRD 6.3): activates on the wide 15/16-card fans, where each
@@ -616,7 +616,7 @@ button.primary {
 }
 
 .card-compact .card-corner-suit {
-  font-size: 20px;
+  font-size: 22px;
   transform: translateY(4px);
 }
 
@@ -898,7 +898,7 @@ button.primary {
   border-radius: 999px;
   background: rgba(20, 24, 33, 0.85);
   color: #fff;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
   pointer-events: none;
 }
 
@@ -993,11 +993,38 @@ button.primary {
   gap: 3px;
 }
 
+.suit-glyph {
+  font-size: 1.12em;
+}
+
+.suit-red {
+  color: var(--suit-red);
+}
+
+.suit-black {
+  color: var(--suit-black);
+}
+
+.card-corner-suit.suit-red,
+.card-pip.suit-red {
+  fill: var(--suit-red);
+}
+
+.card-corner-suit.suit-black,
+.card-pip.suit-black {
+  fill: var(--suit-black);
+}
+
 .bid-col-head {
   text-align: center;
   color: rgba(255, 255, 255, 0.85);
-  font-size: 0.8rem;
+  font-size: 0.95rem;
   font-weight: 600;
+}
+
+/* Black suits vanish on the green felt; keep those heads near-white. */
+.bid-col-head .suit-black {
+  color: rgba(255, 255, 255, 0.9);
 }
 
 .bid-cell {
@@ -1150,7 +1177,7 @@ button.primary {
   border-radius: 999px;
   background: var(--code-bg);
   color: var(--text-h);
-  font-size: 0.7rem;
+  font-size: 0.8rem;
   white-space: nowrap;
 }
 
@@ -1304,7 +1331,7 @@ button.primary {
   }
 
   .my-hand .card-corner-suit {
-    font-size: 18px;
+    font-size: 20px;
   }
 }
 
@@ -1389,11 +1416,7 @@ button.primary {
 }
 
 .joker-picker-glyph {
-  font-size: 1.3rem;
-}
-
-.joker-picker-red .joker-picker-glyph {
-  color: var(--danger);
+  font-size: 1.5rem;
 }
 
 .joker-picker-cancel {

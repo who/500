@@ -12,11 +12,11 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { type Bid, IND, PASS, bidName } from '@five-hundred/engine';
+import { type Bid, IND, NT, NUM, PASS, bidName } from '@five-hundred/engine';
 import { contractToken } from '../lib/contractToken.ts';
 import { ActivityCard } from './ActivityCard.tsx';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
-import { CardBack } from './Card.tsx';
+import { CardBack, SuitGlyph } from './Card.tsx';
 
 /** Chips shown before the "+n" expander takes over (phone-width budget). */
 const VISIBLE_CHIPS = 3;
@@ -63,7 +63,14 @@ export function BidChips(props: { bids: readonly Bid[] }): ReactNode {
             data-bid-kind={b.kind}
             title={b.kind === IND ? `${bidName(b)}: ${IND_TOOLTIP}` : bidName(b)}
           >
-            {b.kind === IND ? `${cellName(b)} ind` : cellName(b)}
+            {b.kind === NUM || b.kind === IND ? (
+              <>
+                Bid: {b.level} {b.strain === NT ? 'NT' : <SuitGlyph suit={b.strain} />}
+                {b.kind === IND ? ' ind' : null}
+              </>
+            ) : (
+              cellName(b)
+            )}
           </span>
         );
       })}

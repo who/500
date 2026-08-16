@@ -619,7 +619,7 @@ describe('deal choreography (fh-8t1)', () => {
     fireEvent.click(tableRoot(app));
     expect(app.getByTestId('bid-panel')).toBeDefined();
     expect(app.queryByTestId('deal-overlay')).toBeNull();
-    expect(chipTexts(app, 1)).toEqual(['7♠']);
+    expect(chipTexts(app, 1)).toEqual(['Bid: 7 ♠']);
     expect(app.getByTestId('middle-pile').querySelectorAll('.card-back')).toHaveLength(5);
   });
 

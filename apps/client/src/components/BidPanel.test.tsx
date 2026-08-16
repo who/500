@@ -153,7 +153,12 @@ describe('BidPanel', () => {
 
     // Values from the avondale table on the cells themselves.
     expect(cellFor(app, bid(NUM, 8, NT)).textContent).toBe('8NT320');
+    expect(cellFor(app, bid(NUM, 8, NT)).querySelector('.suit-glyph')).toBeNull();
     expect(cellFor(app, bid(NUM, 10, 3)).textContent).toBe('10♥500');
+    expect(cellFor(app, bid(NUM, 10, 3)).querySelector('.suit-glyph.suit-red')?.textContent).toBe(
+      '♥',
+    );
+    expect(app.getByTestId('bid-panel').querySelector('.bid-col-head .suit-glyph.suit-black')).not.toBeNull();
     expect(cellFor(app, bid(DNULLA)).textContent).toBe('Double Nulla500');
     expect(cellFor(app, bid(NULLA)).textContent).toBe('Nulla250');
     expect(cellFor(app, bid(PASS)).textContent).toBe('Pass');

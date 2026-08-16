@@ -22,7 +22,7 @@ import { trickPoseKey, trickRestPose } from '../lib/dealPattern.ts';
 import { seatPosition } from '../lib/seating.ts';
 import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { TRICK_LINGER_MS } from '../store.ts';
-import { CardFace, SUIT_GLYPHS } from './Card.tsx';
+import { CardFace, SuitGlyph } from './Card.tsx';
 
 const SUIT_NOUNS = ['spades', 'clubs', 'diamonds', 'hearts'] as const;
 
@@ -160,7 +160,7 @@ export function TrickArea(props: {
                   data-suit={declared}
                   title={`Joker declares ${SUIT_NOUNS[declared]}`}
                 >
-                  declares {SUIT_GLYPHS[declared]}
+                  declares <SuitGlyph suit={declared} />
                 </span>
               )}
             </div>

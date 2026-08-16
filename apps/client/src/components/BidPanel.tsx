@@ -32,7 +32,7 @@ import {
   bidName,
   bidValue,
 } from '@five-hundred/engine';
-import { SUIT_GLYPHS } from './Card.tsx';
+import { SUIT_GLYPHS, SuitGlyph } from './Card.tsx';
 
 const STRAIN_LABELS = [...SUIT_GLYPHS, 'NT'] as const;
 
@@ -67,6 +67,19 @@ export function cellName(b: Bid): string {
   if (b.kind === NULLA) return 'Nulla';
   if (b.kind === DNULLA) return 'Double Nulla';
   return 'Pass';
+}
+
+/** Visible cell copy: same glyphs as `cellName`, painted through `SuitGlyph`. */
+function cellLabel(b: Bid): ReactNode {
+  if (b.kind === NUM || b.kind === IND) {
+    return (
+      <>
+        {b.level}
+        {b.strain === NT ? 'NT' : <SuitGlyph suit={b.strain} />}
+      </>
+    );
+  }
+  return cellName(b);
 }
 
 /** Title text for the dealer's throw-in pass (500-house-rules.md, Bidding). */
@@ -110,7 +123,7 @@ export function BidPanel(props: BidPanelProps): ReactNode {
           if (enabled) props.onBid(b);
         }}
       >
-        <span className="bid-cell-name">{asRedeal ? 'Redeal' : cellName(b)}</span>
+        <span className="bid-cell-name">{asRedeal ? 'Redeal' : cellLabel(b)}</span>
         {value > 0 && <span className="bid-cell-value">{value}</span>}
       </button>
     );
@@ -126,9 +139,9 @@ export function BidPanel(props: BidPanelProps): ReactNode {
       aria-label="Auction bids"
     >
       <div className="bid-grid">
-        {STRAIN_LABELS.map((label) => (
+        {STRAIN_LABELS.map((label, i) => (
           <div key={label} className="bid-col-head" aria-hidden="true">
-            {label}
+            {i < SUIT_GLYPHS.length ? <SuitGlyph suit={i} /> : label}
           </div>
         ))}
         {strains.map((s) => cell(bid(NUM, 7, s)))}

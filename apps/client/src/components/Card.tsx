@@ -10,6 +10,27 @@ import { type Card as CardId, JOKER, cardRank, cardSuit } from '@five-hundred/en
 
 export const SUIT_GLYPHS = ['♠', '♣', '♦', '♥'] as const;
 
+/** Hearts/diamonds are 2/3; spades/clubs 0/1. Shared by HTML chrome and SVG faces. */
+export function suitTone(suit: number): 'suit-red' | 'suit-black' {
+  return suit === 2 || suit === 3 ? 'suit-red' : 'suit-black';
+}
+
+/** Colored suit mark. NT stays letters and never goes through here. */
+export function SuitGlyph(props: {
+  suit: number;
+  className?: string;
+  'aria-hidden'?: boolean;
+}): ReactNode {
+  return (
+    <span
+      className={['suit-glyph', suitTone(props.suit), props.className].filter(Boolean).join(' ')}
+      aria-hidden={props['aria-hidden']}
+    >
+      {SUIT_GLYPHS[props.suit]}
+    </span>
+  );
+}
+
 const RANK_LABELS: Readonly<Record<number, string>> = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' };
 
 export function rankLabel(card: CardId): string {
@@ -75,10 +96,10 @@ export function CardFace(props: {
       <text x="7" y="20" className="card-corner-rank">
         {rank}
       </text>
-      <text x="7" y="36" className="card-corner-suit">
+      <text x="7" y="36" className={`card-corner-suit suit-glyph ${suitTone(suit)}`}>
         {glyph}
       </text>
-      <text x="32" y="66" textAnchor="middle" className="card-pip">
+      <text x="32" y="66" textAnchor="middle" className={`card-pip suit-glyph ${suitTone(suit)}`}>
         {glyph}
       </text>
       <g transform="rotate(180 32 45)" className="card-corner-flip">

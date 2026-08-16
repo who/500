@@ -142,17 +142,20 @@ describe('auction UX', () => {
     const { app } = renderAuction(state);
 
     expect(chipTexts(chipsFor(app, 0))).toEqual([]); // dealer has not called yet
-    expect(chipTexts(chipsFor(app, 1))).toEqual(['6♥ ind']);
-    expect(chipTexts(chipsFor(app, 2))).toEqual(['7♠']);
+    expect(chipTexts(chipsFor(app, 1))).toEqual(['Bid: 6 ♥ ind']);
+    expect(chipTexts(chipsFor(app, 2))).toEqual(['Bid: 7 ♠']);
     expect(chipTexts(chipsFor(app, 3))).toEqual(['Pass']);
 
     // Indications distinct, passes muted, a seat's (only) call emphasized.
     const indChip = chipsFor(app, 1)?.querySelector('.bid-chip');
     expect(indChip?.classList.contains('bid-chip-ind')).toBe(true);
+    expect(indChip?.querySelector('.suit-glyph.suit-red')?.textContent).toBe('♥');
     const bidChip = chipsFor(app, 2)?.querySelector('.bid-chip');
     expect(bidChip?.classList.contains('bid-chip-latest')).toBe(true);
+    expect(bidChip?.querySelector('.suit-glyph.suit-black')?.textContent).toBe('♠');
     const pass = chipsFor(app, 3)?.querySelector('.bid-chip');
     expect(pass?.classList.contains('bid-chip-pass')).toBe(true);
+    expect(pass?.querySelector('.suit-glyph')).toBeNull();
   });
 
   it('toasts a redeal naming the new dealer, clears history, and auto-dismisses (AC-3)', () => {
