@@ -41,6 +41,7 @@ function handProps(n: number) {
     reasons: new Map<number, string>(),
     locked: false,
     onPlay: () => {},
+    onNeedsSuit: () => {},
   };
 }
 

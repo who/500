@@ -1,9 +1,10 @@
 /**
  * Suit picker for leading the joker under no trump (PRD 6.2): in NT/nulla
- * hands the joker counts as every suit, so only its leader names one. The
- * popover opens from tapping the joker in the hand (see Hand); a suit button
- * submits the play with that jokerSuit, cancel returns to the hand with the
- * turn still open. Buttons stay finger-sized for touch play.
+ * hands the joker counts as every suit, so only its leader names one. Table
+ * owns the open/close state and mounts the picker on the felt (fh-rtr) when
+ * Hand reports a needsSuit tap; a suit button submits the play with that
+ * jokerSuit, cancel returns to the hand with the turn still open. Buttons
+ * stay finger-sized for touch play.
  */
 
 import type { ReactNode } from 'react';

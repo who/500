@@ -148,6 +148,40 @@ describe('joker lead suit picker (AC-1)', () => {
     expect(sentPlays(client)).toEqual([{ t: 'playCard', card: AH }]);
   });
 
+  it('renders on the felt, outside the hand fan (fh-rtr)', () => {
+    const { app } = renderPlayTurn(ntView(), JOKER_LEAD_ACTIONS);
+
+    fireEvent.click(cardButton(app, JOKER));
+    const picker = app.getByTestId('joker-suit-picker');
+    // The felt (.game-table) is the positioning ancestor, so the fanned,
+    // rotated cards in .my-hand can never establish a context above it.
+    expect(picker.closest('.game-table')).not.toBeNull();
+    expect(picker.closest('.my-hand')).toBeNull();
+    expect(picker.classList.contains('joker-picker')).toBe(true);
+  });
+
+  it('closes when the turn moves on while it is open', () => {
+    const { client, app } = renderPlayTurn(ntView(), JOKER_LEAD_ACTIONS);
+
+    fireEvent.click(cardButton(app, JOKER));
+    expect(app.getByTestId('joker-suit-picker')).toBeDefined();
+
+    // A newer view hands the turn to seat 1 (and supersedes the request).
+    applyEvent(client, env(3, { t: 'gameView', view: { view: ntView({ toAct: 1 }) } }));
+    expect(app.queryByTestId('joker-suit-picker')).toBeNull();
+    expect(sentPlays(client)).toHaveLength(0);
+  });
+
+  it('closes when playing another card locks the hand', () => {
+    const { client, app } = renderPlayTurn(ntView(), JOKER_LEAD_ACTIONS);
+
+    fireEvent.click(cardButton(app, JOKER));
+    fireEvent.click(cardButton(app, AH));
+    expect(sentPlays(client)).toEqual([{ t: 'playCard', card: AH }]);
+    expect(app.getByTestId('my-hand').dataset.locked).toBe('true');
+    expect(app.queryByTestId('joker-suit-picker')).toBeNull();
+  });
+
   it('never prompts when following with the joker', () => {
     // Clubs led; the joker follows silently (it assumes the led suit).
     const view = ntView({

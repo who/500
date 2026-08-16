@@ -49,7 +49,7 @@
  * ContractToast dismisses. Tap skips the in-flight sequence.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { type Bid, type Card, DNULLA, NULLA, partnerOf, trumpOf } from '@five-hundred/engine';
 import type { ActionRequestEvent, ErrorEvent, RoomView } from '@five-hundred/protocol';
@@ -68,6 +68,7 @@ import { GiveCardPicker } from '../components/GiveCardPicker.tsx';
 import { Hand } from '../components/Hand.tsx';
 import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
+import { JokerSuitPicker } from '../components/JokerSuitPicker.tsx';
 import { LastTrickPeek } from '../components/LastTrickPeek.tsx';
 import { RedealToast } from '../components/RedealToast.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
@@ -114,7 +115,20 @@ export function Table(): ReactNode {
   // server error also releases the lock — the submission was rejected, so
   // the seat must be able to act again.
   const [lockedOn, setLockedOn] = useState<SubmitLock | null>(null);
+  // Joker awaiting a named suit (fh-rtr): hoisted from Hand so the picker
+  // anchors to the felt instead of the fan that used to paint over it.
+  const [pickingCard, setPickingCard] = useState<Card | null>(null);
   const deal = useDealChoreography(seatView?.view ?? null, contractNotice !== null);
+  const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
+  // The turn moving or locking invalidates a half-open picker — the same
+  // rule Hand applied when it owned the picking state.
+  const handInteractive =
+    seatView !== null &&
+    !locked &&
+    playLegality(seatView.view, pendingActions?.actions ?? null).active;
+  useEffect(() => {
+    if (!handInteractive) setPickingCard(null);
+  }, [handInteractive]);
   if (seatView === null) return null; // the router only mounts Table with a view
 
   function handleLeave(): void {
@@ -130,7 +144,6 @@ export function Table(): ReactNode {
   const visibleCount = deal.seq === 'dealing' ? (deal.landed[me] ?? 0) : deal.seq === 'done' ? sorted.length : 10;
   const hand = sorted.slice(0, visibleCount);
   const legality = playLegality(view, pendingActions?.actions ?? null);
-  const locked = lockedOn !== null && lockedOn.req === pendingActions && lockedOn.err === lastError;
   const exchanging = view.phase === 'middleExchange';
   const picking = exchanging && view.toAct === me;
   // The dnulla partner-discard step: the declarer has confirmed and their 5
@@ -335,6 +348,16 @@ export function Table(): ReactNode {
               : `${seatName(room, partnerOf(view.declarer))} is giving their best card to ${seatName(room, view.declarer)}…`}
           </div>
         )}
+        {pickingCard !== null && (
+          <JokerSuitPicker
+            onPick={(suit) => {
+              const card = pickingCard;
+              setPickingCard(null);
+              playCard(card, suit);
+            }}
+            onCancel={() => setPickingCard(null)}
+          />
+        )}
       </div>
       <div className="my-seat" data-seat={me}>
         {badge(me)}
@@ -392,6 +415,7 @@ export function Table(): ReactNode {
             locked={locked}
             trump={view.contract === null ? null : trumpOf(view.contract)}
             onPlay={playCard}
+            onNeedsSuit={setPickingCard}
           />
         )}
         <DebugPanel target={flagTarget(view)} onFlag={flagTrick} />

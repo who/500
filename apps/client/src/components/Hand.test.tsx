@@ -350,6 +350,7 @@ describe('trump foil on the hand (fh-wye)', () => {
       locked: false,
       trump,
       onPlay: () => {},
+      onNeedsSuit: () => {},
     };
   }
 

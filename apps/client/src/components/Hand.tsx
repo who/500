@@ -5,8 +5,9 @@
  * hover title (desktop) and behind a long-press popover (touch). A submitted
  * play locks the whole hand until the next gameView so a double tap cannot
  * send two cards. Cards in the needsSuit set (the joker led under no trump)
- * open the suit picker on tap instead of playing directly; picking a suit
- * submits the play with it, cancel keeps the turn open.
+ * report the tap upward via onNeedsSuit instead of playing directly; Table
+ * owns the suit picker and anchors it to the felt (fh-rtr) so the fanned
+ * cards can never paint over it.
  */
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
@@ -14,7 +15,6 @@ import type { Card as CardId } from '@five-hundred/engine';
 import { GENERIC_REASON } from '../lib/playLegality.ts';
 import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { CardFace, cardLabel } from './Card.tsx';
-import { JokerSuitPicker } from './JokerSuitPicker.tsx';
 
 export const LONG_PRESS_MS = 450;
 
@@ -34,13 +34,13 @@ export interface HandProps {
   /** Trump suit of the contract; trump faces take the foil sheen (fh-wye). */
   trump?: number | null;
   onPlay(card: CardId, jokerSuit?: number): void;
+  /** A tap on a needsSuit card; the owner opens the suit picker (fh-rtr). */
+  onNeedsSuit(card: CardId): void;
 }
 
 export function Hand(props: HandProps): ReactNode {
   // Illegal card whose reason the current long-press reveals.
   const [pressed, setPressed] = useState<CardId | null>(null);
-  // Card awaiting a named suit in the picker (the joker being led).
-  const [picking, setPicking] = useState<CardId | null>(null);
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(
     () => () => {
@@ -50,10 +50,6 @@ export function Hand(props: HandProps): ReactNode {
   );
 
   const interactive = props.active && !props.locked;
-  // The turn moving or locking invalidates a half-open picker.
-  useEffect(() => {
-    if (!interactive) setPicking(null);
-  }, [interactive]);
   // Spread the fan across a fixed arc so 15/16-card exchange hands stay legible.
   const fanStep = props.cards.length > 1 ? Math.min(6, 40 / (props.cards.length - 1)) : 0;
   // Oversized fans (15/16-card exchange states) get the compact face variant.
@@ -83,16 +79,6 @@ export function Hand(props: HandProps): ReactNode {
           {pressedReason}
         </div>
       )}
-      {picking !== null && (
-        <JokerSuitPicker
-          onPick={(suit) => {
-            const card = picking;
-            setPicking(null);
-            props.onPlay(card, suit);
-          }}
-          onCancel={() => setPicking(null)}
-        />
-      )}
       {props.cards.map((card, i) => {
         const playable = interactive && (props.legal.has(card) || props.needsSuit.has(card));
         const dimmed = interactive && !playable;
@@ -116,7 +102,7 @@ export function Hand(props: HandProps): ReactNode {
             data-illegal={dimmed || undefined}
             onClick={() => {
               if (!playable) return;
-              if (props.needsSuit.has(card)) setPicking(card);
+              if (props.needsSuit.has(card)) props.onNeedsSuit(card);
               else props.onPlay(card);
             }}
             onTouchStart={dimmed ? () => beginPress(card) : undefined}
