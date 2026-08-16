@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type {
   ActionRequestEvent,
   ClientCommand,
@@ -10,6 +10,7 @@ import type {
 import {
   clearSession,
   createStore,
+  GAME_END_REVEAL_MS,
   loadSession,
   saveSession,
   SESSION_STORAGE_KEY,
@@ -82,6 +83,71 @@ describe('session persistence', () => {
     clearSession(storage);
     expect(storage.getItem(SESSION_STORAGE_KEY)).toBeNull();
     expect(loadSession(null)).toBeNull();
+  });
+});
+
+describe('game-end reveal (fh-y2a.1)', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  // AC-4: a live transition into gameOver arms the reveal timer.
+  it('holds the table for GAME_END_REVEAL_MS after a live gameOver', () => {
+    const { store } = makeStore();
+    const apply = store.getState().applyServerEvent;
+    apply(env(0, { t: 'gameView', view: gameViewFixture(0, 'play') }));
+    apply(env(1, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    expect(store.getState().gameEndRevealed).toBe(false);
+    vi.advanceTimersByTime(GAME_END_REVEAL_MS - 1);
+    expect(store.getState().gameEndRevealed).toBe(false);
+    vi.advanceTimersByTime(1);
+    expect(store.getState().gameEndRevealed).toBe(true);
+  });
+
+  it('reveals immediately when the first view is already gameOver (rejoin)', () => {
+    const { store } = makeStore();
+    store.getState().applyServerEvent(env(0, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    expect(store.getState().gameEndRevealed).toBe(true);
+  });
+
+  it('does not re-arm the timer on a duplicate gameOver view', () => {
+    const { store } = makeStore();
+    const apply = store.getState().applyServerEvent;
+    apply(env(0, { t: 'gameView', view: gameViewFixture(0, 'play') }));
+    apply(env(1, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    vi.advanceTimersByTime(1000);
+    apply(env(2, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    // A re-armed timer would still be pending at the original deadline.
+    vi.advanceTimersByTime(GAME_END_REVEAL_MS - 1000);
+    expect(store.getState().gameEndRevealed).toBe(true);
+  });
+
+  // AC-4: leaveSession cancels the pending reveal.
+  it('cleans the timer up on leaveSession', () => {
+    const { store } = makeStore();
+    const apply = store.getState().applyServerEvent;
+    apply(env(0, { t: 'gameView', view: gameViewFixture(0, 'play') }));
+    apply(env(1, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    store.getState().leaveSession();
+    vi.advanceTimersByTime(GAME_END_REVEAL_MS);
+    expect(store.getState().gameEndRevealed).toBe(false);
+    expect(store.getState().reviewingTable).toBe(false);
+    expect(store.getState().seatView).toBeNull();
+  });
+
+  it('a rematch view clears the reveal and any table review', () => {
+    const { store } = makeStore();
+    const apply = store.getState().applyServerEvent;
+    apply(env(0, { t: 'gameView', view: gameViewFixture(0, 'play') }));
+    apply(env(1, { t: 'gameView', view: gameViewFixture(0, 'gameOver') }));
+    vi.advanceTimersByTime(GAME_END_REVEAL_MS);
+    store.getState().setReviewingTable(true);
+    apply(env(2, { t: 'gameView', view: gameViewFixture(0, 'auction') }));
+    expect(store.getState().gameEndRevealed).toBe(false);
+    expect(store.getState().reviewingTable).toBe(false);
   });
 });
 

@@ -42,16 +42,22 @@ export type Phase = 'home' | 'lobby' | 'table' | 'gameEnd';
 /**
  * A seat view wins over a room view so a token rejoin into a running game
  * (gameView resent on reattach) lands on the table without passing through
- * the lobby. A view resting in gameOver shows the game-end screen; a rematch
+ * the lobby. A view resting in gameOver shows the game-end screen — except
+ * while the reveal delay still holds the finished table (gameEndRevealed
+ * false) or the viewer stepped back to review it (reviewingTable); a rematch
  * replaces it with a fresh auction view and the table returns.
  */
 export function derivePhase(state: {
   seatView: SeatGameView | null;
   roomView: RoomView | null;
   soloStarting?: boolean;
+  gameEndRevealed?: boolean;
+  reviewingTable?: boolean;
 }): Phase {
   if (state.seatView !== null) {
-    return state.seatView.view.phase === 'gameOver' ? 'gameEnd' : 'table';
+    if (state.seatView.view.phase !== 'gameOver') return 'table';
+    if (state.gameEndRevealed === false || state.reviewingTable === true) return 'table';
+    return 'gameEnd';
   }
   // Solo start holds Home so the first roomState cannot mount Lobby.
   if (state.soloStarting) return 'home';

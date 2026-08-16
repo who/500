@@ -110,6 +110,12 @@ export function clearSession(storage: StorageLike | null): void {
 /** How long a resolved trick stays frozen on the table (PRD 6.2 trick flow). */
 export const TRICK_LINGER_MS = 1500;
 
+/**
+ * How long the finished table lingers after the game-ending trick before the
+ * game-end screen reveals — covers the trick linger and sweep plus a beat.
+ */
+export const GAME_END_REVEAL_MS = 2500;
+
 export interface ClientState {
   connection: ConnectionStatus;
   roomView: RoomView | null;
@@ -160,6 +166,14 @@ export interface ClientState {
    * Keeps Home mounted so the first roomState cannot flash the lobby.
    */
   soloStarting: boolean;
+  /**
+   * False while a live game that just ended holds the finished table on
+   * screen; the reveal timer flips it after GAME_END_REVEAL_MS. A session
+   * whose first view is already gameOver reveals immediately.
+   */
+  gameEndRevealed: boolean;
+  /** Game-end "Review the table": holds the read-only table while set. */
+  reviewingTable: boolean;
 }
 
 export interface ClientActions {
@@ -178,6 +192,8 @@ export interface ClientActions {
   leaveSession(): void;
   /** Mark a Single-player start so roomState cannot mount the lobby. */
   setSoloStarting(on: boolean): void;
+  /** Toggle the game-end table review (GameEnd sets it, Table's return clears it). */
+  setReviewingTable(on: boolean): void;
 }
 
 export type ClientStore = StoreApi<ClientState & ClientActions>;
@@ -201,6 +217,8 @@ const HOME_RESET: Partial<ClientState> = {
   rejoining: false,
   seatLost: false,
   soloStarting: false,
+  gameEndRevealed: false,
+  reviewingTable: false,
 };
 
 export function createStore(deps: StoreDeps): ClientStore {
@@ -224,6 +242,15 @@ export function createStore(deps: StoreDeps): ClientStore {
       if (lingerTimer !== null) clearTimeout(lingerTimer);
       lingerTimer = null;
       lingerQueue = [];
+    }
+
+    // End-game reveal machinery: the delay between a live game ending and the
+    // game-end screen replacing the finished table.
+    let revealTimer: ReturnType<typeof setTimeout> | null = null;
+
+    function cancelReveal(): void {
+      if (revealTimer !== null) clearTimeout(revealTimer);
+      revealTimer = null;
     }
 
     function applyPrivate(event: ProtocolErrorEvent | { t: 'seatGranted'; seat: number; token: string }): void {
@@ -308,6 +335,31 @@ export function createStore(deps: StoreDeps): ClientStore {
           patch.contractNotice = { declarer: next.declarer, count: next.handNumber };
           patch.redealNotice = null;
         }
+        // End-game reveal: a live transition into gameOver holds the finished
+        // table (the winning trick gets its beat) and arms the reveal timer.
+        // A first view already in gameOver — token rejoin — or a reconnect /
+        // recovery rebaseline reveals immediately: no delay, no fade jank. A
+        // duplicate gameOver view neither re-arms the timer nor re-hides a
+        // revealed screen; any fresh live view (a rematch's auction) clears
+        // the whole presentation.
+        if (next.phase !== 'gameOver') {
+          cancelReveal();
+          if (get().gameEndRevealed || get().reviewingTable) {
+            patch.gameEndRevealed = false;
+            patch.reviewingTable = false;
+          }
+        } else if (!get().gameEndRevealed && revealTimer === null) {
+          const live =
+            prev !== undefined && prev.phase !== 'gameOver' && lastSeq !== null && !recovering;
+          if (live) {
+            revealTimer = setTimeout(() => {
+              revealTimer = null;
+              set({ gameEndRevealed: true });
+            }, GAME_END_REVEAL_MS);
+          } else {
+            patch.gameEndRevealed = true;
+          }
+        }
         // A rebaseline (reconnect resend / gap recovery) wins immediately:
         // whatever trick was frozen belongs to a timeline the viewer left.
         if (lastSeq === null || recovering) {
@@ -381,6 +433,8 @@ export function createStore(deps: StoreDeps): ClientStore {
       lastSeq: null,
       recovering: false,
       soloStarting: false,
+      gameEndRevealed: false,
+      reviewingTable: false,
 
       applyServerEvent(envelope: Envelope): void {
         const event = envelope.event;
@@ -393,8 +447,10 @@ export function createStore(deps: StoreDeps): ClientStore {
       },
 
       handleSocketOpen(): void {
-        // A reconnect abandons any linger: the resend's full view wins.
+        // A reconnect abandons any linger or pending reveal: the resend's
+        // full view wins (and re-reveals immediately as a rebaseline).
         cancelLinger();
+        cancelReveal();
         set({ connection: 'open', lastSeq: null, recovering: false, lingerTrick: null });
         const { session: stored, seatLost } = get();
         if (stored !== null && !seatLost) {
@@ -441,11 +497,16 @@ export function createStore(deps: StoreDeps): ClientStore {
       leaveSession(): void {
         clearSession(storage);
         cancelLinger();
+        cancelReveal();
         set({ ...HOME_RESET, lastSeq: null, recovering: false });
       },
 
       setSoloStarting(on: boolean): void {
         set({ soloStarting: on });
+      },
+
+      setReviewingTable(on: boolean): void {
+        set({ reviewingTable: on });
       },
     };
   });

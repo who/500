@@ -103,6 +103,7 @@ export function Table(): ReactNode {
   const readySeats = useStore(client.store, (s) => s.readySeats);
   const lastError = useStore(client.store, (s) => s.lastError);
   const lingerTrick = useStore(client.store, (s) => s.lingerTrick);
+  const reviewingTable = useStore(client.store, (s) => s.reviewingTable);
   const redealNotice = useStore(client.store, (s) => s.redealNotice);
   const clearRedealNotice = useStore(client.store, (s) => s.clearRedealNotice);
   const contractNotice = useStore(client.store, (s) => s.contractNotice);
@@ -231,6 +232,18 @@ export function Table(): ReactNode {
       onClick={skipDeal ? () => deal.skip() : undefined}
     >
       <Hud view={view} names={names} onLeave={handleLeave} />
+      {/* Game-end review (fh-y2a.1): the table is read-only here (gameOver has
+          no pendingActions), so the only control is the way back. */}
+      {view.phase === 'gameOver' && reviewingTable && (
+        <button
+          type="button"
+          className="review-return"
+          data-testid="review-return"
+          onClick={() => client.store.getState().setReviewingTable(false)}
+        >
+          Back to results
+        </button>
+      )}
       {redealNotice !== null && (
         <RedealToast
           dealerName={seatName(room, redealNotice.dealer)}

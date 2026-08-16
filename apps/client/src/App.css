@@ -1704,6 +1704,36 @@ span.suit-glyph {
   text-align: center;
 }
 
+/* Reveal fade: the screen replaces the lingering finished table softly. The
+   class is withheld under prefers-reduced-motion (GameEnd checks matchMedia);
+   the media query is belt-and-braces for UAs that flip mid-session. */
+.game-end-fade {
+  animation: game-end-fade-in 400ms ease-out;
+}
+
+@keyframes game-end-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .game-end-fade {
+    animation: none;
+  }
+}
+
+/* "Back to results" floats over the read-only review table. */
+.review-return {
+  position: fixed;
+  top: 0.75rem;
+  right: 0.75rem;
+  z-index: 30;
+}
+
 .game-end-actions {
   display: flex;
   justify-content: center;

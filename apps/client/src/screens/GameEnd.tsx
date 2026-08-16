@@ -11,6 +11,15 @@ import { OUT_THE_BACK } from '@five-hundred/engine';
 import { seatName } from './Table.tsx';
 import { useGameClient } from './router.tsx';
 
+function prefersReducedMotion(): boolean {
+  // matchMedia can be absent outside browsers; no preference means animate.
+  try {
+    return matchMedia('(prefers-reduced-motion: reduce)').matches;
+  } catch {
+    return false;
+  }
+}
+
 export function GameEnd(): ReactNode {
   const client = useGameClient();
   const seatView = useStore(client.store, (s) => s.seatView);
@@ -33,8 +42,14 @@ export function GameEnd(): ReactNode {
     client.store.getState().leaveSession();
   }
 
+  // The fade-in gets its class only when motion is welcome, so reduced-motion
+  // viewers mount the screen at full opacity with no transition at all.
+  const rootClass = prefersReducedMotion()
+    ? 'screen game-end-screen'
+    : 'screen game-end-screen game-end-fade';
+
   return (
-    <main data-screen="game-end" className="screen game-end-screen">
+    <main data-screen="game-end" className={rootClass}>
       <h1 data-testid="game-end-headline">{weWon ? 'You win!' : 'You lose'}</h1>
       <p data-testid="game-end-winners">{winnerNames} take the game.</p>
       <p className="game-end-scores" data-testid="game-end-scores">
@@ -57,6 +72,13 @@ export function GameEnd(): ReactNode {
         ) : (
           <p data-testid="game-end-wait-host">Waiting for {hostName} to start a rematch.</p>
         )}
+        <button
+          type="button"
+          data-testid="game-end-review"
+          onClick={() => client.store.getState().setReviewingTable(true)}
+        >
+          Review the table
+        </button>
         <button type="button" title="Back to menu" onClick={handleLeave}>
           Leave
         </button>

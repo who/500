@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { fireEvent } from '@testing-library/react';
+import { derivePhase } from './router.tsx';
 import {
   applyEvent,
   botSeatView,
@@ -109,6 +110,39 @@ describe('GameEnd', () => {
     expect(app.getByTestId('hud-scores').textContent).toBe('Score 0 / 0');
   });
 
+  // AC-2: the reveal fade rides a class on the root; reduced motion skips it.
+  it('carries the fade-in class, withheld under prefers-reduced-motion', () => {
+    const { app } = renderGameEnd(0, 0, 0, [520, 180]);
+    const root = app.container.querySelector('[data-screen="game-end"]');
+    expect(root?.classList.contains('game-end-fade')).toBe(true);
+    app.unmount();
+
+    vi.stubGlobal('matchMedia', (query: string) => ({
+      matches: query.includes('prefers-reduced-motion'),
+      media: query,
+    }));
+    try {
+      const reduced = renderGameEnd(0, 0, 0, [520, 180]);
+      const reducedRoot = reduced.app.container.querySelector('[data-screen="game-end"]');
+      expect(reducedRoot?.classList.contains('game-end-fade')).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  // AC-3: Review the table -> read-only table -> Back to results.
+  it('reviews the finished table and returns to the results', () => {
+    const { app } = renderGameEnd(0, 0, 0, [520, 180]);
+    fireEvent.click(app.getByTestId('game-end-review'));
+    expect(app.container.querySelector('[data-screen="game-end"]')).toBeNull();
+    expect(app.container.querySelector('[data-screen="table"]')).not.toBeNull();
+    // Read-only: no pending actions in gameOver, so no action panels mount.
+    expect(app.container.querySelector('.bid-panel')).toBeNull();
+    fireEvent.click(app.getByTestId('review-return'));
+    expect(app.container.querySelector('[data-screen="table"]')).toBeNull();
+    expect(app.container.querySelector('[data-screen="game-end"]')).not.toBeNull();
+  });
+
   it('Leave sits beside Rematch, sends leaveRoom, and returns Home', () => {
     const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
     expect(app.getByTestId('game-end-rematch')).not.toBeNull();
@@ -116,5 +150,27 @@ describe('GameEnd', () => {
     expect(client.sent).toEqual([{ t: 'leaveRoom' }]);
     expect(client.store.getState().roomView).toBeNull();
     expect(app.container.querySelector('[data-screen="home"]')).not.toBeNull();
+  });
+});
+
+// AC-1: the router holds the table while the reveal delay runs or a review
+// is open, and shows the game-end screen once revealed.
+describe('derivePhase end-game gating', () => {
+  const over = gameViewFixture(0, {
+    phase: 'gameOver',
+    winner: 0,
+    scores: [520, 180],
+    toAct: null,
+    hand: [],
+  });
+
+  it('maps gameOver through gameEndRevealed and reviewingTable', () => {
+    expect(derivePhase({ seatView: over, roomView: null, gameEndRevealed: false })).toBe('table');
+    expect(derivePhase({ seatView: over, roomView: null, gameEndRevealed: true })).toBe('gameEnd');
+    expect(
+      derivePhase({ seatView: over, roomView: null, gameEndRevealed: true, reviewingTable: true }),
+    ).toBe('table');
+    // Callers without the new flags keep the old direct mapping.
+    expect(derivePhase({ seatView: over, roomView: null })).toBe('gameEnd');
   });
 });
