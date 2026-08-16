@@ -99,6 +99,28 @@ describe('GameEnd', () => {
     expect(guest.client.sent).toEqual([]);
   });
 
+  it('tints the winning pair and the awaited host viewer-relatively (fh-58m AC-3)', () => {
+    const sidesOf = (el: HTMLElement) =>
+      [...el.querySelectorAll<HTMLElement>('.player-name')].map((s) => s.dataset['side']);
+    const won = renderGameEnd(0, 0, 0, [520, 180]);
+    expect(won.app.getByTestId('game-end-winners').textContent).toBe('Ana & Cleo take the game.');
+    expect(sidesOf(won.app.getByTestId('game-end-winners'))).toEqual(['us', 'us']);
+    won.app.unmount();
+
+    // The same winners are They to a seat-1 viewer.
+    const lost = renderGameEnd(1, 0, 0, [520, 180]);
+    expect(sidesOf(lost.app.getByTestId('game-end-winners'))).toEqual(['them', 'them']);
+    lost.app.unmount();
+
+    // Host Cleo (seat 2) is the seat-0 viewer's partner.
+    const guest = renderGameEnd(0, 2, 1, [180, 520]);
+    const host = guest.app
+      .getByTestId('game-end-wait-host')
+      .querySelector('.player-name') as HTMLElement;
+    expect(host.textContent).toBe('Cleo');
+    expect(host.dataset['side']).toBe('us');
+  });
+
   it('returns to the table when a rematch delivers a fresh auction view', () => {
     const { client, app } = renderGameEnd(0, 0, 0, [520, 180]);
     applyEvent(client, env(3, { t: 'roomState', room: gameEndRoom(0) }));
@@ -240,6 +262,21 @@ describe('GameEnd', () => {
       'Cleo',
       'AI Noah',
     ]);
+    // fh-58m AC-3: log names are tinted viewer-relatively — the seat-3
+    // dealer and odd seats are They to the seat-0 viewer, even seats We.
+    expect(
+      app.getAllByTestId('game-log-dealer').map(
+        (el) => el.querySelector<HTMLElement>('.player-name')?.dataset['side'],
+      ),
+    ).toEqual(['them', 'us']);
+    expect(
+      [...app.getAllByTestId('game-log-auction')[0]!.querySelectorAll<HTMLElement>('.player-name')].map(
+        (el) => el.dataset['side'],
+      ),
+    ).toEqual(['us', 'them', 'us', 'them']);
+    expect(
+      first.map((p) => p.querySelector<HTMLElement>('.player-name')?.dataset['side']),
+    ).toEqual(['us', 'them', 'us', 'them']);
     // The leader is chipped and the winner ringed via data-winner; here Ana
     // both led and won, so the marks share a play.
     expect(first.map((p) => p.hasAttribute('data-led'))).toEqual([true, false, false, false]);

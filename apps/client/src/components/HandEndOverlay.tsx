@@ -11,6 +11,7 @@
 import { useState, type ReactNode } from 'react';
 import { bidName, isLoseAll, type HandResult } from '@five-hundred/engine';
 import type { RoomView } from '@five-hundred/protocol';
+import { PlayerName } from './PlayerName.tsx';
 
 function signed(n: number): string {
   return n >= 0 ? `+${n}` : `${n}`;
@@ -82,7 +83,8 @@ export function HandEndOverlay(props: HandEndOverlayProps): ReactNode {
       <section className="hand-end-panel">
         <h2 data-testid="hand-end-headline">{handEndHeadline(result)}</h2>
         <p className="hand-end-contract" data-testid="hand-end-contract">
-          {bidName(result.contract)} by {names[result.declarer]} — tricks{' '}
+          {bidName(result.contract)} by{' '}
+          <PlayerName seat={result.declarer} viewerSeat={seat} names={names} /> — tricks{' '}
           {result.declarerSideTricks} to {result.defenderSideTricks}
           {isLoseAll(result.contract) && result.defenderDelta > 0 && (
             <span> (defenders score {result.defenderDelta} for tricks forced on the bidders)</span>
@@ -111,7 +113,7 @@ export function HandEndOverlay(props: HandEndOverlayProps): ReactNode {
                 <span className="ready-tick" aria-hidden="true">
                   {isReady(s) ? '✓' : '·'}
                 </span>{' '}
-                {names[s]}
+                <PlayerName seat={s} viewerSeat={seat} names={names} />
                 {disconnected && <em> (disconnected)</em>}
               </li>
             );
@@ -119,7 +121,13 @@ export function HandEndOverlay(props: HandEndOverlayProps): ReactNode {
         </ul>
         {waiting.length > 0 && (
           <p className="hand-end-waiting" data-testid="hand-end-waiting">
-            Waiting for {waiting.map((s) => names[s]).join(', ')}
+            Waiting for{' '}
+            {waiting.map((s, i) => (
+              <span key={s}>
+                {i > 0 && ', '}
+                <PlayerName seat={s} viewerSeat={seat} names={names} />
+              </span>
+            ))}
           </p>
         )}
         <div className="hand-end-actions">

@@ -9,6 +9,7 @@ import { useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { OUT_THE_BACK } from '@five-hundred/engine';
 import { GameLogView } from '../components/GameLogView.tsx';
+import { PlayerName } from '../components/PlayerName.tsx';
 import { seatName } from './Table.tsx';
 import { useGameClient } from './router.tsx';
 
@@ -37,7 +38,7 @@ export function GameEnd(): ReactNode {
   const us = me % 2;
   const weWon = winner === us;
   const loserScore = view.scores[1 - winner] ?? 0;
-  const winnerNames = [winner, winner + 2].map((s) => seatName(room, s % 4)).join(' & ');
+  const winnerSeats = [winner, winner + 2];
   const isHost = room !== null && room.hostSeat === me;
   const hostName = room?.hostSeat != null ? seatName(room, room.hostSeat) : 'the host';
 
@@ -64,7 +65,15 @@ export function GameEnd(): ReactNode {
   return (
     <main data-screen="game-end" className={rootClass}>
       <h1 data-testid="game-end-headline">{weWon ? 'You win!' : 'You lose'}</h1>
-      <p data-testid="game-end-winners">{winnerNames} take the game.</p>
+      <p data-testid="game-end-winners">
+        {winnerSeats.map((s, i) => (
+          <span key={s}>
+            {i > 0 && ' & '}
+            <PlayerName seat={s} viewerSeat={me} name={seatName(room, s)} />
+          </span>
+        ))}{' '}
+        take the game.
+      </p>
       <p className="game-end-scores" data-testid="game-end-scores">
         Final score: Us {view.scores[us]} – Them {view.scores[1 - us]}
       </p>
@@ -109,7 +118,15 @@ export function GameEnd(): ReactNode {
             Rematch — same seats, same bots
           </button>
         ) : (
-          <p data-testid="game-end-wait-host">Waiting for {hostName} to start a rematch.</p>
+          <p data-testid="game-end-wait-host">
+            Waiting for{' '}
+            {room?.hostSeat != null ? (
+              <PlayerName seat={room.hostSeat} viewerSeat={me} name={hostName} />
+            ) : (
+              hostName
+            )}{' '}
+            to start a rematch.
+          </p>
         )}
         <button
           type="button"

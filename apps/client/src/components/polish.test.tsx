@@ -142,6 +142,15 @@ it('AC-2: the last-trick peek shows the correct previous trick with its winner',
   expect(entries.map((li) => li.dataset.seat)).toEqual(['1', '2', '3', '0']);
   expect((popover.querySelector('li[data-winner]') as HTMLElement).dataset.seat).toBe('1');
   expect(app.getByTestId('last-trick-winner').textContent).toBe('Won by Ben');
+  // fh-58m AC-3: peek names are tinted viewer-relatively (viewer is seat 0).
+  expect(
+    [...popover.querySelectorAll<HTMLElement>('ul .player-name')].map((el) => el.dataset['side']),
+  ).toEqual(['them', 'us', 'them', 'us']);
+  expect(
+    app.getByTestId('last-trick-winner').querySelector<HTMLElement>('.player-name')?.dataset[
+      'side'
+    ],
+  ).toBe('them');
 });
 
 describe('AC-3: thinking indicator', () => {

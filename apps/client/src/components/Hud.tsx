@@ -13,6 +13,7 @@ import type { ReactNode } from 'react';
 import { type RedactedView, NULLA, bidValue, isLoseAll } from '@five-hundred/engine';
 import { biddersAreSet } from '../lib/biddersSet.ts';
 import { contractToken } from '../lib/contractToken.ts';
+import { PlayerName } from './PlayerName.tsx';
 
 export function Hud(props: {
   view: RedactedView;
@@ -37,7 +38,12 @@ export function Hud(props: {
         ) : loseAll ? (
           <>
             <strong>{contractToken(contract, view.slam)}</strong>
-            {view.declarer !== null && <span> by {names[view.declarer]}</span>}
+            {view.declarer !== null && (
+              <span>
+                {' '}
+                by <PlayerName seat={view.declarer} viewerSeat={view.seat} names={names} />
+              </span>
+            )}
             <span>
               {' '}
               — {contract.kind === NULLA ? 'must lose every trick' : 'both must lose every trick'}
@@ -46,7 +52,12 @@ export function Hud(props: {
         ) : (
           <>
             <strong>{contractToken(contract, view.slam)}</strong>
-            {view.declarer !== null && <span> by {names[view.declarer]}</span>}
+            {view.declarer !== null && (
+              <span>
+                {' '}
+                by <PlayerName seat={view.declarer} viewerSeat={view.seat} names={names} />
+              </span>
+            )}
           </>
         )}
       </div>

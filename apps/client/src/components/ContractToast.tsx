@@ -16,6 +16,7 @@
 
 import { useEffect, type ReactNode } from 'react';
 import { type Bid, DNULLA, NULLA, NUM, bidValue } from '@five-hundred/engine';
+import { PlayerName } from './PlayerName.tsx';
 
 export const CONTRACT_TOAST_MS = 5000;
 
@@ -35,6 +36,10 @@ export interface ContractToastProps {
   contract: Bid;
   /** Display name of the declaring seat, ignored when `isYou`. */
   declarerName: string;
+  /** The declaring seat, for the We/They name tint (fh-58m). */
+  declarerSeat: number;
+  /** The viewer's seat; "You" always lands on the us side. */
+  viewerSeat: number;
   /** True when the viewer won the auction — announced as "You". */
   isYou: boolean;
   /** A declared slam (raised after the offer, while the toast is still up). */
@@ -57,7 +62,12 @@ export function ContractToast(props: ContractToastProps): ReactNode {
   const name = slam ? `Slam ${spelledContract(contract)}` : spelledContract(contract);
   return (
     <div className="contract-toast" role="status" data-testid="contract-toast" data-count={count}>
-      {props.isYou ? 'You' : props.declarerName} won the bid — {name} ({stake} at stake)
+      <PlayerName
+        seat={props.declarerSeat}
+        viewerSeat={props.viewerSeat}
+        name={props.isYou ? 'You' : props.declarerName}
+      />{' '}
+      won the bid — {name} ({stake} at stake)
     </div>
   );
 }

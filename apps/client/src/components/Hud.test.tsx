@@ -41,6 +41,16 @@ describe('trick counter', () => {
   });
 });
 
+describe('team tint (fh-58m AC-3)', () => {
+  it('colors the declarer mention with its viewer-relative side', () => {
+    // Declarer is the seat-1 bot, an opponent of the seat-0 viewer.
+    const app = hud();
+    const name = app.getByTestId('hud-contract').querySelector('.player-name') as HTMLElement;
+    expect(name.textContent).toBe('AI Liam');
+    expect(name.dataset['side']).toBe('them');
+  });
+});
+
 describe('set state', () => {
   it('stays clear while the bidders can still make it', () => {
     // 8H with two defender tricks: their ceiling is exactly 8.

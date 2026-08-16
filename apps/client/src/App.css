@@ -1860,3 +1860,33 @@ span.suit-glyph {
 .game-end-otb {
   font-weight: 600;
 }
+
+/* --- Team identity (fh-58m) ---------------------------------------------- */
+
+/* Every player-name mention wears its side's color, viewer-relative (We is
+   the viewer's parity). The tint is additive — Us/Them rows, the You tag,
+   and seat positions keep carrying the same information. */
+.player-name[data-side='us'] {
+  color: var(--team-us);
+}
+
+.player-name[data-side='them'] {
+  color: var(--team-them);
+}
+
+/* The toasts invert the ambient scheme (background: var(--text-h)), so the
+   per-scheme tokens would land on the wrong ground. Names there use the
+   light tints on the light scheme's dark toast, and slightly deepened dark
+   tints (same hues, AA on --text-h's near-white dark value) the other way. */
+.redeal-toast,
+.contract-toast {
+  --team-us: light-dark(#6ab0f3, #1b69cc);
+  --team-them: light-dark(#f09d5e, #b34d1c);
+}
+
+/* The exchange/slam status floats over the felt on a fixed dark scrim with
+   fixed white text; the team tints are fixed to the light values to match. */
+.exchange-status {
+  --team-us: #6ab0f3;
+  --team-them: #f09d5e;
+}

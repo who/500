@@ -11,11 +11,14 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Trick } from '@five-hundred/engine';
 import { CardFace } from './Card.tsx';
+import { PlayerName } from './PlayerName.tsx';
 
 export function LastTrickPeek(props: {
   trick: Trick | null;
   /** Display names indexed by seat. */
   names: readonly string[];
+  /** The viewer's seat, for the We/They name tint (fh-58m). */
+  viewerSeat: number;
 }): ReactNode {
   const [open, setOpen] = useState(false);
   // A new hand clears the history; don't reopen over its first trick.
@@ -51,12 +54,14 @@ export function LastTrickPeek(props: {
                 data-winner={play.seat === trick.winner || undefined}
               >
                 <CardFace card={play.card} />
-                <span className="peek-name">{props.names[play.seat]}</span>
+                <span className="peek-name">
+                  <PlayerName seat={play.seat} viewerSeat={props.viewerSeat} names={props.names} />
+                </span>
               </li>
             ))}
           </ul>
           <p className="peek-caption" data-testid="last-trick-winner">
-            Won by {props.names[trick.winner]}
+            Won by <PlayerName seat={trick.winner} viewerSeat={props.viewerSeat} names={props.names} />
           </p>
         </div>
       )}

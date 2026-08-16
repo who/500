@@ -134,4 +134,14 @@ describe('token contrast (WCAG AA, both schemes)', () => {
     expect(contrast(fgLight, bgLight)).toBeGreaterThanOrEqual(AA);
     expect(contrast(fgDark, bgDark)).toBeGreaterThanOrEqual(AA);
   });
+
+  it.each([['team-us'], ['team-them']])(
+    '--%s reaches AA on the app background (fh-58m)',
+    (token) => {
+      const [fgLight, fgDark] = tokenPair(token);
+      const [bgLight, bgDark] = tokenPair('bg');
+      expect(contrast(fgLight, bgLight)).toBeGreaterThanOrEqual(AA);
+      expect(contrast(fgDark, bgDark)).toBeGreaterThanOrEqual(AA);
+    },
+  );
 });

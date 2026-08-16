@@ -70,6 +70,7 @@ import { HandEndOverlay } from '../components/HandEndOverlay.tsx';
 import { Hud } from '../components/Hud.tsx';
 import { JokerSuitPicker } from '../components/JokerSuitPicker.tsx';
 import { LastTrickPeek } from '../components/LastTrickPeek.tsx';
+import { PlayerName } from '../components/PlayerName.tsx';
 import { RedealToast } from '../components/RedealToast.tsx';
 import { SeatBadge } from '../components/SeatBadge.tsx';
 import { SlamPanel } from '../components/SlamPanel.tsx';
@@ -212,6 +213,8 @@ export function Table(): ReactNode {
     return (
       <SeatBadge
         name={seatName(room, seat)}
+        seat={seat}
+        viewerSeat={me}
         isYou={seat === me}
         isDealer={view.dealer === seat}
         isActing={view.toAct === seat}
@@ -260,6 +263,8 @@ export function Table(): ReactNode {
       {redealNotice !== null && (
         <RedealToast
           dealerName={seatName(room, redealNotice.dealer)}
+          dealerSeat={redealNotice.dealer}
+          viewerSeat={me}
           count={redealNotice.count}
           onDismiss={clearRedealNotice}
         />
@@ -269,6 +274,8 @@ export function Table(): ReactNode {
         <ContractToast
           contract={view.contract}
           declarerName={seatName(room, contractNotice.declarer)}
+          declarerSeat={contractNotice.declarer}
+          viewerSeat={me}
           isYou={contractNotice.declarer === me}
           slam={view.slam}
           count={contractNotice.count}
@@ -310,7 +317,7 @@ export function Table(): ReactNode {
               handNumber={view.handNumber}
               tricksPlayed={view.tricksPlayed}
             />
-            <LastTrickPeek trick={view.lastTrick} names={names} />
+            <LastTrickPeek trick={view.lastTrick} names={names} viewerSeat={me} />
           </>
         )}
         {/* middle-pile: five CardBacks stay on the felt through the auction. */}
@@ -329,23 +336,50 @@ export function Table(): ReactNode {
         )}
         {exchanging && !deal.holdPostAuction && view.toAct !== null && view.toAct !== me && (
           <div className="exchange-status" role="status" data-testid="exchange-status">
-            {passThrough
-              ? view.declarer === me
-                ? `You passed 5 cards to ${seatName(room, view.toAct)} — waiting for their discards…`
-                : `${seatName(room, view.declarer ?? 0)} passed 5 cards to ${seatName(room, view.toAct)}, who is discarding…`
-              : `${seatName(room, view.toAct)} picked up the middle and is discarding ${Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…`}
+            {passThrough ? (
+              view.declarer === me ? (
+                <>
+                  You passed 5 cards to{' '}
+                  <PlayerName seat={view.toAct} viewerSeat={me} names={names} /> — waiting for
+                  their discards…
+                </>
+              ) : (
+                <>
+                  <PlayerName seat={view.declarer ?? 0} viewerSeat={me} names={names} /> passed 5
+                  cards to <PlayerName seat={view.toAct} viewerSeat={me} names={names} />, who is
+                  discarding…
+                </>
+              )
+            ) : (
+              <>
+                <PlayerName seat={view.toAct} viewerSeat={me} names={names} /> picked up the
+                middle and is discarding{' '}
+                {Math.max(0, (view.handCounts[view.toAct] ?? 10) - 10)}…
+              </>
+            )}
           </div>
         )}
         {view.phase === 'slamDecision' && !slamOffer && !deal.holdPostAuction && (
           <div className="exchange-status" role="status" data-testid="slam-status">
-            {seatName(room, view.declarer ?? 0)} is considering a slam…
+            <PlayerName seat={view.declarer ?? 0} viewerSeat={me} names={names} /> is considering a
+            slam…
           </div>
         )}
         {view.phase === 'partnerCard' && !givingCard && !deal.holdPostAuction && view.declarer !== null && (
           <div className="exchange-status" role="status" data-testid="slam-status">
-            {view.declarer === me
-              ? `Slam declared — waiting for ${seatName(room, partnerOf(view.declarer))} to give you their best card…`
-              : `${seatName(room, partnerOf(view.declarer))} is giving their best card to ${seatName(room, view.declarer)}…`}
+            {view.declarer === me ? (
+              <>
+                Slam declared — waiting for{' '}
+                <PlayerName seat={partnerOf(view.declarer)} viewerSeat={me} names={names} /> to
+                give you their best card…
+              </>
+            ) : (
+              <>
+                <PlayerName seat={partnerOf(view.declarer)} viewerSeat={me} names={names} /> is
+                giving their best card to{' '}
+                <PlayerName seat={view.declarer} viewerSeat={me} names={names} />…
+              </>
+            )}
           </div>
         )}
         {pickingCard !== null && (

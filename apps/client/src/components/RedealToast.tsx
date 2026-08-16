@@ -6,12 +6,17 @@
  */
 
 import { useEffect, type ReactNode } from 'react';
+import { PlayerName } from './PlayerName.tsx';
 
 export const REDEAL_TOAST_MS = 4000;
 
 export interface RedealToastProps {
   /** Display name of the seat dealing the fresh hand. */
   dealerName: string;
+  /** The dealing seat, for the We/They name tint (fh-58m). */
+  dealerSeat: number;
+  /** The viewer's seat; same parity as the dealer tints as us. */
+  viewerSeat: number;
   /** Redeal counter from the view; a new value restarts the dismiss timer. */
   count: number;
   onDismiss(): void;
@@ -27,7 +32,9 @@ export function RedealToast(props: RedealToastProps): ReactNode {
   }, [count, onDismiss]);
   return (
     <div className="redeal-toast" role="status" data-testid="redeal-toast" data-count={count}>
-      No winning bid — redealing. {props.dealerName} deals.
+      No winning bid — redealing.{' '}
+      <PlayerName seat={props.dealerSeat} viewerSeat={props.viewerSeat} name={props.dealerName} />{' '}
+      deals.
     </div>
   );
 }

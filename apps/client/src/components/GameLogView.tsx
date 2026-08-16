@@ -15,6 +15,7 @@ import type { ReactNode } from 'react';
 import { bidName, type Bid } from '@five-hundred/engine';
 import type { GameLogHand } from '@five-hundred/protocol';
 import { CardFace } from './Card.tsx';
+import { PlayerName } from './PlayerName.tsx';
 
 /** A call as prose: numeric bids via bidName, the named bids in words. */
 export function callName(bid: Bid): string {
@@ -40,7 +41,9 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
         {hands.map((hand) => (
           <li key={hand.handNumber} className="game-log-hand" data-testid="game-log-hand">
             <h3 data-testid="game-log-dealer">
-              Hand {hand.handNumber + 1} — dealt by {names[hand.dealer]}
+              Hand {hand.handNumber + 1} — dealt by{' '}
+              {/* `us` is a side index; PlayerName only reads its parity. */}
+              <PlayerName seat={hand.dealer} viewerSeat={us} names={names} />
             </h3>
             {hand.redeals > 0 && (
               <p className="game-log-redeals" data-testid="game-log-redeals">
@@ -50,7 +53,13 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
               </p>
             )}
             <p className="game-log-auction" data-testid="game-log-auction">
-              {hand.auction.map((c) => `${names[c.seat]}: ${callName(c.bid)}`).join(', ')}
+              {hand.auction.map((c, i) => (
+                <span key={i}>
+                  {i > 0 && ', '}
+                  <PlayerName seat={c.seat} viewerSeat={us} names={names} />
+                  {`: ${callName(c.bid)}`}
+                </span>
+              ))}
             </p>
             <ol className="game-log-tricks">
               {hand.tricks.map((trick, i) => (
@@ -69,12 +78,15 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
                         data-winner={play.seat === trick.winner || undefined}
                       >
                         <CardFace card={play.card} compact />
-                        <span className="game-log-play-name">{names[play.seat]}</span>
+                        <span className="game-log-play-name">
+                          <PlayerName seat={play.seat} viewerSeat={us} names={names} />
+                        </span>
                       </li>
                     ))}
                   </ul>
                   <span className="visually-hidden" data-testid="game-log-trick-text">
-                    Trick {i + 1}: {names[trick.leader]} led, {names[trick.winner]} won
+                    Trick {i + 1}: <PlayerName seat={trick.leader} viewerSeat={us} names={names} />{' '}
+                    led, <PlayerName seat={trick.winner} viewerSeat={us} names={names} /> won
                   </span>
                 </li>
               ))}

@@ -17,6 +17,7 @@ import { contractToken } from '../lib/contractToken.ts';
 import { ActivityCard } from './ActivityCard.tsx';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
 import { CardBack, SuitGlyph } from './Card.tsx';
+import { PlayerName } from './PlayerName.tsx';
 
 /** Chips shown before the "+n" expander takes over (phone-width budget). */
 const VISIBLE_CHIPS = 3;
@@ -80,6 +81,10 @@ export function BidChips(props: { bids: readonly Bid[] }): ReactNode {
 
 export interface SeatBadgeProps {
   name: string;
+  /** The seat this badge names, for the We/They tint (fh-58m). */
+  seat: number;
+  /** The viewer's seat; same parity as `seat` colors the name as us. */
+  viewerSeat: number;
   isYou: boolean;
   isDealer: boolean;
   /** This seat holds the turn (view.toAct). */
@@ -133,7 +138,9 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
     >
       <div className="seat-name">
         {/* CSS truncates very long names; the title keeps the full text. */}
-        <strong title={props.name}>{props.name}</strong>
+        <strong title={props.name}>
+          <PlayerName seat={props.seat} viewerSeat={props.viewerSeat} name={props.name} />
+        </strong>
         {props.isYou && <span className="tag">You</span>}
         {props.isDealer && (
           <span className="dealer-chip" title="Dealer" aria-label="Dealer">

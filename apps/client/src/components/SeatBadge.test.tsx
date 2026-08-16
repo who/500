@@ -40,6 +40,8 @@ function badgeElement(overrides: Partial<SeatBadgeProps> = {}) {
   return (
     <SeatBadge
       name="AI Liam"
+      seat={1}
+      viewerSeat={0}
       isYou={false}
       isDealer={false}
       isActing={false}
@@ -239,6 +241,20 @@ describe('the thinking hint is the ActivityCard ring (fh-x25 AC-1/AC-2)', () => 
         CSS,
       );
     expect(reduced).not.toBeNull();
+  });
+});
+
+describe('the nameplate wears its team tint (fh-58m AC-3)', () => {
+  it('colors the name viewer-relatively without changing its text', () => {
+    // The fixture badge is seat 1 seen from seat 0: an opponent.
+    const opponent = renderBadge();
+    const oppName = opponent.badge.querySelector('.player-name') as HTMLElement;
+    expect(oppName.textContent).toBe('AI Liam');
+    expect(oppName.dataset['side']).toBe('them');
+
+    const partner = renderBadge({ seat: 2, viewerSeat: 0 });
+    const partnerName = partner.badge.querySelector('.player-name') as HTMLElement;
+    expect(partnerName.dataset['side']).toBe('us');
   });
 });
 

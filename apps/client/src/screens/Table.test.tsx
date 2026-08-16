@@ -405,6 +405,12 @@ describe('contract-won announcement (fh-8kz)', () => {
     expect(bot.app.getByTestId('contract-toast').textContent).toBe(
       'AI Noah won the bid — 8 Diamonds (280 at stake)',
     );
+    // fh-58m AC-3: the seat-3 declarer is They to the seat-0 viewer.
+    expect(
+      bot.app
+        .getByTestId('contract-toast')
+        .querySelector<HTMLElement>('.player-name')?.dataset['side'],
+    ).toBe('them');
     bot.app.unmount();
 
     // The viewer wins: named as "You", never by their own seat name.
@@ -412,6 +418,12 @@ describe('contract-won announcement (fh-8kz)', () => {
     expect(you.app.getByTestId('contract-toast').textContent).toBe(
       'You won the bid — 8 Diamonds (280 at stake)',
     );
+    // "You" is always a We mention (fh-58m).
+    expect(
+      you.app
+        .getByTestId('contract-toast')
+        .querySelector<HTMLElement>('.player-name')?.dataset['side'],
+    ).toBe('us');
     you.app.unmount();
 
     // A reconnect re-baselining mid-hand has no auction to announce: the
@@ -488,6 +500,10 @@ describe('contract-won announcement (fh-8kz)', () => {
     expect(app.getByTestId('redeal-toast').textContent).toBe(
       'No winning bid — redealing. Ana deals.',
     );
+    // fh-58m AC-3: the seat-0 dealer is We to the seat-0 viewer.
+    expect(
+      app.getByTestId('redeal-toast').querySelector<HTMLElement>('.player-name')?.dataset['side'],
+    ).toBe('us');
 
     // The re-dealt auction produces a contract: the announcement takes over
     // and the stale redeal toast goes, so the two never stack.

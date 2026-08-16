@@ -44,6 +44,13 @@
   /* Translucent overlay panel (hand-end): dark-scheme gets a dark panel. */
   --overlay-panel: light-dark(rgba(255, 255, 255, 0.96), rgba(31, 32, 40, 0.97));
 
+  /* Team identity (fh-58m): We (the viewer's side) is blue, They orange —
+     the colorblind-safe opposition, and the only hue pair clear of the
+     suit/danger reds, accent purple, trump gold, and card-back navy.
+     Both hold AA on --bg and the overlay panel — theme.test.ts checks. */
+  --team-us: light-dark(#1d6fd6, #6ab0f3);
+  --team-them: light-dark(#c05621, #f09d5e);
+
   --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
   --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
   --mono: ui-monospace, Consolas, monospace;

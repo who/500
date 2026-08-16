@@ -139,6 +139,25 @@ describe('HandEndOverlay', () => {
     expect(app.getByTestId('hand-end-waiting').textContent).toBe('Waiting for Ben, Cleo');
   });
 
+  it('tints every name mention with its viewer-relative side (fh-58m AC-3)', () => {
+    const { app } = renderHandEnd(MADE_8H, [480, -20]);
+    // Declarer Cleo (seat 2) shares the seat-0 viewer's side.
+    const declarer = app
+      .getByTestId('hand-end-contract')
+      .querySelector('.player-name') as HTMLElement;
+    expect(declarer.textContent).toBe('Cleo');
+    expect(declarer.dataset['side']).toBe('us');
+    const readySides = [
+      ...app.getByTestId('hand-end-ready').querySelectorAll<HTMLElement>('.player-name'),
+    ].map((el) => el.dataset['side']);
+    expect(readySides).toEqual(['us', 'them', 'us', 'them']);
+    // The waiting line names the three unready humans: Ana, Ben, Cleo.
+    const waitingSides = [
+      ...app.getByTestId('hand-end-waiting').querySelectorAll<HTMLElement>('.player-name'),
+    ].map((el) => el.dataset['side']);
+    expect(waitingSides).toEqual(['us', 'them', 'us']);
+  });
+
   it('sends nextHand once from the Ready button, then locks it', () => {
     const { client, app } = renderHandEnd(MADE_8H, [480, -20]);
     const button = app.getByTestId('hand-end-ready-button') as HTMLButtonElement;
