@@ -42,8 +42,12 @@ export const PARAMS_SCHEMA_VERSION = 1;
 export interface SuitStrengthParams {
   /** Joker: one guaranteed trick. */
   readonly joker: number;
-  /** Either bower (right/left). */
+  /** Either bower (right/left). Kept so old overlays still merge; play reads the split leaves. */
   readonly bower: number;
+  /** Right bower (jack of trump). Defaults to the same value as `bower`. */
+  readonly rightBower: number;
+  /** Left bower (same-colour jack). Defaults to the same value as `bower`. */
+  readonly leftBower: number;
   /** Trump Q or better (bowers scored above). */
   readonly trumpHonor: number;
   /** Any lower natural trump. */
@@ -175,8 +179,12 @@ export interface HardPlayParams {
 export interface HardMemoryParams {
   /** Salience of the joker — the single most memorable card in the pack. */
   readonly jokerSalience: number;
-  /** Either bower (right/left), under a trump contract. */
+  /** Either bower (right/left), under a trump contract. Kept for old overlays; memory reads the split leaves. */
   readonly bowerSalience: number;
+  /** Right bower (jack of trump). Defaults to the same value as `bowerSalience`. */
+  readonly rightBowerSalience: number;
+  /** Left bower (same-colour jack). Defaults to the same value as `bowerSalience`. */
+  readonly leftBowerSalience: number;
   /** Any ace. */
   readonly aceSalience: number;
   /** Any king. */

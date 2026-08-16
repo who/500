@@ -239,7 +239,8 @@ export class MediumPolicy implements Policy {
       const s = cardSuit(c) as number;
       const r = cardRank(c) as number;
       if (trump !== null) {
-        if (r === 11 && (s === trump || s === SAME_COLOR[trump])) score += w.bower;
+        if (r === 11 && s === trump) score += w.rightBower;
+        else if (r === 11 && s === SAME_COLOR[trump]) score += w.leftBower;
         else if (s === trump) score += r >= 12 ? w.trumpHonor : w.trumpLow;
         else if (r === 14) score += w.sideAce;
         else if (r === 13) score += w.sideKing;

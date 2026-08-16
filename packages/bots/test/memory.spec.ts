@@ -112,6 +112,15 @@ describe('cardSalience / isPermanent (AC-1c: the cards a human always tracks)', 
     expect(isPermanent(makeCard(S, 11), null, MEM)).toBe(false); // just a jack now
     expect(isPermanent(makeCard(S, 4), null, MEM)).toBe(false);
   });
+
+  it('can remember the right bower more than the left', () => {
+    const split = mergeParams(DEFAULT_PARAMS, {
+      hardMemory: { rightBowerSalience: 0.95, leftBowerSalience: 0.2 },
+    }).hardMemory;
+    expect(cardSalience(makeCard(TRUMP, 11), TRUMP, split)).toBeGreaterThan(
+      cardSalience(makeCard(C, 11), TRUMP, split),
+    );
+  });
 });
 
 describe('rememberHistory (AC-1: what the seat still believes it has seen)', () => {
@@ -297,6 +306,8 @@ describe('BotParams.hardMemory (AC-3)', () => {
     for (const key of [
       'jokerSalience',
       'bowerSalience',
+      'rightBowerSalience',
+      'leftBowerSalience',
       'aceSalience',
       'kingSalience',
       'queenSalience',

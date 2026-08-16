@@ -36,7 +36,7 @@
  */
 
 import type { Card, GameState, TrickPlay } from '@five-hundred/engine';
-import { JOKER, cardRank, effectiveSuit, makeRng, trumpOf } from '@five-hundred/engine';
+import { JOKER, cardRank, cardSuit, effectiveSuit, makeRng, trumpOf } from '@five-hundred/engine';
 import type { HardMemoryParams } from './params.js';
 
 /** A trick as the memory filter needs it: what was led and who played what. */
@@ -86,8 +86,11 @@ export function cardSalience(card: Card, trump: number | null, p: HardMemoryPara
   const rank = cardRank(card) as number;
   const isTrump = trump !== null && effectiveSuit(card, trump, trump) === trump;
   let base: number;
-  // Either bower — the trump jack and its same-colour twin.
-  if (rank === 11 && isTrump) base = p.bowerSalience;
+  // Bowers — the trump jack and its same-colour twin, independently salient.
+  if (rank === 11 && isTrump && trump !== null) {
+    const suit = cardSuit(card) as number;
+    base = suit === trump ? p.rightBowerSalience : p.leftBowerSalience;
+  }
   else if (rank === 14) base = p.aceSalience;
   else if (rank === 13) base = p.kingSalience;
   else if (rank === 12) base = p.queenSalience;

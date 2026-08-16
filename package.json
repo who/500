@@ -17,7 +17,8 @@
     "lint": "eslint .",
     "format": "prettier --write .",
     "learn:tune": "pnpm --filter @five-hundred/bots tune --",
-    "learn:calibrate": "pnpm --filter @five-hundred/bots calibrate --"
+    "learn:calibrate": "pnpm --filter @five-hundred/bots calibrate --",
+    "learn:ab-bower": "pnpm --filter @five-hundred/bots ab-bower --"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.1",

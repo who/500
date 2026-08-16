@@ -3,6 +3,8 @@
   "suitStrength": {
     "joker": 1.0,
     "bower": 0.95,
+    "rightBower": 0.95,
+    "leftBower": 0.95,
     "trumpHonor": 0.55,
     "trumpLow": 0.35,
     "sideAce": 0.75,
@@ -53,6 +55,8 @@
   "hardMemory": {
     "jokerSalience": 1.0,
     "bowerSalience": 0.95,
+    "rightBowerSalience": 0.95,
+    "leftBowerSalience": 0.95,
     "aceSalience": 0.8,
     "kingSalience": 0.6,
     "queenSalience": 0.45,

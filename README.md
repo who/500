@@ -122,6 +122,29 @@ thin corpus` and writes nothing. A candidate that fails the SPRT gate is
 report-only. Artifacts land in `--out-dir` (default `packages/bots/params`)
 only on promote, or immediately under test-only `--skip-sprt`.
 
+### Local A/B: left vs right bower
+
+`bowerSalience` and `suitStrength.bower` used to be one number for both
+bowers. They still default to 0.95/0.95. To try a weaker left bower against
+that equal baseline in the Hard sim:
+
+```bash
+pnpm learn:ab-bower
+pnpm learn:ab-bower -- --games 80 --seed 7
+./scripts/ab-bower.sh --right 0.95 --left 0.90 --equal 0.95
+```
+
+Side A is the split (right 0.95, left 0.90 by default). Side B is equal
+0.95. Each seed is played twice with seats swapped. The printed SPRT
+verdict is the same gate as `learn:tune` (A better / not shown better /
+undecided). Nothing is uploaded and no overlay is written.
+
+`--strength-only` changes only bidding/play estimates
+(`suitStrength.leftBower` / `rightBower`). `--memory-only` changes only
+what Hard forgets. A memory-only 0.90 vs 0.95 does **not** change play at
+the shipped curve — both stay above `permanentSalience` after `trumpBonus`.
+The default run applies both knobs.
+
 ### Strategy parameters (`BotParams`)
 
 Every number the bots use for “how good is this hand?” and “should I bid /
@@ -164,7 +187,9 @@ roughly “expected tricks.” Defaults:
 | Key | Default | Meaning |
 |---|---:|---|
 | `joker` | 1.0 | Joker is one sure trick. |
-| `bower` | 0.95 | Right or left bower. |
+| `bower` | 0.95 | Either bower (legacy overlay key; play reads the split). |
+| `rightBower` | 0.95 | Right bower (jack of trump). |
+| `leftBower` | 0.95 | Left bower (same-colour jack). |
 | `trumpHonor` | 0.55 | Trump queen or better (bowers already counted). |
 | `trumpLow` | 0.35 | Smaller natural trump. |
 | `sideAce` | 0.75 | Off-trump ace. |
@@ -242,7 +267,9 @@ never do.
 | Key | Default | Meaning |
 |---|---:|---|
 | `jokerSalience` | 1.0 | Joker is the most memorable card. |
-| `bowerSalience` | 0.95 | Right or left bower, in trump. |
+| `bowerSalience` | 0.95 | Either bower (legacy overlay key; memory reads the split). |
+| `rightBowerSalience` | 0.95 | Right bower, in trump. |
+| `leftBowerSalience` | 0.95 | Left bower, in trump. |
 | `aceSalience` | 0.8 | Any ace. |
 | `kingSalience` | 0.6 | Any king. |
 | `queenSalience` | 0.45 | Any queen. |
