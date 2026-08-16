@@ -92,14 +92,18 @@ const hard = (): HardPolicy => new HardPolicy({ ...SUITE_BUDGET, memory: { seed:
 const medium = (): MediumPolicy => new MediumPolicy().withMemory(SEED);
 
 describe('Hard-beats-Medium strength gate', () => {
-  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
+  // 20-minute ceiling: each side's seeded loop takes ~97s on a dev machine
+  // but past 180s on a 2-vCPU CI runner. The rng stream is fixed, so extra
+  // wall-clock never changes the outcome — the timeout only needs to admit
+  // the slowest hardware the suite runs on.
+  it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 1_200_000 }, async () => {
     const policies = [hard(), medium(), hard(), medium()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[0] / GAMES).toBeGreaterThanOrEqual(GATE);
   });
 
-  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
+  it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 1_200_000 }, async () => {
     const policies = [medium(), hard(), medium(), hard()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
