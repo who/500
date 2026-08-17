@@ -12,11 +12,12 @@
  */
 
 import { useEffect, useState, type ReactNode } from 'react';
-import { type Bid, IND, NT, NUM, PASS, bidName } from '@five-hundred/engine';
+import { type Bid, type Card, IND, NT, NUM, PASS, bidName } from '@five-hundred/engine';
 import { contractToken } from '../lib/contractToken.ts';
+import { trumpFaceClass } from '../lib/trumpMark.ts';
 import { ActivityCard } from './ActivityCard.tsx';
 import { IND_TOOLTIP, cellName } from './BidPanel.tsx';
-import { CardBack, SuitGlyph } from './Card.tsx';
+import { CardBack, CardFace, SuitGlyph } from './Card.tsx';
 import { PlayerName } from './PlayerName.tsx';
 
 /** Chips shown before the "+n" expander takes over (phone-width budget). */
@@ -99,6 +100,12 @@ export interface SeatBadgeProps {
   /** Hidden-hand size; rendered as backs unless this is the viewer's seat. */
   cardCount: number;
   showBacks: boolean;
+  /** This seat's card in the displayed trick (fh-dx8): the always-legible
+   *  mirror of the center pile, a mini face beside the count. Null or absent
+   *  renders nothing and the badge is exactly as before. */
+  playedCard?: Card | null;
+  /** Trump suit for the mirror's foil mark; null/absent for NT and nulla. */
+  trump?: number | null;
   /** This seat's auction actions in order. When defined the chips strip
    *  renders even while empty — a fixed-size reserve (fh-8sw) so the first
    *  chip landing can't resize the badge and reflow the table. */
@@ -115,6 +122,7 @@ export interface SeatBadgeProps {
 }
 
 export function SeatBadge(props: SeatBadgeProps): ReactNode {
+  const played = props.playedCard ?? null;
   const pondering = props.isActing && props.thinking === true;
   // Delayed reveal: the hint appears only once the bot has visibly paused.
   const [revealed, setRevealed] = useState(false);
@@ -148,10 +156,32 @@ export function SeatBadge(props: SeatBadgeProps): ReactNode {
           </span>
         )}
       </div>
-      {props.showBacks && (
-        <div className="seat-backs" aria-label={`${props.name}: ${props.cardCount} cards`}>
-          <CardBack className="card-mini" />
-          <span className="seat-count">{props.cardCount}</span>
+      {(props.showBacks || played !== null) && (
+        <div
+          className="seat-backs"
+          aria-label={props.showBacks ? `${props.name}: ${props.cardCount} cards` : undefined}
+        >
+          {props.showBacks && (
+            <>
+              <CardBack className="card-mini" />
+              <span className="seat-count">{props.cardCount}</span>
+            </>
+          )}
+          {played !== null && (
+            <span
+              className="seat-played"
+              data-testid="seat-played"
+              title={`${props.name} played this to the trick`}
+            >
+              <CardFace
+                card={played}
+                compact
+                className={['card-mini', trumpFaceClass(played, props.trump ?? null)]
+                  .filter(Boolean)
+                  .join(' ')}
+              />
+            </span>
+          )}
         </div>
       )}
       {props.bidHistory !== undefined && <BidChips bids={props.bidHistory} />}

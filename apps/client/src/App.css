@@ -467,6 +467,14 @@ button.primary {
   font-weight: 600;
 }
 
+/* fh-dx8: the seat's play to the displayed trick, mirrored beside the count
+   so the jittered center pile can never hide it. .card-mini sizing keeps the
+   face well under the reserved .bidders-label width, so no badge widens. */
+.seat-played {
+  display: inline-flex;
+  align-items: center;
+}
+
 /* An acting bot's badge wears the ActivityCard border trace while it thinks
    (fh-x25) — the ring reads as "this seat, right now", which the old
    "thinking…" caption could only say in words. Out of flow (fh-8sw): an

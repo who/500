@@ -165,6 +165,15 @@ export function Table(): ReactNode {
   // (and the badge space it reserves, fh-8sw) exists only while it runs — a
   // redeal resets the log, clearing them.
   const auctionLog = bidding ? (view.auction?.history ?? []) : null;
+  // fh-dx8: the badges mirror whichever trick the center displays — the
+  // linger freeze first, then the live trick, then the resolved fallback —
+  // one shared source, so a badge and the felt can never disagree about
+  // whether a play is still on the table.
+  const trickInProgress =
+    lingerTrick === null && view.trick !== null && view.trick.plays.length > 0;
+  const shownPlays = trickInProgress
+    ? (view.trick?.plays ?? [])
+    : ((lingerTrick ?? view.lastTrick)?.plays ?? []);
 
   function playCard(card: Card, jokerSuit?: number): void {
     if (pendingActions === null) return;
@@ -223,6 +232,8 @@ export function Table(): ReactNode {
         sittingOutReason={view.contract?.kind === NULLA ? 'nulla' : view.slam ? 'slam' : undefined}
         cardCount={deal.seq === 'dealing' ? (deal.landed[seat] ?? 0) : (view.handCounts[seat] ?? 0)}
         showBacks={seat !== me}
+        playedCard={shownPlays.find((p) => p.seat === seat)?.card ?? null}
+        trump={view.contract === null ? null : trumpOf(view.contract)}
         bidHistory={
           auctionLog === null
             ? undefined

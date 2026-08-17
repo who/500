@@ -8,6 +8,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { type RedactedView, DNULLA, JOKER, NULLA, NUM, bid, makeCard } from '@five-hundred/engine';
 import { cardLabel } from '../components/Card.tsx';
 import { CONTRACT_TOAST_MS } from '../components/ContractToast.tsx';
+import { TRICK_LINGER_MS } from '../store.ts';
 import {
   applyEvent,
   botSeatView,
@@ -150,6 +151,71 @@ describe('Table', () => {
     expect(app.getByTestId('hud-tricks').textContent).toBe('Us 3 – Them 2');
     expect(app.getByTestId('hud-scores').textContent).toBe('Score 180 / -40');
     expect(app.getByTestId('hud-stake').textContent).toBe('At stake: 300');
+  });
+
+  it("mirrors each seat's play in its badge and follows the lingered trick (fh-dx8 AC-2)", () => {
+    vi.useFakeTimers();
+    const { client, app } = renderTable(midTrickView());
+    // The viewer's badge lives in .my-seat; a bare [data-seat="0"] lookup
+    // could land on their card in the center pile instead.
+    const mirror = (seat: number): string | null => {
+      const root =
+        seat === 0 ? (app.container.querySelector('.my-seat') as HTMLElement) : seatEl(app, seat);
+      return (
+        root.querySelector('[data-testid="seat-played"] svg')?.getAttribute('aria-label') ?? null
+      );
+    };
+
+    // The in-progress trick: Cleo's A♠ and the bot's 5♠ sit in their badges.
+    expect(mirror(2)).toBe('A♠');
+    expect(mirror(3)).toBe('5♠');
+    expect(mirror(0)).toBeNull();
+    expect(mirror(1)).toBeNull();
+
+    // The trick completes and the store freezes it while the next lead
+    // arrives underneath. Badges keep every resolved play through the linger
+    // window, exactly as the center does — including the viewer's own K♠.
+    const resolved = {
+      leader: 2,
+      ledSuit: 0,
+      plays: [
+        { seat: 2, card: makeCard(0, 14) },
+        { seat: 3, card: makeCard(0, 5) },
+        { seat: 0, card: makeCard(0, 13) },
+        { seat: 1, card: makeCard(0, 12) },
+      ],
+      winner: 0,
+    };
+    applyEvent(client, env(2, { t: 'trickResolved', trick: resolved }));
+    applyEvent(
+      client,
+      env(3, {
+        t: 'gameView',
+        view: {
+          view: midTrickView({
+            toAct: 1,
+            trick: { leader: 0, ledSuit: 3, plays: [{ seat: 0, card: makeCard(3, 14) }] },
+            lastTrick: resolved,
+            sideTricks: [4, 2],
+            tricksPlayed: 6,
+          }),
+        },
+      }),
+    );
+    expect(mirror(0)).toBe('K♠');
+    expect(mirror(1)).toBe('Q♠');
+    expect(mirror(2)).toBe('A♠');
+    expect(mirror(3)).toBe('5♠');
+
+    // The linger releases: the displayed trick becomes the next lead, so
+    // only the new leader's badge keeps a card.
+    act(() => {
+      vi.advanceTimersByTime(TRICK_LINGER_MS);
+    });
+    expect(mirror(0)).toBe('A♥');
+    expect(mirror(1)).toBeNull();
+    expect(mirror(2)).toBeNull();
+    expect(mirror(3)).toBeNull();
   });
 
   it('orients Us/Them to the viewer side', () => {

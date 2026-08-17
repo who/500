@@ -19,7 +19,7 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import { act } from 'react';
-import { type Bid, DNULLA, IND, NULLA, NUM, PASS, bid } from '@five-hundred/engine';
+import { type Bid, DNULLA, IND, NULLA, NUM, PASS, bid, makeCard } from '@five-hundred/engine';
 import { SeatBadge, type SeatBadgeProps, THINKING_DELAY_MS } from './SeatBadge.tsx';
 
 const CSS = readFileSync(join(import.meta.dirname, '../App.css'), 'utf8');
@@ -307,5 +307,46 @@ describe('the highlight animates as recolor only (AC-3)', () => {
         CSS,
       );
     expect(reduced).not.toBeNull();
+  });
+});
+
+describe('the played-card mirror (fh-dx8 AC-1/AC-3)', () => {
+  it('shows the mini face beside the count when playedCard is set', () => {
+    const { badge } = renderBadge({ playedCard: makeCard(0, 14) });
+    const mirror = badge.querySelector('[data-testid="seat-played"]');
+    expect(mirror).not.toBeNull();
+    const face = mirror?.querySelector('svg');
+    expect(face?.getAttribute('aria-label')).toBe('A♠');
+    expect(face?.getAttribute('class')).toContain('card-mini');
+    expect(face?.getAttribute('class')).not.toContain('card-trump');
+    // Beside the count: the mirror shares the .seat-backs row with it.
+    expect(mirror?.closest('.seat-backs')).not.toBeNull();
+    expect(badge.querySelector('.seat-count')?.textContent).toBe('10');
+  });
+
+  it('wears the trump foil when the played card is trump (left bower)', () => {
+    const { badge } = renderBadge({ playedCard: makeCard(2, 11), trump: 3 });
+    const face = badge.querySelector('[data-testid="seat-played"] svg');
+    expect(face?.getAttribute('class')).toContain('card-trump');
+  });
+
+  it("mirrors the viewer's own play without gaining backs or a count", () => {
+    const { badge } = renderBadge({ showBacks: false, playedCard: makeCard(1, 7) });
+    expect(badge.querySelector('[data-testid="seat-played"]')).not.toBeNull();
+    expect(badge.querySelector('.card-back')).toBeNull();
+    expect(badge.querySelector('.seat-count')).toBeNull();
+  });
+
+  it('renders exactly as before when playedCard is null or absent (AC-3)', () => {
+    for (const overrides of [{}, { playedCard: null }] as const) {
+      const { app, badge } = renderBadge(overrides);
+      expect(badge.querySelector('[data-testid="seat-played"]')).toBeNull();
+      expect(badge.querySelector('.card-back')).not.toBeNull();
+      expect(badge.querySelector('.seat-count')?.textContent).toBe('10');
+      app.unmount();
+    }
+    // The viewer's badge without a play keeps its no-backs shape too.
+    const bare = renderBadge({ showBacks: false, playedCard: null });
+    expect(bare.badge.querySelector('.seat-backs')).toBeNull();
   });
 });
