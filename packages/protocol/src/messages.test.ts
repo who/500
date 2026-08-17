@@ -153,6 +153,8 @@ const validEvents: Record<string, unknown> = {
           { seat: 2, bid: { kind: 'IND', level: 6, strain: 2 } },
           { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
         ],
+        // fh-vrs: a slam declared after the auction rides beside it.
+        slam: true,
         tricks: [
           {
             leader: 0,
@@ -182,6 +184,7 @@ const validEvents: Record<string, unknown> = {
         dealer: 0,
         redeals: 0,
         auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
+        slam: false,
         // A nulla trick: three plays, the declarer's partner sitting out.
         tricks: [
           {
@@ -345,7 +348,20 @@ const malformedEvents: Record<string, unknown> = {
   gameLogScoresNotPair: {
     t: 'gameLog',
     hands: [
-      { handNumber: 0, dealer: 0, redeals: 0, auction: [], tricks: [], scores: [40] },
+      { handNumber: 0, dealer: 0, redeals: 0, auction: [], slam: false, tricks: [], scores: [40] },
+    ],
+  },
+  // fh-vrs: slam is a required boolean fact on every hand row.
+  gameLogSlamNotBoolean: {
+    t: 'gameLog',
+    hands: [
+      { handNumber: 0, dealer: 0, redeals: 0, auction: [], slam: 1, tricks: [], scores: [0, 0] },
+    ],
+  },
+  gameLogSlamMissing: {
+    t: 'gameLog',
+    hands: [
+      { handNumber: 0, dealer: 0, redeals: 0, auction: [], tricks: [], scores: [0, 0] },
     ],
   },
   errorUnknownCode: { t: 'error', code: 'kaboom', message: 'x' },

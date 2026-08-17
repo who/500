@@ -60,6 +60,14 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
                   {`: ${callName(c.bid)}`}
                 </span>
               ))}
+              {/* The slam is declared after the auction, so it is a callout
+                  beside the calls, never a fake entry among them (fh-vrs).
+                  Wording spelled out like the hand-end overlay's headline. */}
+              {hand.slam && (
+                <span className="game-log-slam" data-testid="game-log-slam">
+                  {' — Slam declared (±500)'}
+                </span>
+              )}
             </p>
             <ol className="game-log-tricks">
               {hand.tricks.map((trick, i) => (

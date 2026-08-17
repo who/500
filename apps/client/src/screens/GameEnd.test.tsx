@@ -180,6 +180,7 @@ describe('GameEnd', () => {
           { seat: 2, bid: { kind: 'PASS', level: 0, strain: -1 } },
           { seat: 3, bid: { kind: 'PASS', level: 0, strain: -1 } },
         ],
+        slam: false,
         tricks: [
           {
             leader: 0,
@@ -209,6 +210,7 @@ describe('GameEnd', () => {
         dealer: 0,
         redeals: 1,
         auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
+        slam: false,
         // AC-4: a nulla trick of three plays — one seat sat out.
         tricks: [
           {
@@ -242,6 +244,8 @@ describe('GameEnd', () => {
       'Ana: 7S, AI Liam: Pass, Cleo: Pass, AI Noah: Pass',
       'AI Liam: Nulla',
     ]);
+    // fh-vrs: no hand here declared a slam, so no row carries the callout.
+    expect(app.queryByTestId('game-log-slam')).toBeNull();
     // fh-0au: each trick keeps its led/won prose as hidden accessible text...
     expect(app.getAllByTestId('game-log-trick-text').map((el) => el.textContent)).toEqual([
       'Trick 1: Ana led, Ana won',
@@ -327,6 +331,66 @@ describe('GameEnd', () => {
     fireEvent.mouseDown(app.getByTestId('game-log-scrim'));
     fireEvent.click(app.getByTestId('game-log-scrim'));
     expect(app.queryByTestId('game-log')).toBeNull();
+  });
+
+  // fh-vrs AC-3: a declared slam is spelled out beside the auction of exactly
+  // the hand that declared it, in the hand-end overlay's wording style.
+  it('calls out a declared slam on that hand alone', () => {
+    const slamHands: GameLogHand[] = [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [{ seat: 1, bid: { kind: 'NUM', level: 8, strain: 2 } }],
+        slam: true,
+        tricks: [
+          {
+            leader: 1,
+            winner: 1,
+            plays: [
+              { seat: 1, card: 5 },
+              { seat: 2, card: 16 },
+              { seat: 3, card: 27 },
+              { seat: 0, card: 38 },
+            ],
+          },
+        ],
+        scores: [0, 500],
+      },
+      {
+        handNumber: 1,
+        dealer: 1,
+        redeals: 0,
+        auction: [{ seat: 2, bid: { kind: 'NUM', level: 7, strain: 1 } }],
+        slam: false,
+        tricks: [
+          {
+            leader: 2,
+            winner: 2,
+            plays: [
+              { seat: 2, card: 6 },
+              { seat: 3, card: 17 },
+              { seat: 0, card: 28 },
+              { seat: 1, card: 39 },
+            ],
+          },
+        ],
+        scores: [180, 500],
+      },
+    ];
+    const { client, app } = renderGameEnd(0, 0, 1, [180, 520]);
+    applyEvent(client, env(3, { t: 'gameLog', hands: slamHands }));
+    fireEvent.click(app.getByTestId('game-end-log'));
+
+    // Exactly one callout, and it sits in the slam hand's auction line; the
+    // call sequence itself still ends at the winning bid.
+    const callouts = app.getAllByTestId('game-log-slam');
+    expect(callouts).toHaveLength(1);
+    expect(callouts[0]!.textContent).toBe(' — Slam declared (±500)');
+    const auctions = app.getAllByTestId('game-log-auction');
+    expect(auctions[0]!.contains(callouts[0]!)).toBe(true);
+    expect(auctions[0]!.textContent).toBe('AI Liam: 8D — Slam declared (±500)');
+    expect(auctions[1]!.textContent).toBe('Cleo: 7C');
   });
 
   // fh-y2a.3 AC-3: the thumbs send one rateBots command, then lock with the

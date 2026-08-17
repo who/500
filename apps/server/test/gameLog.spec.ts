@@ -22,7 +22,7 @@ import {
   type GameStore,
 } from '@five-hundred/learn';
 import { OVERLAY_VERSION } from '../src/botParams.js';
-import { createGameLogger, FEEDBACK_FILE, MAX_MARKER_NOTE, resolveGameLogConfig } from '../src/gameLog.js';
+import { createGameLogger, FEEDBACK_FILE, MAX_MARKER_NOTE, resolveGameLogConfig, summarizeHand } from '../src/gameLog.js';
 import type { Room } from '../src/rooms.js';
 import { applyGameAction } from '../src/game.js';
 import {
@@ -436,6 +436,49 @@ describe('game-log summary (fh-y2a.2)', () => {
     expect(hands.at(-1)?.scores).toEqual([state.game.scores[0], state.game.scores[1]]);
     expect(hands).toEqual(fx.session.log);
     expect(existsSync(join(dir, 'games.jsonl'))).toBe(false);
+  });
+
+  // fh-vrs AC-1: the engine's slam flag reaches the wire summary verbatim, so
+  // a ±500 hand can say so in the log instead of posing as an ordinary bid.
+  it('copies the declared-slam flag into the hand row', () => {
+    // summarizeHand only reads the scored-hand surface of GameState, so a
+    // handScored snapshot narrowed to that surface stands in for a full state.
+    const scored = (slam: boolean): GameState =>
+      ({
+        seed: 7,
+        dealsDrawn: 1,
+        handNumber: 0,
+        dealer: 3,
+        phase: 'handScored',
+        hands: [[], [], [], []],
+        middle: [],
+        discards: [],
+        auction: { history: [{ seat: 0, bid: { kind: 'NUM', level: 8, strain: 2 } }] },
+        contract: { kind: 'NUM', level: 8, strain: 2 },
+        declarer: 0,
+        slam,
+        activeSeats: [0, 1, 2, 3],
+        exchange: null,
+        play: {
+          tricks: [
+            {
+              leader: 0,
+              winner: 0,
+              plays: [
+                { seat: 0, card: 3 },
+                { seat: 1, card: 14 },
+                { seat: 2, card: 25 },
+                { seat: 3, card: 36 },
+              ],
+            },
+          ],
+        },
+        handResult: null,
+        game: { scores: [500, 0], winner: null },
+      }) as unknown as GameState;
+
+    expect(summarizeHand(scored(true)).slam).toBe(true);
+    expect(summarizeHand(scored(false)).slam).toBe(false);
   });
 
   it('re-delivers the summary on requestState while resting in gameOver (AC-4)', async () => {

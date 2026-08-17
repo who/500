@@ -71,6 +71,7 @@ export function summarizeHand(state: GameState, priorDealsDrawn = 0): GameLogHan
     dealer: state.dealer,
     redeals: Math.max(0, state.dealsDrawn - priorDealsDrawn - 1),
     auction: state.auction.history.map((e) => ({ seat: e.seat, bid: e.bid })),
+    slam: state.slam,
     tricks: state.play.tricks.map((t) => ({
       leader: t.leader,
       winner: t.winner,

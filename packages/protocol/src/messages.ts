@@ -270,6 +270,11 @@ export interface GameLogHand {
   readonly redeals: number;
   /** The live auction's calls, in the order they were made. */
   readonly auction: readonly GameLogCall[];
+  /**
+   * Whether the declarer declared a slam after winning the auction (fh-vrs).
+   * A per-hand fact, not a call: the slam never appears in `auction`.
+   */
+  readonly slam: boolean;
   readonly tricks: readonly GameLogTrick[];
   /** Running game totals per side (index = seat % 2) after this hand. */
   readonly scores: readonly [number, number];

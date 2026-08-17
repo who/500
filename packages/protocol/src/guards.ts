@@ -139,6 +139,7 @@ function isGameLogHand(x: unknown): boolean {
     isIndex(x.redeals) &&
     Array.isArray(x.auction) &&
     x.auction.every((c) => isRec(c) && isSeat(c.seat) && isBid(c.bid)) &&
+    typeof x.slam === 'boolean' &&
     Array.isArray(x.tricks) &&
     x.tricks.every(
       (t) =>
