@@ -228,7 +228,12 @@ describe('GameEnd', () => {
     expect(app.queryByTestId('game-end-log')).toBeNull(); // no summary yet
     applyEvent(client, env(3, { t: 'gameLog', hands }));
 
+    // fh-3oz AC-1: the button opens the log as a modal dialog over a scrim.
+    expect(app.getByTestId('game-end-log').getAttribute('aria-expanded')).toBe('false');
     fireEvent.click(app.getByTestId('game-end-log'));
+    expect(app.getByRole('dialog', { name: 'Game log' })).not.toBeNull();
+    expect(app.getByTestId('game-log-scrim')).not.toBeNull();
+    expect(app.getByTestId('game-end-log').getAttribute('aria-expanded')).toBe('true');
     expect(app.getAllByTestId('game-log-dealer').map((el) => el.textContent)).toEqual([
       'Hand 1 — dealt by AI Noah',
       'Hand 2 — dealt by Ana',
@@ -299,7 +304,28 @@ describe('GameEnd', () => {
       'Thrown in once before this deal — every seat passed.',
     ]);
 
-    fireEvent.click(app.getByTestId('game-end-log')); // toggle back off
+    // fh-3oz AC-1: each close affordance dismisses the dialog and returns the
+    // unchanged end screen — close button, then Escape, then a scrim click.
+    fireEvent.click(app.getByTestId('game-log-close'));
+    expect(app.queryByTestId('game-log')).toBeNull();
+    expect(app.getByTestId('game-end-log').getAttribute('aria-expanded')).toBe('false');
+    // Escape with the log closed must not disturb the end screen.
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(app.container.querySelector('[data-screen="game-end"]')).not.toBeNull();
+
+    fireEvent.click(app.getByTestId('game-end-log'));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(app.queryByTestId('game-log')).toBeNull();
+
+    fireEvent.click(app.getByTestId('game-end-log'));
+    // A press that starts inside the panel and ends on the scrim (a scroll
+    // drag) must not dismiss the log...
+    fireEvent.mouseDown(app.getByTestId('game-log-panel'));
+    fireEvent.click(app.getByTestId('game-log-scrim'));
+    expect(app.queryByTestId('game-log')).not.toBeNull();
+    // ...while a click that starts and ends on the scrim itself closes it.
+    fireEvent.mouseDown(app.getByTestId('game-log-scrim'));
+    fireEvent.click(app.getByTestId('game-log-scrim'));
     expect(app.queryByTestId('game-log')).toBeNull();
   });
 

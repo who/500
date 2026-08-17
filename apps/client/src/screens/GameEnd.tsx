@@ -5,7 +5,7 @@
  * validates and reseeds). Non-hosts see who can start the rematch.
  */
 
-import { useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useStore } from 'zustand';
 import { OUT_THE_BACK } from '@five-hundred/engine';
 import { GameLogView } from '../components/GameLogView.tsx';
@@ -29,6 +29,20 @@ export function GameEnd(): ReactNode {
   const gameLog = useStore(client.store, (s) => s.gameLog);
   const [showLog, setShowLog] = useState(false);
   const [rated, setRated] = useState<'up' | 'down' | null>(null);
+  // True only while a press that began on the scrim itself is in flight, so a
+  // scroll drag that starts inside the panel and drifts out never dismisses.
+  const scrimPress = useRef(false);
+
+  // Escape closes the log pop-up. The listener exists only while it is open,
+  // so a stray Escape on the plain end screen changes nothing.
+  useEffect(() => {
+    if (!showLog) return undefined;
+    function onKey(e: KeyboardEvent): void {
+      if (e.key === 'Escape') setShowLog(false);
+    }
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [showLog]);
   if (seatView === null) return null;
 
   const view = seatView.view;
@@ -139,9 +153,10 @@ export function GameEnd(): ReactNode {
           <button
             type="button"
             data-testid="game-end-log"
-            onClick={() => setShowLog((on) => !on)}
+            aria-expanded={showLog}
+            onClick={() => setShowLog(true)}
           >
-            {showLog ? 'Hide game log' : 'Game log'}
+            Game log
           </button>
         )}
         <button type="button" title="Back to menu" onClick={handleLeave}>
@@ -149,11 +164,40 @@ export function GameEnd(): ReactNode {
         </button>
       </div>
       {showLog && gameLog !== null && (
-        <GameLogView
-          hands={gameLog}
-          names={[0, 1, 2, 3].map((s) => seatName(room, s))}
-          us={us}
-        />
+        <div
+          className="game-log-scrim"
+          data-testid="game-log-scrim"
+          onMouseDown={(e) => {
+            scrimPress.current = e.target === e.currentTarget;
+          }}
+          onClick={(e) => {
+            if (scrimPress.current && e.target === e.currentTarget) setShowLog(false);
+          }}
+        >
+          <section
+            className="game-log-panel"
+            data-testid="game-log-panel"
+            role="dialog"
+            aria-label="Game log"
+          >
+            <header className="game-log-panel-head">
+              <h2>Game log</h2>
+              <button
+                type="button"
+                data-testid="game-log-close"
+                aria-label="Close game log"
+                onClick={() => setShowLog(false)}
+              >
+                ×
+              </button>
+            </header>
+            <GameLogView
+              hands={gameLog}
+              names={[0, 1, 2, 3].map((s) => seatName(room, s))}
+              us={us}
+            />
+          </section>
+        </div>
       )}
     </main>
   );

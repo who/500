@@ -1761,11 +1761,54 @@ span.suit-glyph {
   flex-wrap: wrap;
 }
 
-/* Game log (fh-y2a.2): a scrollable hand-by-hand story under the actions. */
+/* Game log pop-up shell (fh-3oz): the .hand-end-scrim pattern, sized to most
+   of the viewport so trick faces get real room. z-index 10 sits above the end
+   screen but under the toast tier (20+). */
+.game-log-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(20, 24, 33, 0.55);
+}
+
+.game-log-panel {
+  display: flex;
+  flex-direction: column;
+  width: min(92vw, 48rem);
+  max-height: 85vh;
+  padding: 1rem 1.25rem;
+  border-radius: 12px;
+  background: var(--overlay-panel);
+  box-shadow: var(--shadow);
+}
+
+.game-log-panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.5rem;
+}
+
+.game-log-panel-head h2 {
+  margin: 0;
+}
+
+/* At phone widths a floating panel would recreate the cramped box the pop-up
+   exists to escape, so the dialog goes near-full-screen with a small inset. */
+@media (max-width: 480px) {
+  .game-log-panel {
+    width: calc(100vw - 1rem);
+    max-height: calc(100vh - 1rem);
+  }
+}
+
+/* Game log (fh-y2a.2): the hand-by-hand story, now the dialog's scroll body. */
 .game-log {
-  margin: 1rem auto 0;
-  max-width: 32rem;
-  max-height: 50vh;
+  margin: 0;
+  min-height: 0;
   overflow-y: auto;
   text-align: left;
 }
@@ -1822,9 +1865,11 @@ span.suit-glyph {
   min-width: 0;
 }
 
+/* 1.6x the old 30x42 faces (fh-3oz): four cards plus names still clear a
+   375px viewport inside the near-full-screen panel. */
 .game-log-play .card {
-  width: calc(30 * var(--su));
-  height: calc(42 * var(--su));
+  width: calc(48 * var(--su));
+  height: calc(67 * var(--su));
 }
 
 /* Same winner ring as the last-trick peek, scaled to the smaller face. */
@@ -1835,11 +1880,11 @@ span.suit-glyph {
 }
 
 .game-log-play-name {
-  max-width: 3.5rem;
+  max-width: 4rem;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.65rem;
+  font-size: 0.75rem;
 }
 
 .game-log-play[data-led] .game-log-play-name::before {
