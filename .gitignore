@@ -1,3 +1,27 @@
+# Project-specific ignores. Generic tool/IDE/build entries live in the
+# managed ortus block below — add repo-specific rules here, above it.
+
+# pnpm store
+.pnpm-store/
+
+# Playwright artifacts
+test-results/
+playwright-report/
+
+# TypeScript incremental build info
+*.tsbuildinfo
+
+# grind harness lock (local only)
+.beads/*.flock
+
+# Bot-params tuner artifacts (fh-sja.4): local overlays + resumable run state.
+# The active local overlay and any tuner state files stay out of git; a
+# promoted overlay is surfaced deliberately by fh-sja.6, not auto-committed.
+packages/bots/params/local.json
+packages/bots/params/*-tuned.json
+*.tuner-state.json
+
+# BEGIN ortus block=gitignore schema=1 generated-by=ortus@0.2.1.dev20+g5c02b33.d20260817
 # IDE
 .idea/
 .vscode/
@@ -35,24 +59,6 @@ logs/
 
 # Cache directories
 .cache/
-.pnpm-store/
-
-# Playwright artifacts
-test-results/
-playwright-report/
-
-# TypeScript incremental build info
-*.tsbuildinfo
-
-# grind harness lock (local only)
-.beads/*.flock
-
-# Bot-params tuner artifacts (fh-sja.4): local overlays + resumable run state.
-# The active local overlay and any tuner state files stay out of git; a
-# promoted overlay is surfaced deliberately by fh-sja.6, not auto-committed.
-packages/bots/params/local.json
-packages/bots/params/*-tuned.json
-*.tuner-state.json
 
 # CodeGraph index — local, machine-specific, and large. Every fresh clone
 # rebuilds it with `codegraph init`; `ortus check` reports it when missing.
@@ -66,3 +72,4 @@ node_modules/
 dist/
 build/
 target/
+# END ortus block=gitignore

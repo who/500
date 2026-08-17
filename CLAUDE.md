@@ -28,10 +28,10 @@ _Add a brief overview of your project architecture_
 
 _Add your project-specific conventions here_
 
-<!-- BEGIN ortus block=pointer schema=1 generated-by=ortus@0.1.5.dev199+ge492e07.d20260814 -->
+<!-- BEGIN ortus block=pointer schema=1 generated-by=ortus@0.2.1.dev20+g5c02b33.d20260817 -->
 ## Ortus session rules
 
-Managed by Ortus 0.1.5.dev199+ge492e07.d20260814. Edit outside the markers freely — `ortus init`
+Managed by Ortus 0.2.1.dev20+g5c02b33.d20260817. Edit outside the markers freely — `ortus init`
 rewrites only what sits between them, and `ortus check` reports drift.
 
 `AGENTS.md` in this repo is the session contract: read it first, and follow its
