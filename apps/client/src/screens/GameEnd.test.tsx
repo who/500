@@ -203,6 +203,7 @@ describe('GameEnd', () => {
             ],
           },
         ],
+        setFromTrick: null,
         scores: [140, 20],
       },
       {
@@ -223,6 +224,7 @@ describe('GameEnd', () => {
             ],
           },
         ],
+        setFromTrick: null,
         scores: [140, 270],
       },
     ];
@@ -355,6 +357,7 @@ describe('GameEnd', () => {
             ],
           },
         ],
+        setFromTrick: null,
         scores: [0, 500],
       },
       {
@@ -375,6 +378,7 @@ describe('GameEnd', () => {
             ],
           },
         ],
+        setFromTrick: null,
         scores: [180, 500],
       },
     ];
@@ -391,6 +395,60 @@ describe('GameEnd', () => {
     expect(auctions[0]!.contains(callouts[0]!)).toBe(true);
     expect(auctions[0]!.textContent).toBe('AI Liam: 8D — Slam declared (±500)');
     expect(auctions[1]!.textContent).toBe('Cleo: 7C');
+  });
+
+  // fh-jj0 AC-3: a set hand wears the verdict from the trick it died at
+  // downward — border on those rows only, label on the first of them alone.
+  it('red-borders a set hand from its set trick and labels that trick', () => {
+    const trick = (leader: number, winner: number, card: number) => ({
+      leader,
+      winner,
+      plays: [
+        { seat: leader, card },
+        { seat: (leader + 1) % 4, card: card + 11 },
+        { seat: (leader + 2) % 4, card: card + 22 },
+        { seat: (leader + 3) % 4, card: card + 33 },
+      ],
+    });
+    const setHands: GameLogHand[] = [
+      {
+        handNumber: 0,
+        dealer: 3,
+        redeals: 0,
+        auction: [{ seat: 0, bid: { kind: 'NUM', level: 8, strain: 2 } }],
+        slam: false,
+        tricks: [trick(0, 0, 1), trick(0, 1, 2), trick(1, 1, 3)],
+        setFromTrick: 1,
+        scores: [0, 140],
+      },
+      {
+        handNumber: 1,
+        dealer: 0,
+        redeals: 0,
+        auction: [{ seat: 1, bid: { kind: 'NUM', level: 7, strain: 1 } }],
+        slam: false,
+        tricks: [trick(1, 1, 4), trick(1, 1, 5)],
+        setFromTrick: null,
+        scores: [0, 520],
+      },
+    ];
+    const { client, app } = renderGameEnd(0, 0, 1, [0, 520]);
+    applyEvent(client, env(3, { t: 'gameLog', hands: setHands }));
+    fireEvent.click(app.getByTestId('game-end-log'));
+
+    // Five rows across both hands; only the set hand's last two are marked,
+    // so the made hand that follows is untouched.
+    const marked = app
+      .getAllByTestId('game-log-trick')
+      .map((row) => row.getAttribute('data-set') !== null);
+    expect(marked).toEqual([false, true, true, false, false]);
+
+    // Exactly one label, and it rides the first marked row.
+    const labels = app.getAllByTestId('game-log-set-label');
+    expect(labels).toHaveLength(1);
+    expect(labels[0]!.textContent).toBe('Bidders Set');
+    const rows = app.getAllByTestId('game-log-trick');
+    expect(rows[1]!.contains(labels[0]!)).toBe(true);
   });
 
   // fh-y2a.3 AC-3: the thumbs send one rateBots command, then lock with the

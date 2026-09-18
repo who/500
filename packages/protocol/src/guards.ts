@@ -42,7 +42,7 @@ function isNonEmptyString(x: unknown): boolean {
 }
 
 /** A non-negative array index (hand numbers, trick indices). */
-function isIndex(x: unknown): boolean {
+function isIndex(x: unknown): x is number {
   return typeof x === 'number' && Number.isInteger(x) && x >= 0;
 }
 
@@ -149,6 +149,11 @@ function isGameLogHand(x: unknown): boolean {
         Array.isArray(t.plays) &&
         t.plays.every((p) => isRec(p) && isSeat(p.seat) && isCard(p.card)),
     ) &&
+    // fh-jj0: the set point is either absent (a made hand) or one of this
+    // hand's own trick indices — a value past the end would red-border rows
+    // that do not exist.
+    (x.setFromTrick === null ||
+      (isIndex(x.setFromTrick) && x.setFromTrick < (x.tricks as unknown[]).length)) &&
     isScores(x.scores)
   );
 }

@@ -177,6 +177,8 @@ const validEvents: Record<string, unknown> = {
             ],
           },
         ],
+        // fh-jj0: the set became certain at the second trick of this hand.
+        setFromTrick: 1,
         scores: [140, 20],
       },
       {
@@ -197,11 +199,28 @@ const validEvents: Record<string, unknown> = {
             ],
           },
         ],
+        setFromTrick: null,
         scores: [140, 270],
       },
     ],
   },
   gameLogNoHands: { t: 'gameLog', hands: [] },
+  // fh-jj0: a hand set on its opening trick — index 0 is in range, not absent.
+  gameLogSetOnFirstTrick: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [{ seat: 1, bid: { kind: 'NULLA', level: 0, strain: -1 } }],
+        slam: false,
+        tricks: [{ leader: 1, winner: 1, plays: [{ seat: 1, card: 5 }] }],
+        setFromTrick: 0,
+        scores: [0, 0],
+      },
+    ],
+  },
   error: { t: 'error', code: 'notYourTurn', message: 'it is seat 1 to act' },
 };
 
@@ -348,20 +367,84 @@ const malformedEvents: Record<string, unknown> = {
   gameLogScoresNotPair: {
     t: 'gameLog',
     hands: [
-      { handNumber: 0, dealer: 0, redeals: 0, auction: [], slam: false, tricks: [], scores: [40] },
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        slam: false,
+        tricks: [],
+        setFromTrick: null,
+        scores: [40],
+      },
     ],
   },
   // fh-vrs: slam is a required boolean fact on every hand row.
   gameLogSlamNotBoolean: {
     t: 'gameLog',
     hands: [
-      { handNumber: 0, dealer: 0, redeals: 0, auction: [], slam: 1, tricks: [], scores: [0, 0] },
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        slam: 1,
+        tricks: [],
+        setFromTrick: null,
+        scores: [0, 0],
+      },
     ],
   },
   gameLogSlamMissing: {
     t: 'gameLog',
     hands: [
       { handNumber: 0, dealer: 0, redeals: 0, auction: [], tricks: [], scores: [0, 0] },
+    ],
+  },
+  // fh-jj0: the set point is required, must be a whole trick index, and must
+  // name a trick this hand actually played.
+  gameLogSetFromTrickMissing: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        slam: false,
+        tricks: [],
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogSetFromTrickPastEnd: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        slam: false,
+        tricks: [{ leader: 0, winner: 0, plays: [{ seat: 0, card: 3 }] }],
+        setFromTrick: 1,
+        scores: [0, 0],
+      },
+    ],
+  },
+  gameLogSetFromTrickFractional: {
+    t: 'gameLog',
+    hands: [
+      {
+        handNumber: 0,
+        dealer: 0,
+        redeals: 0,
+        auction: [],
+        slam: false,
+        tricks: [{ leader: 0, winner: 0, plays: [{ seat: 0, card: 3 }] }],
+        setFromTrick: 0.5,
+        scores: [0, 0],
+      },
     ],
   },
   errorUnknownCode: { t: 'error', code: 'kaboom', message: 'x' },

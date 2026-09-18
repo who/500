@@ -10,7 +10,7 @@
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
-import type { GameState } from '@five-hundred/engine';
+import { isLoseAll, type GameState } from '@five-hundred/engine';
 import type { GameLogHand, RateBotsCommand } from '@five-hundred/protocol';
 import { PARAMS_SCHEMA_VERSION } from '@five-hundred/bots';
 import {
@@ -53,6 +53,42 @@ export function resolveGameLogConfig(env: NodeJS.ProcessEnv = process.env): Game
   };
 }
 
+/** Total tricks in a hand — the ceiling the bidders' count is measured against. */
+const TRICKS_PER_HAND = 10;
+
+/**
+ * The trick at whose completion the bidders' set became certain (fh-jj0), or
+ * null for a made hand. Mirrors the client's biddersAreSet math over the
+ * hand's own trick list: a lose-all contract is set by the first trick forced
+ * onto the bidders, a declared slam plays for all ten however it was bid, and
+ * a numbered contract is set once the tricks still to come can no longer
+ * reach its level. A set the play never made certain early — the rare one
+ * that only fails on the last card — falls back to the final trick, because
+ * the scored hand is the authority on whether the contract was made at all.
+ */
+function setPointOf(state: GameState): number | null {
+  const contract = state.contract;
+  const tricks = state.play?.tricks ?? [];
+  if (contract === null || state.declarer === null || tricks.length === 0) return null;
+  const result = state.handResult;
+  if (result !== null && result.made) return null;
+  const declSide = state.declarer % 2;
+  const target = state.slam ? TRICKS_PER_HAND : contract.level;
+  let bidderTricks = 0;
+  let defenderTricks = 0;
+  for (const [i, trick] of tricks.entries()) {
+    if (trick.winner % 2 === declSide) bidderTricks += 1;
+    else defenderTricks += 1;
+    const set = isLoseAll(contract)
+      ? bidderTricks >= 1
+      : TRICKS_PER_HAND - defenderTricks < target;
+    if (set) return i;
+  }
+  // Never certain in flight; the engine's verdict decides, and a set it only
+  // confirmed at the end belongs to the last trick played.
+  return result !== null && !result.made ? tricks.length - 1 : null;
+}
+
 /**
  * Condense one scored hand into its game-log summary row (fh-y2a.2): dealer,
  * the live auction in call order, each trick's leader, winner, and cards in
@@ -77,6 +113,7 @@ export function summarizeHand(state: GameState, priorDealsDrawn = 0): GameLogHan
       winner: t.winner,
       plays: t.plays.map((p) => ({ seat: p.seat, card: p.card })),
     })),
+    setFromTrick: setPointOf(state),
     scores: [state.game.scores[0], state.game.scores[1]],
   };
 }

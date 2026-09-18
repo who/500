@@ -9,6 +9,11 @@
  * seat-labelled faces in play order, the leader chipped and the winner ringed
  * via data-winner — sized so a 10-trick hand scans as a column. The old
  * "X led, Y won" prose stays as visually hidden text for assistive tech.
+ *
+ * A set hand carries that verdict in the rows themselves (fh-jj0): every
+ * trick from the server's setFromTrick onward wears the danger border, and
+ * the first of them alone is labelled, so the eye lands on the trick the
+ * contract died at rather than counting winners against the bid.
  */
 
 import type { ReactNode } from 'react';
@@ -71,7 +76,12 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
             </p>
             <ol className="game-log-tricks">
               {hand.tricks.map((trick, i) => (
-                <li key={i} className="game-log-trick" data-testid="game-log-trick">
+                <li
+                  key={i}
+                  className="game-log-trick"
+                  data-testid="game-log-trick"
+                  data-set={(hand.setFromTrick !== null && i >= hand.setFromTrick) || undefined}
+                >
                   <span className="game-log-trick-num" aria-hidden="true">
                     {i + 1}
                   </span>
@@ -96,6 +106,13 @@ export function GameLogView(props: GameLogViewProps): ReactNode {
                     Trick {i + 1}: <PlayerName seat={trick.leader} viewerSeat={us} names={names} />{' '}
                     led, <PlayerName seat={trick.winner} viewerSeat={us} names={names} /> won
                   </span>
+                  {/* The label names the moment, so it rides the first set
+                      row only; the later rows inherit the border alone. */}
+                  {i === hand.setFromTrick && (
+                    <span className="game-log-set-label" data-testid="game-log-set-label">
+                      Bidders Set
+                    </span>
+                  )}
                 </li>
               ))}
             </ol>

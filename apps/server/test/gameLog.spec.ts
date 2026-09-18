@@ -481,6 +481,62 @@ describe('game-log summary (fh-y2a.2)', () => {
     expect(summarizeHand(scored(false)).slam).toBe(false);
   });
 
+  // fh-jj0 AC-1: the summary carries the trick the bidders' set became
+  // certain at, so the log can red-border a failed hand from that row down.
+  it('folds the set point out of the scored hand', () => {
+    // Same narrowed handScored surface as the slam case above: only the
+    // contract, declarer, slam flag, trick winners, and verdict matter here.
+    const scored = (
+      contract: { kind: string; level: number; strain: number },
+      declarer: number,
+      slam: boolean,
+      winners: readonly number[],
+      made: boolean | null,
+    ): GameState =>
+      ({
+        seed: 7,
+        dealsDrawn: 1,
+        handNumber: 0,
+        dealer: 3,
+        phase: 'handScored',
+        hands: [[], [], [], []],
+        middle: [],
+        discards: [],
+        auction: { history: [{ seat: declarer, bid: contract }] },
+        contract,
+        declarer,
+        slam,
+        activeSeats: [0, 1, 2, 3],
+        exchange: null,
+        play: {
+          tricks: winners.map((winner, i) => ({
+            leader: i === 0 ? declarer : winner,
+            winner,
+            plays: [{ seat: winner, card: i }],
+          })),
+        },
+        handResult: made === null ? null : { made },
+        game: { scores: [0, 0], winner: null },
+      }) as unknown as GameState;
+
+    const eight = { kind: 'NUM', level: 8, strain: 2 };
+    const seven = { kind: 'NUM', level: 7, strain: 2 };
+    const nulla = { kind: 'NULLA', level: 0, strain: -1 };
+
+    // A numbered contract dies the moment the tricks still to come cannot
+    // reach its level: at 8, the defenders' third trick is fatal.
+    expect(summarizeHand(scored(eight, 0, false, [0, 1, 1, 1, 0, 0], false)).setFromTrick).toBe(3);
+    // A declared slam plays for all ten, so one defender trick ends it.
+    expect(summarizeHand(scored(eight, 0, true, [0, 1, 0, 0], false)).setFromTrick).toBe(1);
+    // Lose-all inverts it: the first trick forced onto the bidders is fatal.
+    expect(summarizeHand(scored(nulla, 1, false, [0, 1, 0], false)).setFromTrick).toBe(1);
+    // A made hand never marks, however close the play ran.
+    expect(summarizeHand(scored(seven, 0, false, [0, 1, 1, 1], true)).setFromTrick).toBeNull();
+    // The engine's verdict is the authority: a set the running count never
+    // made certain still marks, and it marks the last trick played.
+    expect(summarizeHand(scored(seven, 0, false, [0, 0, 0], false)).setFromTrick).toBe(2);
+  });
+
   it('re-delivers the summary on requestState while resting in gameOver (AC-4)', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'fh-server-summary-rs-'));
     dirs.push(dir);

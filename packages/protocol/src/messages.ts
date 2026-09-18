@@ -276,6 +276,13 @@ export interface GameLogHand {
    */
   readonly slam: boolean;
   readonly tricks: readonly GameLogTrick[];
+  /**
+   * 0-based index of the trick at whose completion the bidders' set became
+   * certain (fh-jj0), or null when the hand was made. The server folds it
+   * from the scored hand, so the log can mark a set without the client
+   * re-deriving the contract from the auction.
+   */
+  readonly setFromTrick: number | null;
   /** Running game totals per side (index = seat % 2) after this hand. */
   readonly scores: readonly [number, number];
 }
