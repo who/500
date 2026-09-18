@@ -9,13 +9,13 @@
 
 ## 1. Overview
 
-Build a browser-based version of our family's house-rules 500 card game. 1–4 humans play in a shared game room; bots fill any empty seats. Bots come in three difficulty levels (Easy / Medium / Hard). The existing Python engine is ported to TypeScript and becomes the single runtime engine; the Python code remains as a cross-validation oracle for the port.
+Build a browser-based version of our family's house-rules 500 card game. 1–4 humans play in a shared game room; bots fill any empty seats. There is one bot — Hard, the determinized-rollout player — and no difficulty picker: every seat the server fills plays it. The existing Python engine is ported to TypeScript and becomes the single runtime engine; the Python code remains as a cross-validation oracle for the port.
 
 ### Goals
 
 - Playable, correct implementation of the full house ruleset in the browser.
 - 1–4 human players per game via join-by-code rooms; bots auto-fill remaining seats.
-- Three bot difficulties with clearly distinct playing strength.
+- One bot, strong enough that a good human table has to play well to beat it.
 - Runs locally with one command; game state is in-memory (no accounts, no database).
 - The TypeScript engine is provably faithful to the Python engine (parity test suite).
 
@@ -37,7 +37,7 @@ All-TypeScript monorepo. Rationale: the user chose to port the engine to TS; mul
 500/
   packages/
     engine/     # pure TS rules engine — zero runtime deps, deterministic, seeded RNG
-    bots/       # Policy implementations: Easy, Medium, Hard (depends on engine)
+    bots/       # Hard policy + its internal heuristic play-out model (depends on engine)
     protocol/   # shared message & state-view types (client/server contract)
   apps/
     server/     # Node + ws: room management, authoritative game loop, serves client build
@@ -99,36 +99,33 @@ Port `five_hundred.py` faithfully. The house rules in `500-house-rules.md` are c
 
 ## 4. Bots (packages/bots)
 
-All bots implement one `Policy` interface mirroring the Python one: `chooseBid`, `chooseKeeps`, `considerSlam`, `giveBestCard`, `chooseJokerSuit`, `choosePlay`.
+Hard and the heuristic model it rolls out through implement one `Policy` interface mirroring the Python one: `chooseBid`, `chooseKeeps`, `considerSlam`, `giveBestCard`, `chooseJokerSuit`, `choosePlay`. Only Hard is offered as a seat: `BOT_DIFFICULTIES` in `packages/protocol/src/views.ts` is a one-element tuple, so `hard` is the only difficulty the wire accepts.
 
-### 4.1 Easy — "Random with guardrails"
-Port of `RandomPolicy` plus minimal guardrails so it isn't infuriating as a partner:
-- Bidding: timid random (low probability of bidding, mostly passes); never bids nulla/double nulla/slam.
-- Play: uniform random legal card, except (a) if partner is already winning the trick with a boss card, don't waste a winner; (b) on lose-all contracts, prefer a losing card when one exists.
-- Target: a child or first-time player should beat it regularly.
+### 4.1 History — the retired Easy and Medium tiers
+Kept so old commits, milestone rows, and bead history stay legible; **not a requirement**. This PRD originally specified three selectable tiers. Easy was a port of `RandomPolicy` with guardrails (timid random bidding, uniform-random legal play, never nulla or slam), aimed at a child or first-time player. Medium was a faithful port of `HeuristicPolicy`, and the lobby carried a per-seat selector between the three. Easy was deleted and Medium stopped being a seat you can sit at: the product ships Hard alone, and the heuristic survives only inside it (§4.2).
 
-### 4.2 Medium — "Table sense"
-Faithful port of `HeuristicPolicy`: suit-strength bid estimation, nulla detection on uniformly low hands, void-building discards, cheapest-winner / duck-in-lose-all play, joker led into shortest suit. May bid slams via the existing `est >= 8.0` threshold.
+### 4.2 The internal heuristic play-out model
+`HeuristicPolicy` (`packages/bots/src/heuristic.ts`) is no longer a bot a player can face — it is the fast table-sense policy Hard plays its imagined worlds out with, and the card Hard falls back to when its budget runs out before the rollout is worth trusting. Its behavior is unchanged from the Python original: suit-strength bid estimation, nulla detection on uniformly low hands, void-building discards, cheapest-winner / duck-in-lose-all play, joker led into shortest suit, slams via the `est >= 8.0` threshold. It must stay cheap enough to run thousands of times per decision, and it is the yardstick Hard's strength is measured against (§7.3).
 
 ### 4.3 Hard — "Determinized rollouts"
 Monte Carlo over hidden information, extending the approach in the Python `evaluate_keeps`:
 - **World sampling:** deal unseen cards uniformly at random to hidden seats, consistent with observed constraints (voids revealed by failure to follow suit must be respected in play-phase sampling).
-- **Discard/keep decisions:** generate candidate keep-sets heuristically (Medium's discarder + variations), evaluate each over N sampled worlds with Medium bots playing out, pick the best (direct port + improvement of `evaluate_keeps`).
+- **Discard/keep decisions:** generate candidate keep-sets heuristically (the heuristic model's discarder + variations), evaluate each over N sampled worlds with heuristic seats playing out, pick the best (direct port + improvement of `evaluate_keeps`).
 - **Bidding:** estimate make-probability of candidate contracts by rollout; bid up the ladder while EV(bid) > EV(pass) with a safety margin. Also evaluates nulla/double-nulla/slam by rollout.
-- **Card play:** at each decision, roll out each legal card over M sampled worlds (Medium policy for all players' continuations), pick the highest-EV card.
+- **Card play:** at each decision, roll out each legal card over M sampled worlds (the heuristic model for all players' continuations), pick the highest-EV card.
 - **Compute budget:** each decision ≤ ~1s wall-clock on a laptop; N/M tuned to meet that (expect ~50–200 worlds). Runs in a worker thread; the UI shows a "thinking" indicator.
-- **Acceptance:** in headless simulation, Hard-vs-Medium partnerships must win ≥ 60% of games over 200+ games; Medium-vs-Easy likewise.
+- **Acceptance:** in headless simulation, a Hard partnership must win ≥ 60% of games over 200+ games against a partnership playing the internal heuristic model, from either side of the table.
 
 ### 4.4 Bot infrastructure
 - Headless simulation harness in TS (port of `simulate_hands` / `simulate_games` / `print_stats`) used for the strength acceptance tests and tuning.
-- Per-seat difficulty selection: each bot seat is independently Easy/Medium/Hard.
+- No difficulty selection: every bot seat plays Hard, so there is nothing per-seat to configure. Seat views still carry a `difficulty` field as the wire's seat-kind tag, always `hard` for bot seats.
 - Human-pacing delay: bots act with a short randomized delay (~0.5–1.5s) so play is followable; delay is skipped in headless mode.
 
 ---
 
 ## 5. Server (apps/server)
 
-- **Rooms:** create room → get 4–6 char code; join by code; host picks their seat, others pick from free seats; host assigns difficulty per bot seat; host starts game (empty seats become bots at chosen difficulties).
+- **Rooms:** create room → get 4–6 char code; join by code; host picks their seat, others pick from free seats; host starts game (every empty seat becomes a Hard bot).
 - **Session/reconnect:** per-seat secret token issued on join; rejoining with the token reclaims the seat and current redacted view. If a human disconnects mid-game, the game pauses for them (bots don't take over in v1); host may convert an abandoned seat to a bot.
 - **Message protocol (packages/protocol):** typed client→server commands (`createRoom`, `joinRoom`, `sit`, `configureBots`, `startGame`, `bid`, `discardKeeps`, `declareSlam`, `giveCard`, `playCard`, `chooseJokerSuit`, `nextHand`) and server→client events (`roomState`, `gameView`, `actionRequest`, `trickResolved`, `handScored`, `gameOver`, `error`). Every state-bearing message carries a monotonically increasing sequence number so clients can detect gaps and request a full view.
 - **Validation:** every command validated against `legalActions` for that seat; invalid commands return a typed error and change nothing.
@@ -143,7 +140,7 @@ Vite + React + TypeScript SPA. Responsive; usable on a phone but designed for la
 
 ### 6.1 Screens
 1. **Home:** create game / join by code; enter display name.
-2. **Lobby:** 4 seats around a table graphic; humans claim seats; host sets bot difficulty per empty seat (Easy/Medium/Hard selector); start button (host only).
+2. **Lobby:** 4 seats around a table graphic; humans claim seats; empty seats say so and fill with AI players on start — no difficulty control; start button (host only).
 3. **Table (main game screen):**
    - Your hand fanned at the bottom, sorted by suit with trump/bower grouping once a contract exists (left bower shown with the trump suit); joker distinct.
    - Other seats show card backs + card count, dealer marker, whose-turn highlight, and sat-out state (nulla partner / slam partner shown clearly as "sitting out").
@@ -173,7 +170,7 @@ Vite + React + TypeScript SPA. Responsive; usable on a phone but designed for la
 2. **Python↔TS parity harness (the port's acceptance gate):**
    - Add a small JSON-lines trace mode to the Python engine (script may live alongside `five_hundred.py`): with seed S, emit deals, auction actions, legal-play sets, trick winners, and hand scores for K hands with both sides using deterministic policies.
    - TS harness replays the same traces: identical deals given the mapped RNG stream is impractical across languages, so instead replay **recorded actions**: feed the Python-recorded deal + actions into the TS engine and assert every intermediate legal-action set, trick winner, and score matches. Target: ≥ 10,000 hands, zero divergence.
-3. **Bot strength tests:** headless `simulateGames` runs asserting the Hard>Medium>Easy win-rate ordering (§4.3).
+3. **Bot strength tests:** headless `simulateGames` runs asserting the Hard-beats-heuristic gate (§4.3) — Hard wins ≥ 60% of seeded games against the internal heuristic model, checked from both sides of the table.
 4. **Protocol/integration tests:** simulated multi-client games over real WebSockets — join/reconnect, redacted views never contain hidden cards (assert by inspection of every message), illegal command rejection.
 5. **Smoke E2E (Playwright, small):** one scripted full game — create room, 1 human + 3 bots, play a hand to scoring via UI.
 
@@ -186,11 +183,11 @@ Vite + React + TypeScript SPA. Responsive; usable on a phone but designed for la
 | M0 | Repo scaffold | pnpm monorepo, packages wired, CI-less local `pnpm test`/`pnpm dev` work |
 | M1 | Engine port | All §7.1 unit tests pass |
 | M2 | Parity harness | Python trace mode + TS replay; 10k hands, zero divergence |
-| M3 | Bots E/M + sim harness | Easy & Medium ported; headless sim reproduces sane stats; Medium beats Easy ≥60% |
+| M3 | Baseline bots + sim harness | Shipped under the retired tiers (§4.1): the random and heuristic policies were ported, the headless sim reproduced sane stats, and the heuristic beat random ≥60%. The heuristic survives as Hard's play-out model |
 | M4 | Server + protocol | Rooms, seats, reconnect, validated commands, bot turns; integration tests green |
 | M5 | Client — core loop | Full playable game vs bots: auction → exchange → play → scoring → game over |
 | M6 | Client — full rules UX | Slam flow, nulla/double-nulla flows, joker UX, indication bids, redeal |
-| M7 | Hard bot | Rollout bot within time budget; wins ≥60% vs Medium over 200 games |
+| M7 | Hard bot | Rollout bot within time budget; wins ≥60% over 200 games against the heuristic play-out model (the tier it was measured against when it shipped) |
 | M8 | Polish + E2E | Trick animations/pacing, last-trick peek, responsive pass, Playwright smoke test |
 
 Dependency shape: M1→M2→(M3, M4)→M5→M6; M7 depends on M3; M8 last. M4 can start against M1's API before M2 completes.
@@ -207,5 +204,5 @@ Dependency shape: M1→M2→(M3, M4)→M5→M6; M7 depends on M3; M8 last. M4 ca
 ## 10. Open questions (fine to default during implementation)
 
 - Exact card visual style (SVG drawn vs unicode-suit minimalist) — default: clean SVG faces.
-- Whether Easy bots may ever bid slams/nullas — default: never.
+- ~~Whether the weakest tier may ever bid slams/nullas~~ — settled by the tiers retiring (§4.1); Hard evaluates both by rollout.
 - Port number and app name shown in the header — default: "Five Hundred", port 8500.
