@@ -7,7 +7,7 @@
  *         never blocks the event loop.
  *   AC-3  A killed worker mid-decision recovers: the pool respawns to
  *         strength and retries the decision once; a second death rejects it,
- *         which the bot driver degrades to a Medium fallback with an error
+ *         which the bot driver degrades to a heuristic fallback with an error
  *         log instead of a stuck room.
  *
  * Plus the packet's queueing edge case (simultaneous decisions complete FIFO
@@ -32,7 +32,7 @@ import {
   type Action,
   type GameState,
 } from '@five-hundred/engine';
-import { MediumPolicy, botAction, driveHand, policyAction } from '@five-hundred/bots';
+import { HeuristicPolicy, botAction, driveHand, policyAction } from '@five-hundred/bots';
 import type { BotSeatConfig } from '@five-hundred/protocol';
 import { handleRequest } from '../src/index.js';
 import { createGameSession, isGameSession, type GameSession, type GameSessionOptions } from '../src/game.js';
@@ -46,10 +46,10 @@ import {
   hardPoolSize,
 } from '../src/workers/hardPool.js';
 
-const MEDIUM = new MediumPolicy();
-const MEDIUMS = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
+const HEURISTIC = new HeuristicPolicy();
+const HEURISTICS = [HEURISTIC, HEURISTIC, HEURISTIC, HEURISTIC];
 
-/** Walk a seeded Medium game to its first multi-card play decision. */
+/** Walk a seeded heuristic game to its first multi-card play decision. */
 function stateInPlay(seed: number): { state: GameState; seat: number } {
   const rng = makeRng(seed);
   let state = newGame(seed);
@@ -60,7 +60,7 @@ function stateInPlay(seed: number): { state: GameState; seat: number } {
         return { state, seat };
       }
     }
-    const action = botAction(state, MEDIUMS, rng);
+    const action = botAction(state, HEURISTICS, rng);
     let result = applyAction(state, action);
     if (!result.ok && state.phase === 'auction' && action.type === 'bid') {
       result = applyAction(state, { type: 'bid', seat: action.seat, bid: bid(PASS) });
@@ -187,7 +187,7 @@ describe('HardBotPool', () => {
   it('surfaces worker-side policy errors as rejections without retry', async () => {
     const p = pool(1, 2000);
     const rng = makeRng(9);
-    const scored = driveHand(newGame(9), MEDIUMS, rng);
+    const scored = driveHand(newGame(9), HEURISTICS, rng);
     // handScored has no acting seat, so policyAction inside the worker throws.
     await expect(p.decide(scored, 0, 5)).rejects.toThrow(/no Policy method|handScored/);
     expect(p.workerCount).toBe(1); // an error answer is not a crash
@@ -255,7 +255,7 @@ describe('BotDriver hard routing', () => {
     const fakePool = {
       decide(state: GameState, seat: number, seed: number): Promise<Action> {
         calls.push({ seat, seed });
-        return Promise.resolve(policyAction(state, seat, MEDIUM, makeRng(seed)));
+        return Promise.resolve(policyAction(state, seat, HEURISTIC, makeRng(seed)));
       },
     };
     const { session } = setupHardRoom({ bots: { delayMs: () => 0, hardPool: fakePool } });
@@ -275,7 +275,7 @@ describe('BotDriver hard routing', () => {
     const fakePool = {
       decide(state: GameState, seat: number, seed: number): Promise<Action> {
         calls.push(seat);
-        return Promise.resolve(policyAction(state, seat, MEDIUM, makeRng(seed)));
+        return Promise.resolve(policyAction(state, seat, HEURISTIC, makeRng(seed)));
       },
     };
     const { room, session } = setupHardRoom({ bots: { delayMs: () => 0, hardPool: fakePool } }, false);
@@ -288,7 +288,7 @@ describe('BotDriver hard routing', () => {
       'human',
     ]);
 
-    // ...and their decisions really run in the pool, not the Medium fallback.
+    // ...and their decisions really run in the pool, not the heuristic fallback.
     const opening = session.state;
     for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(1);
     expect(session.state).not.toBe(opening);
@@ -296,7 +296,7 @@ describe('BotDriver hard routing', () => {
     expect([...new Set(calls)].sort()).toEqual([0, 1, 2]);
   });
 
-  it('falls back to a Medium decision with an error log when the pool fails', async () => {
+  it('falls back to a heuristic decision with an error log when the pool fails', async () => {
     vi.useFakeTimers();
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
     const failingPool = {
@@ -305,10 +305,10 @@ describe('BotDriver hard routing', () => {
     const { session } = setupHardRoom({ bots: { delayMs: () => 0, hardPool: failingPool } });
     const opening = session.state;
     for (let i = 0; i < 6; i++) await vi.advanceTimersByTimeAsync(1);
-    // The game advanced anyway: every failed decision degraded to Medium.
+    // The game advanced anyway: every failed decision degraded to the heuristic.
     expect(session.state).not.toBe(opening);
     expect(errorLog).toHaveBeenCalled();
-    expect(String(errorLog.mock.calls[0]?.[0])).toContain('Medium fallback');
+    expect(String(errorLog.mock.calls[0]?.[0])).toContain('heuristic fallback');
   });
 
   it('hardPool: null keeps hard seats on the synchronous in-thread path', async () => {

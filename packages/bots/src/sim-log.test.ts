@@ -18,18 +18,24 @@ import {
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MediumPolicy } from './medium.js';
-import { EasyPolicy } from './easy.js';
+import { HardPolicy } from './hard/policy.js';
+import { HeuristicPolicy } from './heuristic.js';
 import { playGameRecording } from './sim.js';
 
-const KINDS = ['medium', 'easy', 'medium', 'easy'] as const;
+const KINDS = ['hard', 'heuristic', 'hard', 'heuristic'] as const;
 
 function players(): PlayerMeta[] {
   return KINDS.map((kind, seat) => ({ seat, kind, paramsSchemaVersion: null, overlayHash: null }));
 }
 
 function policies() {
-  return KINDS.map((k) => (k === 'easy' ? new EasyPolicy() : new MediumPolicy()));
+  // A tiny Hard world budget: this spec is about the record schema, not
+  // playing strength, and the default budget would make it minutes long.
+  return KINDS.map((k) =>
+    k === 'hard'
+      ? new HardPolicy({ bidWorlds: 1, keepWorlds: 1, play: { worlds: 1 } })
+      : new HeuristicPolicy(),
+  );
 }
 
 describe('sim game logging (AC-1 / AC-2)', () => {

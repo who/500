@@ -79,7 +79,7 @@ function game(gameId: string, hands: HandRecord[]): GameRecord {
     createdAt: null,
     players: [0, 1, 2, 3].map((seat) => ({
       seat,
-      kind: 'medium' as const,
+      kind: 'heuristic' as const,
       paramsSchemaVersion: null,
       overlayHash: null,
     })),

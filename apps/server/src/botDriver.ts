@@ -5,15 +5,15 @@
  * validation — after a randomized human-pacing delay (uniform 400–1100ms,
  * overridable to 0 in tests). Chained bot turns each get their own delay.
  *
- * Easy/Medium decisions are microsecond-fast and run on the event loop; Hard
- * seats route through the async decide seam to the worker-thread pool
- * (workers/hardPool.ts), so their rollout budget never blocks the loop.
+ * Every seat the server fills is Hard (fh-4k3), and a Hard seat routes
+ * through the async decide seam to the worker-thread pool
+ * (workers/hardPool.ts), so its rollout budget never blocks the loop.
  * A pool failure (worker crashed twice, spawn failure) degrades that one
- * decision to the seat's synchronous Medium fallback with an error log — a
- * weaker move beats a stuck room.
+ * decision to the seat's synchronous heuristic fallback with an error log —
+ * a weaker move beats a stuck room.
  */
 
-import { EasyPolicy, MediumPolicy, type Policy } from '@five-hundred/bots';
+import { HeuristicPolicy, type Policy } from '@five-hundred/bots';
 import {
   JOKER,
   legalPlaysFor,
@@ -35,8 +35,8 @@ import { getSharedHardPool, type HardDecider } from './workers/hardPool.js';
  * Hard decision now spends up to DEFAULT_HARD_BUDGET_MS thinking before this
  * delay's timer even matters — so the old window was stacking a fake pause
  * on top of a real one. Trimmed so the total per-move wait lands about where
- * it did before the budget went up, while an Easy/Medium seat (fallbacks,
- * the sim) still reads as considering its move rather than snapping.
+ * it did before the budget went up, while a fallback seat deciding in
+ * microseconds still reads as considering its move rather than snapping.
  */
 export const BOT_DELAY_MIN_MS = 400;
 export const BOT_DELAY_MAX_MS = 1100;
@@ -47,27 +47,24 @@ export function defaultBotDelayMs(): number {
 }
 
 /**
- * In-thread policy per difficulty. Hard maps to Medium here deliberately:
- * real Hard decisions run HardPolicy inside the worker pool, and this
- * synchronous policy is only its degraded fallback when the pool fails.
- * Since fh-gpk every product seat is Hard, so this path is the fallback and
- * the arena/self-play tiers — never what a player faces on a healthy server.
+ * The in-thread policy a bot seat holds. Every seat is Hard, and a real Hard
+ * decision runs HardPolicy inside the worker pool, so what a seat carries
+ * here is only its degraded fallback for when the pool cannot answer — the
+ * rule-based HeuristicPolicy that Hard's own rollouts play out against.
  *
- * Medium seats get the fh-8jf forgetting curve hung off the game seed
- * (fh-8jf.4), matching what the Hard worker does, so a fallback move is made
- * from the same fallible view of the table as the Hard move it replaces
- * rather than from a perfect card count. Easy has no memory of played cards
- * at all — it decides on the current trick only — so there is nothing to
- * forget and it takes the seed only for signature symmetry.
+ * It gets the fh-8jf forgetting curve hung off the game seed (fh-8jf.4),
+ * matching what the Hard worker does, so a fallback move is made from the
+ * same fallible view of the table as the Hard move it replaces rather than
+ * from a perfect card count.
  */
-export function policyFor(difficulty: BotDifficulty, seed: number): Policy {
-  return difficulty === 'easy' ? new EasyPolicy() : new MediumPolicy().withMemory(seed);
+export function policyFor(seed: number): Policy {
+  return new HeuristicPolicy().withMemory(seed);
 }
 
 /**
  * Per-seat policy kinds for the Hard sampler (fh-azx.5). Humans are marked
- * human; bot seats use their difficulty; empty/unknown seats stay `hard` so
- * we never guess a seat is human.
+ * human; every other seat — bot, empty, or unknown — is `hard`, so we never
+ * guess a seat is human.
  */
 export function policyKindsForRoom(room: Room): string[] {
   return room.seats.map((s) => {
@@ -85,7 +82,7 @@ export interface BotDriverOptions {
   /**
    * Worker pool for Hard seats: omit for the shared process-wide pool
    * (created lazily on the first Hard decision), null to force the
-   * synchronous Medium fallback (headless-style tests), or inject a fake.
+   * synchronous heuristic fallback (headless-style tests), or inject a fake.
    */
   hardPool?: HardDecider | null;
 }
@@ -143,7 +140,7 @@ export class BotDriver {
     room.seats.forEach((s, seat) => {
       if (s.kind === 'bot') {
         this.bots.set(seat, {
-          policy: policyFor(s.difficulty, session.seed),
+          policy: policyFor(session.seed),
           rng: makeRng((session.seed + seat) >>> 0),
           difficulty: s.difficulty,
         });
@@ -176,7 +173,7 @@ export class BotDriver {
    */
   addBot(seat: number, difficulty: BotDifficulty): void {
     this.bots.set(seat, {
-      policy: policyFor(difficulty, this.session.seed),
+      policy: policyFor(this.session.seed),
       rng: makeRng((this.session.seed + seat) >>> 0),
       difficulty,
     });
@@ -211,7 +208,7 @@ export class BotDriver {
           const message = err instanceof Error ? err.message : String(err);
           console.error(
             `[bots] hard decision failed for seat ${seat} in room ${this.room.code}: ` +
-              `${message}; using the Medium fallback`,
+              `${message}; using the heuristic fallback`,
           );
           return this.decideSync(seat, state);
         });

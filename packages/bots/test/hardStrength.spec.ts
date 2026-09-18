@@ -1,12 +1,17 @@
 /**
- * Hard-beats-Medium strength gate — the M7 exit criterion (fh-7hw.5, PRD
- * sections 4.3, 7.3): Hard partnerships must beat Medium partnerships in at
- * least 60% of 200 seeded headless games, measured for both side
+ * Hard-beats-heuristic strength gate — the M7 exit criterion (fh-7hw.5, PRD
+ * sections 4.3, 7.3): Hard partnerships must beat HeuristicPolicy partnerships
+ * in at least 60% of 200 seeded headless games, measured for both side
  * assignments (AC-1, AC-3).
  *
- * MEMORY ON BOTH TIERS (fh-8jf.4). The shipped bots no longer count cards:
- * the Hard worker hangs a forgetting curve off the game seed and the driver's
- * Medium seats do the same, so a gate between two perfect-recall bots would no
+ * The heuristic is not a difficulty a player can pick (fh-4k3) — it is the
+ * rule-based model Hard rolls out against and degrades to. Beating it by a
+ * wide margin is what says the search is earning its compute, so this stays
+ * the Hard regression tripwire now that the Easy and Medium tiers are gone.
+ *
+ * MEMORY ON BOTH SIDES (fh-8jf.4). The shipped bots no longer count cards:
+ * the Hard worker hangs a forgetting curve off the game seed and the in-thread
+ * heuristic does the same, so a gate between two perfect-recall bots would no
  * longer be measuring the product. Both sides here carry the memory, seeded
  * from the run's own seed exactly as the CLI does:
  *
@@ -23,10 +28,10 @@
  *   pooled  64.8% (777/1200)     63.3% (759/1200)
  *
  * Two things to read off that. First, forgetting costs Hard nothing
- * measurable against a Medium that forgets too: 64.8% vs 63.3% over 1200
+ * measurable against a heuristic that forgets too: 64.8% vs 63.3% over 1200
  * games each is inside the noise (~1.4 points of standard error per pooled
- * cell). Hard is the tier that actually spends its memory — its world sampler
- * deals forgotten cards back into hidden hands — but the Medium it plays is
+ * cell). Hard is the side that actually spends its memory — its world sampler
+ * deals forgotten cards back into hidden hands — but the heuristic it plays is
  * also blinded, and the two roughly cancel.
  *
  * Second, a single 200-game cell carries ~3.5 points of standard error, so
@@ -43,12 +48,12 @@
  * In-suite world budget: the shipped defaults (bidWorlds 16, keepWorlds 30,
  * play.worlds 20). This suite used to run a reduced 8/10/8 budget for speed,
  * "as the packet's resolved decision allows because the gate passes at it" —
- * but fh-61z made Medium partner-aware in the trick (it no longer ruffs or
- * overtakes its own partner's winners), which turns Medium into a materially
+ * but fh-61z made heuristic partner-aware in the trick (it no longer ruffs or
+ * overtakes its own partner's winners), which turns heuristic into a materially
  * stronger opponent AND a sharper rollout model on both sides. Against that
- * Medium the reduced budget no longer clears the gate, so the suite runs at
+ * heuristic the reduced budget no longer clears the gate, so the suite runs at
  * the real shipping budget. The perfect-recall budget sweep that settled it
- * (seed 7, 200 games per side, fh-61z Medium):
+ * (seed 7, 200 games per side, fh-61z heuristic):
  *
  *   budget (bid/keep/play)   Hard as side 0   Hard as side 1
  *   16/30/20 (this suite)         68.0%            65.5%
@@ -62,7 +67,7 @@
  * the robust choice.
  *
  * CI does not run this suite (fh-xj5): GitHub Actions is for unit and light
- * integration tests, and each cell here plays 200 full Hard-vs-Medium games —
+ * integration tests, and each cell here plays 200 full Hard-vs-heuristic games —
  * ~97s on a dev machine, ~304s/~215s measured on a 2-vCPU hosted runner
  * (Actions run 31978851025). The describe below skips itself when CI=true;
  * the gate runs in a plain local
@@ -75,7 +80,7 @@ import { describe, expect, it } from 'vitest';
 // ~35s, and fully synchronous it starves the vitest worker's RPC channel
 // ('[vitest-worker]: Timeout calling onTaskUpdate' -> exit 1 despite all
 // tests passing, fh-vrj). Same rng stream, so results are bit-identical.
-import { HardPolicy, MediumPolicy, simulateGamesYielding } from '../src/index.js';
+import { HardPolicy, HeuristicPolicy, simulateGamesYielding } from '../src/index.js';
 
 const GAMES = 200;
 const SEED = 23;
@@ -89,7 +94,7 @@ const SUITE_BUDGET = {
 } as const;
 
 /**
- * Both tiers forget, and both hang their curve off the run's seed — the same
+ * Both sides forget, and both hang their curve off the run's seed — the same
  * base seed for every game of the run, where the server uses each game's own
  * seed. Within a game that is the same thing (memorySeed mixes in the hand and
  * the seat); across games it means hand n of every game rolls the same curve,
@@ -97,27 +102,27 @@ const SUITE_BUDGET = {
  * deals it is applied to are all different.
  */
 const hard = (): HardPolicy => new HardPolicy({ ...SUITE_BUDGET, memory: { seed: SEED } });
-const medium = (): MediumPolicy => new MediumPolicy().withMemory(SEED);
+const heuristic = (): HeuristicPolicy => new HeuristicPolicy().withMemory(SEED);
 
 // Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
 // tests only, and this gate plays 400 full games through HardPolicy. GitHub
 // sets CI=true on every runner; a shell with CI exported skips it too, which
 // the run summary makes visible as skipped tests. The gate stays part of a
 // plain local `pnpm --filter @five-hundred/bots test`.
-describe.skipIf(process.env.CI === 'true')('Hard-beats-Medium strength gate', () => {
+describe.skipIf(process.env.CI === 'true')('Hard-beats-heuristic strength gate', () => {
   // 3-minute ceiling: each side's seeded loop takes ~97s on a dev machine,
   // and CI no longer runs this suite. The rng stream is fixed, so extra
   // wall-clock never changes the outcome — a run that hits the timeout
   // signals a hang in the rollout stack, not slow hardware.
   it(`Hard as side 0 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
-    const policies = [hard(), medium(), hard(), medium()];
+    const policies = [hard(), heuristic(), hard(), heuristic()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[0] / GAMES).toBeGreaterThanOrEqual(GATE);
   });
 
   it(`Hard as side 1 wins >= 60% of ${GAMES} games`, { timeout: 180_000 }, async () => {
-    const policies = [medium(), hard(), medium(), hard()];
+    const policies = [heuristic(), hard(), heuristic(), hard()];
     const wins = await simulateGamesYielding(GAMES, policies, SEED);
     expect(wins[0] + wins[1]).toBe(GAMES);
     expect(wins[1] / GAMES).toBeGreaterThanOrEqual(GATE);

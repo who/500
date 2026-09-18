@@ -1,8 +1,13 @@
 /**
- * Medium bot — faithful port of the oracle's HeuristicPolicy
- * (five_hundred.py 241-371): strength-based bidding with nulla detection,
- * void-building keeps, cheapest-winner / lose-all-duck play, slam at
- * est >= 8.0, and the joker led into the shortest held suit.
+ * HeuristicPolicy — the fast rule-based bot, a faithful port of the oracle's
+ * class of the same name (five_hundred.py 241-371). It is NOT a difficulty the
+ * product offers: Hard is the only bot a player ever faces. This class exists
+ * because Hard needs a cheap, deterministic play-out model — it is the opponent
+ * inside every rollout world, the keep/bid proxy, and the server's in-thread
+ * fallback when the Hard worker pool cannot answer. Its behaviour is
+ * strength-based bidding with nulla detection, void-building keeps,
+ * cheapest-winner / lose-all-duck play, slam at est >= 8.0, and the joker led
+ * into the shortest held suit.
  *
  * Fidelity first: every numeric constant below is the oracle's (except the
  * tuned BID_HEADROOM, recorded as divergence fh-c6i below), named once in
@@ -83,9 +88,9 @@ import { defaultGiveBestCard } from './policy.js';
 
 // Every strategy constant below now lives in BotParams (params/default.json,
 // fh-sja.1); the names re-exported here are the checked-in defaults, kept so
-// downstream imports (the Hard bot reuses the Medium indication rule verbatim
+// downstream imports (the Hard bot reuses this indication rule verbatim
 // and prunes rollout candidates by the same max-level formula, fh-7hw.3) and
-// the oracle parity fixture keep working unchanged. A MediumPolicy actually
+// the oracle parity fixture keep working unchanged. A HeuristicPolicy actually
 // reads whatever BotParams it was constructed with; DEFAULT_PARAMS reproduces
 // the pre-externalization numbers byte-for-byte.
 
@@ -97,7 +102,7 @@ import { defaultGiveBestCard } from './policy.js';
 // asserts against, not a tunable.
 export const ORACLE_BID_HEADROOM = 2.5;
 // Tuned headroom (fh-c6i): opens 7 at est >= 3.0, 8 at 4.0, 9 at 5.0. The
-// measured trade-off over 5000 seeded hands of 4 Medium bots (sim-cli
+// measured trade-off over 5000 seeded hands of 4 heuristic seats (sim-cli
 // --hands 5000 --seed 0, re-baselined under the one-pass auction, fh-8i7):
 // redeal rate 3.2% (was 90%+ of deals passed out at the oracle's est >= 4.5
 // bar), 7+ contract rate 96.7% of deals, set rate 28.4% (was ~9%) as
@@ -137,11 +142,11 @@ export function endgameHeadroom(context: BidContext, params: BotParams = DEFAULT
 const ascending = (a: Card, b: Card): number => a - b;
 
 /**
- * Per-seat memory wiring (fh-8jf.3). A MediumPolicy given one plays its
+ * Per-seat memory wiring (fh-8jf.3). A HeuristicPolicy given one plays its
  * history heuristics off the REMEMBERED seen-set (memory.ts) instead of the
  * true one, so it forgets like a human instead of counting cards perfectly.
  */
-export interface MediumMemoryOptions {
+export interface HeuristicMemoryOptions {
   /**
    * Base seed the per-seat, per-hand forgetting rolls hang off — normally the
    * game seed. Mixed with the hand number and the acting seat by
@@ -151,9 +156,9 @@ export interface MediumMemoryOptions {
   readonly seed: number;
 }
 
-export interface MediumOptions {
-  /** Absent (the default) means perfect recall; see {@link MediumMemoryOptions}. */
-  readonly memory?: MediumMemoryOptions;
+export interface HeuristicOptions {
+  /** Absent (the default) means perfect recall; see {@link HeuristicMemoryOptions}. */
+  readonly memory?: HeuristicMemoryOptions;
 }
 
 /** Trump-suit membership under `trump`: joker, both bowers, natural trumps. */
@@ -193,7 +198,7 @@ function firstMinBy(cards: readonly Card[], key: (c: Card) => number): Card {
   return best;
 }
 
-export class MediumPolicy implements Policy {
+export class HeuristicPolicy implements Policy {
   /**
    * All strategy constants come from the injected BotParams (fh-sja.1),
    * defaulting to the checked-in DEFAULT_PARAMS. The oracle parity fixture
@@ -210,12 +215,12 @@ export class MediumPolicy implements Policy {
    */
   constructor(
     private readonly params: BotParams = DEFAULT_PARAMS,
-    private readonly options: MediumOptions = {},
+    private readonly options: HeuristicOptions = {},
   ) {}
 
   /** The same policy with a per-seat memory hung off `seed` (fh-8jf.3). */
-  withMemory(seed: number): MediumPolicy {
-    return new MediumPolicy(this.params, { ...this.options, memory: { seed } });
+  withMemory(seed: number): HeuristicPolicy {
+    return new HeuristicPolicy(this.params, { ...this.options, memory: { seed } });
   }
 
   /** True when this policy plays off a fuzzed history rather than the true one. */
@@ -609,7 +614,7 @@ export class MediumPolicy implements Policy {
       }
     }
     const winners = sorted.filter((c) => cardPower(c, trump, ledSuit) > currentMax);
-    // Partner guardrail (fh-61z defect B, Easy's guardrail (a) ported up):
+    // Partner guardrail (fh-61z defect B):
     // when the partner already holds the trick and a losing card exists,
     // never ruff their side-suit winner, and only overtake when a seat
     // still to act could hold a card that beats the partner's card but not

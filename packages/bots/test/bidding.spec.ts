@@ -8,7 +8,7 @@
  *         per engine legalBids.
  *   AC-3  Decisions are deterministic under a fixed seed.
  *
- * Plus the packet's edge cases: ladder top leaves only pass, the Medium
+ * Plus the packet's edge cases: ladder top leaves only pass, the heuristic
  * indication rule fires verbatim on the pass path, and candidate generation
  * only ever proposes legal raises.
  */
@@ -35,7 +35,7 @@ import {
 import type { ObservedConstraints } from '../src/index.js';
 import {
   GAME_WIN_VALUE,
-  MediumPolicy,
+  HeuristicPolicy,
   candidateBids,
   chooseBidByRollout,
   considerSlamByRollout,
@@ -230,7 +230,7 @@ describe('edge cases', () => {
     expect(b.kind).toBe(PASS);
   });
 
-  it('indicates the best suit on the pass path per the Medium rule', () => {
+  it('indicates the best suit on the pass path per the heuristic rule', () => {
     // An unreachable margin forces the pass path even on a strong hand; the
     // indication rule (est >= 4.5, suit strains only) then takes over.
     const withIndication = chooseBidByRollout(STRONG_HEARTS, -1, true, NO_SIGNALS, makeRng(51), {
@@ -288,7 +288,7 @@ describe('partner indication signal (fh-zpg)', () => {
     seats: [1, 2, 3].map((seat) => ({ seat, count: 10, voidSuits: [] })),
     restricted: [],
   };
-  const medium = new MediumPolicy();
+  const heuristic = new HeuristicPolicy();
 
   it('conditioned sampling deals materially stronger partner hands in the strain', () => {
     const plain = makeRng(60);
@@ -297,8 +297,8 @@ describe('partner indication signal (fh-zpg)', () => {
     let plainSum = 0;
     let condSum = 0;
     for (let i = 0; i < samples; i++) {
-      plainSum += medium.suitStrength(sampleWorld(constraints, plain).hands[2] ?? [], 3);
-      condSum += medium.suitStrength(
+      plainSum += heuristic.suitStrength(sampleWorld(constraints, plain).hands[2] ?? [], 3);
+      condSum += heuristic.suitStrength(
         samplePartnerIndicationWorld(constraints, 3, conditioned).hands[2] ?? [],
         3,
       );
@@ -382,7 +382,7 @@ describe('endgame bidding aggression (fh-e52)', () => {
   // so the pass is deterministic; the endgame stretch reopens the 8-level for
   // the rollout, which judges the spade game a better shot than conceding.
   //
-  // The old fixture (H J-Q + low fill) no longer flips: fh-61z made Medium
+  // The old fixture (H J-Q + low fill) no longer flips: fh-61z made heuristic
   // partner-aware in the trick, so the rollout's own defenders stopped
   // sabotaging their partner — with competent defense, passing that weak hand
   // is the higher-EV line even at [0,490] (passEV -438 vs a hopeless contract

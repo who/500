@@ -335,8 +335,8 @@ async function startDriverGame(d: DriverApp): Promise<{
   ann.send({
     t: 'configureBots',
     bots: [
-      { seat: 1, difficulty: 'easy' },
-      { seat: 3, difficulty: 'medium' },
+      { seat: 1, difficulty: 'hard' },
+      { seat: 3, difficulty: 'hard' },
     ],
   });
   await ann.nextRoomState();

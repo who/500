@@ -2,7 +2,7 @@
  * HardPolicy — the assembled Hard bot (PRD 4.3): rollout bidding and slam
  * (fh-7hw.3), rollout keeps (fh-7hw.2), and rollout card play (this leaf),
  * over the constrained world sampler (fh-7hw.1). The API is synchronous and
- * pure given the injected Rng, exactly like Easy/Medium, so the headless sim
+ * pure given the injected Rng, exactly like the heuristic policy, so the headless sim
  * harness drives it unchanged; the server never calls it on the event loop —
  * the fh-7hw.4 worker pool runs it inside a worker thread with a wall-clock
  * play budget wired through `play.deadlineMs`.
@@ -11,10 +11,10 @@
  * the world sampler), which the Policy choosePlay signature cannot carry, so
  * HardPolicy implements the StateAwarePolicy seam: state-holding drivers use
  * choosePlayFromState, while the state-blind choosePlay path degrades to the
- * Medium heuristic (it has nothing to determinize from).
+ * heuristic policy (it has nothing to determinize from).
  *
  * giveBestCard keeps the oracle base-class rule and chooseJokerSuit keeps
- * Medium's shortest-suit rule — both are single-card heuristics the packet
+ * the heuristic's shortest-suit rule — both are single-card heuristics the packet
  * leaves out of rollout scope, and the play rollout evaluates joker leads
  * with the same suit rule so the searched line is the played line.
  */
@@ -22,7 +22,7 @@
 import type { Bid, Card, GameState, Rng, TrickPlay } from '@five-hundred/engine';
 import { JOKER } from '@five-hundred/engine';
 import type { CalibrationArtifact, PolicyKind } from '@five-hundred/learn';
-import { MediumPolicy } from '../medium.js';
+import { HeuristicPolicy } from '../heuristic.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, PlayChoice, PlayContext, StateAwarePolicy } from '../policy.js';
 import { defaultGiveBestCard } from '../policy.js';
@@ -42,7 +42,7 @@ export interface HardPolicyOptions {
   readonly play?: HardPlayOptions;
   /**
    * Strategy constants threaded into every rollout (fh-sja.1); defaults to
-   * the checked-in DEFAULT_PARAMS. Both this policy and the Medium opponent
+   * the checked-in DEFAULT_PARAMS. Both this policy and the Heuristic opponent
    * models inside its rollouts read from here.
    */
   readonly params?: BotParams;
@@ -78,11 +78,11 @@ const ascending = (a: Card, b: Card): number => a - b;
 
 export class HardPolicy implements StateAwarePolicy {
   private readonly params: BotParams;
-  private readonly medium: MediumPolicy;
+  private readonly heuristic: HeuristicPolicy;
 
   constructor(private readonly options: HardPolicyOptions = {}) {
     this.params = options.params ?? DEFAULT_PARAMS;
-    this.medium = new MediumPolicy(this.params);
+    this.heuristic = new HeuristicPolicy(this.params);
   }
 
   chooseBid(
@@ -125,12 +125,12 @@ export class HardPolicy implements StateAwarePolicy {
   }
 
   chooseJokerSuit(hand: readonly Card[]): number {
-    return this.medium.chooseJokerSuit(hand);
+    return this.heuristic.chooseJokerSuit(hand);
   }
 
   /**
    * State-blind Policy path: without a GameState there is no world to sample,
-   * so play like Medium. Real Hard play enters through choosePlayFromState.
+   * so play like Heuristic. Real Hard play enters through choosePlayFromState.
    */
   choosePlay(
     seat: number,
@@ -142,7 +142,7 @@ export class HardPolicy implements StateAwarePolicy {
     contract: Bid,
     context: PlayContext,
   ): Card {
-    return this.medium.choosePlay(seat, hand, legal, trickPlays, trump, ledSuit, contract, context);
+    return this.heuristic.choosePlay(seat, hand, legal, trickPlays, trump, ledSuit, contract, context);
   }
 
   choosePlayFromState(state: GameState, seat: number, rng: Rng): PlayChoice {

@@ -3,22 +3,22 @@
  * estimate the value of each candidate contract by Monte Carlo rollout:
  * sample complete worlds of the unseen cards (the fh-7hw.1 sampler), script
  * the auction so the candidate becomes the contract, then play the hand out
- * with Medium policies on every seat and average the point differential for
+ * with Heuristic policies on every seat and average the point differential for
  * the bidder's side. The best candidate is bid only when its EV beats the
  * pass baseline by a safety margin.
  *
  * Recorded planning decisions (issue fh-7hw.3), all tunable only at the
  * strength gate:
  *   - Candidates: each strain at the minimum currently-available level, plus
- *     one level up when the Medium max-level formula says the hand is strong;
+ *     one level up when the Heuristic max-level formula says the hand is strong;
  *     strains hopeless by that formula (min level > maxLevel + 1) are pruned.
  *     NULLA / DNULLA are gated on own-hand lowness, and DNULLA additionally
  *     on the engine's legality precondition — the partner must already have
  *     bid regular NULLA this auction (fh-17b, BidContext.mayDoubleNulla).
- *   - Rollout proxy: the declarer's keeps use Medium's chooseKeeps (cheap
- *     proxy bounding cost); all four seats play with Medium policies.
+ *   - Rollout proxy: the declarer's keeps use Heuristic's chooseKeeps (cheap
+ *     proxy bounding cost); all four seats play with Heuristic policies.
  *   - Pass baseline: ONE shared world played out with this seat passing and
- *     Medium bidders elsewhere (single-world cheap heuristic, not a full
+ *     Heuristic bidders elsewhere (single-world cheap heuristic, not a full
  *     opponent rollout); a dead auction scores as an unchanged game (0 at
  *     level scores). In endgame states (fh-e52) the baseline averages over
  *     all sampled worlds instead — there the pass/bid call is the decision.
@@ -58,7 +58,7 @@ import {
   mayDoubleNulla,
   partnerOf,
 } from '@five-hundred/engine';
-import { MediumPolicy, endgameHeadroom } from '../medium.js';
+import { HeuristicPolicy, endgameHeadroom } from '../heuristic.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { BidContext, Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
@@ -80,7 +80,7 @@ export const ROLLOUT_WORLDS = DEFAULT_PARAMS.hardBidding.rolloutWorlds;
  * out 6.5% of 4-Hard auctions (fh-c6i). At +10 the measured 4-Hard numbers
  * (sim-cli --hands 500 --seed 0 --policies HHHH, re-baselined under the
  * one-pass auction, fh-8i7) are redeal rate 4.4%, 7+ contract rate 95.0% of
- * deals, set rate 32.0%, and the Hard-beats-Medium strength gate stays
+ * deals, set rate 32.0%, and the Hard-beats-Heuristic strength gate stays
  * green (both sides >= 60% at the suite budget).
  */
 export const BID_MARGIN = DEFAULT_PARAMS.hardBidding.bidMargin;
@@ -134,7 +134,7 @@ export function samplePartnerIndicationWorld(
   rng: Rng,
   params: BotParams = DEFAULT_PARAMS,
 ): SampledWorld {
-  const opponent = new MediumPolicy(params);
+  const opponent = new HeuristicPolicy(params);
   let best: SampledWorld | null = null;
   let bestEst = -Infinity;
   for (let t = 0; t < params.hardBidding.indWorldTries; t++) {
@@ -149,8 +149,8 @@ export function samplePartnerIndicationWorld(
   return best as SampledWorld;
 }
 
-/** Medium everywhere, with seat 0's slam answer scripted per variant. */
-class ScriptedSlamMedium extends MediumPolicy {
+/** Heuristic everywhere, with seat 0's slam answer scripted per variant. */
+class ScriptedSlamMedium extends HeuristicPolicy {
   constructor(
     private readonly slamAnswer: boolean,
     params: BotParams = DEFAULT_PARAMS,
@@ -162,10 +162,10 @@ class ScriptedSlamMedium extends MediumPolicy {
   }
 }
 
-const OPPONENT = new MediumPolicy();
+const OPPONENT = new HeuristicPolicy();
 
 function rolloutPolicies(slamAnswer: boolean, params: BotParams = DEFAULT_PARAMS): readonly Policy[] {
-  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new MediumPolicy(params);
+  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new HeuristicPolicy(params);
   return [new ScriptedSlamMedium(slamAnswer, params), opponent, opponent, opponent];
 }
 
@@ -287,9 +287,9 @@ export function scriptAuction(state: GameState, winning: Bid): GameState {
 }
 
 /**
- * EV of winning `candidate` in one world: scripted auction, Medium-proxy
+ * EV of winning `candidate` in one world: scripted auction, Heuristic-proxy
  * exchange (slam declined — the slam decision is rolled out separately at
- * the exchange), Medium play-out on all seats.
+ * the exchange), Heuristic play-out on all seats.
  */
 function rolloutContract(
   myTen: readonly Card[],
@@ -309,7 +309,7 @@ function rolloutContract(
 
 /**
  * Pass baseline in one world: this seat always passes while the other three
- * bid with Medium; a dead auction is a redeal, worth 0. The auction is
+ * bid with Heuristic; a dead auction is a redeal, worth 0. The auction is
  * driven manually (not via driveHand) because the engine's auto-redeal on
  * a dead fourth call would deal fresh cards unrelated to the world.
  */
@@ -320,8 +320,8 @@ function rolloutPass(
   scores: readonly [number, number],
   params: BotParams = DEFAULT_PARAMS,
 ): number {
-  // MediumPolicy.chooseBid is deterministic and declares no rng parameter.
-  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new MediumPolicy(params);
+  // HeuristicPolicy.chooseBid is deterministic and declares no rng parameter.
+  const opponent = params === DEFAULT_PARAMS ? OPPONENT : new HeuristicPolicy(params);
   let st = worldDeal(myTen, world, world.dead);
   let guard = 0;
   while (st.phase === 'auction') {
@@ -374,7 +374,7 @@ export function candidateBids(
   params: BotParams = DEFAULT_PARAMS,
   mayDoubleNulla = false,
 ): Bid[] {
-  const opponent = new MediumPolicy(params);
+  const opponent = new HeuristicPolicy(params);
   const sorted = [...hand].sort(ascending);
   const candidates: Bid[] = [];
   for (let s = 0; s < 5; s++) {
@@ -391,8 +391,8 @@ export function candidateBids(
       10,
       Math.trunc(opponent.suitStrength(sorted, s) + params.bidding.headroom + extraHeadroom),
     );
-    // Prune strains the Medium formula puts more than one level out of
-    // reach; the rollout gets to stretch exactly one level past Medium.
+    // Prune strains the Heuristic formula puts more than one level out of
+    // reach; the rollout gets to stretch exactly one level past Heuristic.
     if (s !== indicatedStrain && lowest.level > maxLevel + 1) continue;
     candidates.push(lowest);
     if (lowest.level < 10 && maxLevel >= lowest.level + 1) {
@@ -416,7 +416,7 @@ export function candidateBids(
 /**
  * Hard chooseBid: rollout EV per candidate over shared worlds, bid the best
  * candidate when it beats the pass baseline by the margin; otherwise fall
- * back to the Medium indication rule verbatim (est >= 4.5, suit strains
+ * back to the Heuristic indication rule verbatim (est >= 4.5, suit strains
  * only, one per auction via mayIndicate) and pass. A partner indication in
  * `context` conditions the sampled worlds (partner hands honor the promise)
  * and keeps that strain in the candidate set (fh-zpg).
@@ -432,13 +432,13 @@ export function chooseBidByRollout(
   const params = options.params ?? DEFAULT_PARAMS;
   const worlds = Math.max(1, options.worlds ?? params.hardBidding.rolloutWorlds);
   const margin = options.margin ?? params.hardBidding.bidMargin;
-  const opponent = new MediumPolicy(params);
+  const opponent = new HeuristicPolicy(params);
   const sorted = [...hand].sort(ascending);
   const partnerInd = context.indications.find((i) => i.seat === partnerOf(context.seat));
   const partnerStrain = partnerInd !== undefined ? partnerInd.bid.strain : null;
   // Game score oriented to the rollout's frame, where this seat's side is
   // side 0 (fh-e52); candidate pruning widens by the same endgame headroom
-  // Medium uses so longshot contracts reach the rollout at all.
+  // Heuristic uses so longshot contracts reach the rollout at all.
   const myScores: readonly [number, number] =
     context.seat % 2 === 0
       ? context.scores

@@ -2,7 +2,7 @@
  * Memory calibration (fh-8jf.4) — the end-to-end regression for the epic's
  * central claim: with the shipped retention curve the bots are NOT card
  * counters. fh-8jf.1 pinned the filter as a pure function and fh-8jf.2/.3
- * wired it into Hard's world sampler and Medium's history heuristics; what is
+ * wired it into Hard's world sampler and heuristic's history heuristics; what is
  * proved here is what a seat actually believes, and actually plays, while
  * driving real seeded games.
  *
@@ -13,7 +13,7 @@
  *                       is already dead;
  *   skilled enough    — every ace, every trump, the joker and its own hand
  *                       survive the whole hand, voids survive as long as they
- *                       can still matter, and Hard still beats Medium at the
+ *                       can still matter, and Hard still beats heuristic at the
  *                       PRD's 60% gate with memory on for BOTH tiers.
  *
  * The calibration is the fh-8jf.1 curve as shipped in params/default.json's
@@ -25,19 +25,19 @@
  *   ten    4.6      five   3.4      four  3.2      void  12 (decay to 7.9)
  *
  * and what that produces over a seeded 800-hand sweep of four memory-carrying
- * Medium seats (the assertions below):
+ * heuristic seats (the assertions below):
  *
  *   13.8% of the cards already played are no longer in the seen-set at a
  *         decision; not one of them is an ace, a trump, the joker or a card
  *         in the seat's own hand, and none is younger than the grace window;
  *   1 void in 86,535 forgotten, and that one at nine tricks of age.
  *
- * The play that comes out of it: Medium changes its card at 18 of 31,960
+ * The play that comes out of it: heuristic changes its card at 18 of 31,960
  * decisions (its three history heuristics consult the seen-set rarely), Hard
  * at 2.7% of them — Hard is the tier that spends its memory, because every
  * forgotten card goes back into the pool its world sampler deals from.
  * The strength that comes out of it is the re-baselined gate
- * (test/hardStrength.spec.ts): 64.8% for Hard over Medium across 1200 games
+ * (test/hardStrength.spec.ts): 64.8% for Hard over heuristic across 1200 games
  * with memory on both tiers, against 63.3% with memory off on both.
  *
  * And the curve is a difficulty dial in both senses: the LOOSE_MEMORY overlay
@@ -52,7 +52,7 @@ import { describe, expect, it } from 'vitest';
 import {
   DEFAULT_PARAMS,
   HardPolicy,
-  MediumPolicy,
+  HeuristicPolicy,
   type BotParams,
   type PlayContext,
   type Policy,
@@ -123,7 +123,7 @@ function newRecall(): Recall {
 
 /**
  * Compare what the seat remembers at this decision against the truth, and
- * fold the differences into `out`. Reads exactly what MediumPolicy.seenCards
+ * fold the differences into `out`. Reads exactly what HeuristicPolicy.seenCards
  * reads, so this is the seat's real belief, not a re-derivation of it.
  */
 function recordBeliefs(
@@ -189,22 +189,22 @@ function recordBeliefs(
 }
 
 /**
- * A Medium seat that plays off its memory and records, at every decision, both
+ * A heuristic seat that plays off its memory and records, at every decision, both
  * what it forgot and whether its perfect-recall twin would have played the same
  * card. Bidding and the middle are the perfect-recall policy's: the epic is
  * about the trick, and holding the rest fixed keeps the sweep's games
  * comparable to the pre-memory baselines.
  */
 class MediumProbe implements Policy {
-  private readonly perfect: MediumPolicy;
-  private readonly remembering: MediumPolicy;
+  private readonly perfect: HeuristicPolicy;
+  private readonly remembering: HeuristicPolicy;
 
   constructor(
     private readonly seed: number,
     readonly out: Recall,
     private readonly params: BotParams = DEFAULT_PARAMS,
   ) {
-    this.perfect = new MediumPolicy(params);
+    this.perfect = new HeuristicPolicy(params);
     this.remembering = this.perfect.withMemory(seed);
   }
 
@@ -244,7 +244,7 @@ class MediumProbe implements Policy {
   }
 }
 
-/** `hands` seeded hands played by four memory-carrying Medium seats. */
+/** `hands` seeded hands played by four memory-carrying heuristic seats. */
 function mediumSweep(hands: number, params: BotParams = DEFAULT_PARAMS): Recall {
   const out = newRecall();
   const seats = [0, 1, 2, 3].map(() => new MediumProbe(SEED, out, params));
@@ -298,7 +298,7 @@ describe('imperfect recall in real games (AC-1)', () => {
 
   it('sometimes plays a different card than its perfect-recall twin', () => {
     console.log(
-      `memory sweep: Medium played a different card at ${sweep.divergent}/${sweep.decisions} decisions`,
+      `memory sweep: heuristic played a different card at ${sweep.divergent}/${sweep.decisions} decisions`,
     );
     expect(sweep.divergent).toBeGreaterThan(0);
   });
@@ -368,7 +368,7 @@ function hardSweep(hands: number, params: BotParams = DEFAULT_PARAMS): Recall {
 // Skipped under CI (fh-xj5): GitHub Actions runs unit and light integration
 // tests only, and this sweep drives real HardPolicy rollouts for ~11s (GitHub
 // sets CI=true; a shell with CI exported skips it too). It stays part of a
-// plain local `pnpm --filter @five-hundred/bots test`. The Medium-recall
+// plain local `pnpm --filter @five-hundred/bots test`. The heuristic-recall
 // suite above is light and keeps running in CI.
 describe.skipIf(process.env.CI === 'true')('Hard plays the world it remembers (AC-1)', () => {
   it('a seeded sweep changes real cards, not just beliefs', () => {
@@ -434,7 +434,7 @@ describe.skipIf(process.env.CI === 'true')('memory fidelity is a difficulty dial
    * 56.1% over 720 games is ~3.3 standard errors clear of a coin flip: the
    * looser seat is really the weaker player. A single 120-game cell carries
    * ~4.5 points of standard error, though, and seed 23 as side 0 lands under
-   * the line at 44% — so, as with the Hard-vs-Medium gate, what is asserted
+   * the line at 44% — so, as with the Hard-vs-heuristic gate, what is asserted
    * here is one seed pinned because both of its cells clear, and what backs
    * the claim is the pooled figure above. Re-measure the sweep rather than
    * chase a cell if the rng stream shifts.

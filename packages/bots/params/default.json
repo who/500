@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "suitStrength": {
     "joker": 1.0,
     "bower": 0.95,
@@ -49,8 +49,8 @@
     "worldsFloor": 20,
     "worldsCap": 200,
     "trickWeight": 8,
-    "mediumTiebreakEps": 5,
-    "mediumTiebreakZ": 2
+    "heuristicTiebreakEps": 5,
+    "heuristicTiebreakZ": 2
   },
   "hardMemory": {
     "jokerSalience": 1.0,

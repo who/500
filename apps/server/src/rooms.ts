@@ -58,9 +58,8 @@ export interface Room {
 }
 
 /**
- * fh-gpk: the product only ever spawns Hard bots. Easy/Medium survive as
- * internal opponents (arena/self-play, and Hard's in-thread fallback), but
- * every seat the server fills on its own plays Hard.
+ * fh-gpk / fh-4k3: Hard is the only difficulty there is. The constant stays
+ * so seating code reads intent rather than a bare literal.
  */
 export const DEFAULT_DIFFICULTY: BotDifficulty = 'hard';
 export const ROOM_CODE_LENGTH = 5;
@@ -335,8 +334,10 @@ export class RoomStore {
    * Host only, pre-game: assign a tier to bot/empty seats. The product no
    * longer exposes this (fh-gpk removed the lobby's difficulty selector, so
    * every seat stays at DEFAULT_DIFFICULTY = hard); it stays on the wire as
-   * the tool/test path that builds mixed-tier rooms for the arena and the
-   * server suites, and remains fully validated so it can never be abused.
+   * the tool/test path that seats bots for the server suites, and remains
+   * fully validated so it can never be abused. Since fh-4k3 the only
+   * difficulty the guards admit is 'hard', so it can no longer build a
+   * mixed-tier room at all.
    */
   configureBots(client: RoomClient, bots: readonly BotSeatConfig[]): void {
     const room = client.room;

@@ -7,7 +7,13 @@
 
 import type { RedactedView } from '@five-hundred/engine';
 
-export const BOT_DIFFICULTIES = ['easy', 'medium', 'hard'] as const;
+/**
+ * fh-4k3: Hard is the only bot the product offers. The tuple stays a tuple so
+ * the guards keep validating `difficulty` against it — a stale client that
+ * still sends `easy` or `medium` now fails isCommand and gets a badCommand
+ * error instead of quietly being seated at a tier that no longer exists.
+ */
+export const BOT_DIFFICULTIES = ['hard'] as const;
 export type BotDifficulty = (typeof BOT_DIFFICULTIES)[number];
 
 export type SeatOccupant = 'human' | 'bot' | 'empty';
@@ -19,7 +25,8 @@ export interface RoomSeatView {
   readonly name: string | null;
   /**
    * Bot difficulty for bot seats, and for empty seats the difficulty the
-   * bot will play at when the game starts; null for human seats.
+   * bot will play at when the game starts; null for human seats. Always
+   * 'hard' in practice — the field survives as the wire's seat-kind tag.
    */
   readonly difficulty: BotDifficulty | null;
   /** Humans only: false while disconnected (game paused). Bots are true. */

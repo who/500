@@ -2,7 +2,7 @@
  * Hand-strength estimation, reimplemented here (fh-sja.5) rather than imported
  * from @five-hundred/bots because the dependency runs the other way — bots
  * depends on learn, so learn may not depend back on it. The formula is a
- * byte-faithful copy of MediumPolicy.suitStrength (packages/bots/src/medium.ts
+ * byte-faithful copy of HeuristicPolicy.suitStrength (packages/bots/src/heuristic.ts
  * 181-203, itself the oracle _suit_strength, five_hundred.py 245-271); the
  * default weights below are identical to params/default.json's `suitStrength`.
  *
@@ -43,7 +43,7 @@ export const DEFAULT_STRENGTH_WEIGHTS: StrengthWeights = Object.freeze({
 
 /**
  * Rough expected tricks with `strain` (0..3 = trump suit, 4 = NT) as the
- * strain. A faithful copy of MediumPolicy.suitStrength: bowers, trump honours,
+ * strain. A faithful copy of HeuristicPolicy.suitStrength: bowers, trump honours,
  * side aces/kings under a trump; aces/kings/queens under no-trump.
  */
 export function suitStrength(

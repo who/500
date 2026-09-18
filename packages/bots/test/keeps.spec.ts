@@ -2,8 +2,8 @@
  * Hard-bot rollout keep/discard evaluation — acceptance criteria for
  * fh-7hw.2:
  *
- *   AC-1  On constructed fixtures Hard chooseKeeps beats Medium chooseKeeps
- *         in evaluated expected points (self-consistency: Medium's keep is
+ *   AC-1  On constructed fixtures Hard chooseKeeps beats heuristic chooseKeeps
+ *         in evaluated expected points (self-consistency: heuristic's keep is
  *         always a candidate, so the argmax can never score below it on the
  *         shared worlds; a pinned fixture shows a strict improvement).
  *   AC-2  Nulla, dnulla, and slam-16 contexts produce valid 10-card keeps
@@ -12,7 +12,7 @@
  *   AC-3  Identical (cards, contract, seed) inputs always produce identical
  *         keeps, and the shared-world evaluator itself is deterministic.
  *
- * Plus the packet's structural requirements on candidate generation: Medium's
+ * Plus the packet's structural requirements on candidate generation: heuristic's
  * keep leads the candidate list, the swap neighborhood stays within the
  * MAX_CANDIDATES cap, and every candidate is a legal 10-card subset.
  */
@@ -23,7 +23,7 @@ import { DNULLA, JOKER, NULLA, NUM, bid, makeRng } from '@five-hundred/engine';
 import {
   KEEP_WORLDS,
   MAX_CANDIDATES,
-  MediumPolicy,
+  HeuristicPolicy,
   candidateKeeps,
   chooseKeepsByRollout,
   evaluateKeeps,
@@ -36,7 +36,7 @@ const C = (r: number): Card => 11 + r - 4;
 const D = (r: number): Card => 22 + r - 4;
 const H = (r: number): Card => 33 + r - 4;
 
-const medium = new MediumPolicy();
+const heuristic = new HeuristicPolicy();
 const asc = (a: Card, b: Card): number => a - b;
 const sortedSet = (cards: readonly Card[]): Card[] => [...cards].sort(asc);
 
@@ -55,8 +55,8 @@ const STRONG_KEEP = sortedSet([
 ]);
 
 /**
- * 8H pickup where Medium's void-building heuristic keeps the wrong boundary
- * card: found by seeded search, pinned here. Hard's rollout swaps Medium's
+ * 8H pickup where heuristic's void-building heuristic keeps the wrong boundary
+ * card: found by seeded search, pinned here. Hard's rollout swaps heuristic's
  * QS out for the KC, which is worth roughly +80 expected points on fresh
  * shared worlds.
  */
@@ -84,7 +84,7 @@ function expectValidKeep(keep: readonly Card[], from: readonly Card[]): void {
 }
 
 describe('candidateKeeps', () => {
-  it('leads with the Medium keep and stays within the cap', () => {
+  it('leads with the heuristic keep and stays within the cap', () => {
     for (const [cards, contract] of [
       [STRONG_15, EIGHT_HEARTS],
       [LOW_15, bid(NULLA)],
@@ -94,7 +94,7 @@ describe('candidateKeeps', () => {
       expect(candidates.length).toBeGreaterThan(1);
       expect(candidates.length).toBeLessThanOrEqual(MAX_CANDIDATES);
       expect(sortedSet(candidates[0] as Card[])).toEqual(
-        sortedSet(medium.chooseKeeps(cards, contract)),
+        sortedSet(heuristic.chooseKeeps(cards, contract)),
       );
       const seen = new Set<string>();
       for (const cand of candidates) {
@@ -108,7 +108,7 @@ describe('candidateKeeps', () => {
   it('includes the lose-all weakest-10 base on nulla and dnulla', () => {
     for (const contract of [bid(NULLA), bid(DNULLA)]) {
       const base = candidateKeeps(LOW_15, contract)[0] as Card[];
-      expect(sortedSet(base)).toEqual(sortedSet(medium.chooseKeeps(LOW_15, contract)));
+      expect(sortedSet(base)).toEqual(sortedSet(heuristic.chooseKeeps(LOW_15, contract)));
     }
   });
 });
@@ -119,8 +119,8 @@ describe('chooseKeepsByRollout (AC-1)', () => {
     expect(sortedSet(keep)).toEqual(STRONG_KEEP);
   });
 
-  it('never evaluates below the Medium keep on the shared worlds', () => {
-    // Self-consistency by construction: Medium's keep is candidate 0, so the
+  it('never evaluates below the heuristic keep on the shared worlds', () => {
+    // Self-consistency by construction: heuristic's keep is candidate 0, so the
     // argmax matches or beats it on the very worlds the choice used. Verify
     // on independently sampled worlds instead, where it must still hold for
     // a fixture with a clear best keep.
@@ -130,7 +130,7 @@ describe('chooseKeepsByRollout (AC-1)', () => {
     const evHard = evaluateKeeps(STRONG_15, hard, EIGHT_HEARTS, worlds, rng);
     const evMed = evaluateKeeps(
       STRONG_15,
-      medium.chooseKeeps(STRONG_15, EIGHT_HEARTS),
+      heuristic.chooseKeeps(STRONG_15, EIGHT_HEARTS),
       EIGHT_HEARTS,
       worlds,
       rng,
@@ -138,11 +138,11 @@ describe('chooseKeepsByRollout (AC-1)', () => {
     expect(evHard).toBeGreaterThanOrEqual(evMed);
   });
 
-  it('strictly beats Medium on the pinned improvable fixture', () => {
+  it('strictly beats heuristic on the pinned improvable fixture', () => {
     const hard = chooseKeepsByRollout(IMPROVABLE_15, EIGHT_HEARTS, makeRng(1003), {
       worlds: 24,
     });
-    const med = sortedSet(medium.chooseKeeps(IMPROVABLE_15, EIGHT_HEARTS));
+    const med = sortedSet(heuristic.chooseKeeps(IMPROVABLE_15, EIGHT_HEARTS));
     expect(sortedSet(hard)).not.toEqual(med);
     const worlds = sampleKeepWorlds(IMPROVABLE_15, EIGHT_HEARTS, 40, makeRng(558));
     const rng = makeRng(559);
@@ -156,13 +156,13 @@ describe('special contract contexts (AC-2)', () => {
   it('nulla keeps the weakest 10 on a dominant lose-all fixture', () => {
     const keep = chooseKeepsByRollout(LOW_15, bid(NULLA), makeRng(7), { worlds: 16 });
     expectValidKeep(keep, LOW_15);
-    expect(sortedSet(keep)).toEqual(sortedSet(medium.chooseKeeps(LOW_15, bid(NULLA))));
+    expect(sortedSet(keep)).toEqual(sortedSet(heuristic.chooseKeeps(LOW_15, bid(NULLA))));
   });
 
   it('dnulla keeps are valid and score the pass-through partner keep', () => {
     const keep = chooseKeepsByRollout(LOW_15, bid(DNULLA), makeRng(9), { worlds: 12 });
     expectValidKeep(keep, LOW_15);
-    // The play-out itself must survive the partner's Medium keep of the
+    // The play-out itself must survive the partner's heuristic keep of the
     // passed-through 15 and produce a finite side-0 score.
     const worlds = sampleKeepWorlds(LOW_15, bid(DNULLA), 1, makeRng(10));
     const score = playoutKeeps(LOW_15, keep, bid(DNULLA), worlds[0]!, makeRng(11));
@@ -206,7 +206,7 @@ describe('determinism (AC-3)', () => {
 
   it('the evaluator is deterministic over fixed shared worlds', () => {
     const worlds = sampleKeepWorlds(IMPROVABLE_15, EIGHT_HEARTS, 10, makeRng(21));
-    const keep = medium.chooseKeeps(IMPROVABLE_15, EIGHT_HEARTS);
+    const keep = heuristic.chooseKeeps(IMPROVABLE_15, EIGHT_HEARTS);
     const a = evaluateKeeps(IMPROVABLE_15, keep, EIGHT_HEARTS, worlds, makeRng(22));
     const b = evaluateKeeps(IMPROVABLE_15, keep, EIGHT_HEARTS, worlds, makeRng(22));
     expect(a).toBe(b);

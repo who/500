@@ -2,21 +2,23 @@
  * Manual tuning CLI for the headless sim harness.
  *
  *   pnpm --filter @five-hundred/bots sim -- --hands 5000
- *   pnpm --filter @five-hundred/bots sim -- --games 200 --policies MEME
- *   pnpm --filter @five-hundred/bots sim -- --hands 5000 --seed 7 --policies MMMM
+ *   pnpm --filter @five-hundred/bots sim -- --games 200 --policies HRHR
+ *   pnpm --filter @five-hundred/bots sim -- --hands 5000 --seed 7 --policies RRRR
  *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 7
  *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 23 --memory 23
  *
- * --policies is one letter per seat (E = Easy, M = Medium, H = Hard at the
- * full default world budget); defaults are MMMM for --hands and MEME (Medium
- * side 0 vs Easy side 1) for --games. sim:hard is the fh-7hw.5 strength-gate
- * run: it front-loads --games 200 --policies HMHM, and later flags win, so
- * appended --games/--seed/--policies override those defaults.
+ * --policies is one letter per seat: H = Hard at the full default world
+ * budget, R = the internal rule-based HeuristicPolicy Hard rolls out against.
+ * R is a research seat, not a product difficulty — Hard is the only bot the
+ * server ever seats. Defaults are RRRR for --hands (the cheap auction-health
+ * baseline) and HRHR for --games. sim:hard is the fh-7hw.5 strength-gate run:
+ * it front-loads --games 200 --policies HRHR, and later flags win, so appended
+ * --games/--seed/--policies override those defaults.
  *
  * Every --hands run ends with the fh-c6i auction-health summary (redeal
  * rate, 7+ contract rate, set rate). The bid-timidity gates are measured at
  * seed 0:
- *   AC-1  --hands 5000 --seed 0                 (4 Medium)
+ *   AC-1  --hands 5000 --seed 0                 (4 heuristic)
  *   AC-2  --hands 500 --seed 0 --policies HHHH  (4 Hard)
  *
  * Game logging (fh-sja.2): `--games N --log <path>` appends one JSONL
@@ -26,9 +28,8 @@
 
 import { makeRng } from '@five-hundred/engine';
 import { GameRecorder, appendGameRecordSync, type PolicyKind } from '@five-hundred/learn';
-import { EasyPolicy } from './easy.js';
 import { HardPolicy } from './hard/policy.js';
-import { MediumPolicy } from './medium.js';
+import { HeuristicPolicy } from './heuristic.js';
 import type { Policy } from './policy.js';
 import { playGameRecording, printStats, simulateGames, simulateHands } from './sim.js';
 
@@ -44,7 +45,7 @@ function intFlag(args: string[], name: string): number | undefined {
 }
 
 /**
- * Build the four seats. With `memory` set, every Medium and Hard seat plays
+ * Build the four seats. With `memory` set, every heuristic and Hard seat plays
  * off the fh-8jf forgetting curve hung off that base seed — what the shipped
  * server bots do (fh-8jf.4) — so the strength gate is reproducible here:
  *   pnpm --filter @five-hundred/bots sim:hard -- --games 200 --seed 23 --memory 23
@@ -52,16 +53,15 @@ function intFlag(args: string[], name: string): number | undefined {
  * tuning baselines (bid timidity, calibration) were measured at.
  */
 function parsePolicies(spec: string, memory?: number): Policy[] {
-  if (!/^[EMH]{4}$/.test(spec)) {
-    throw new Error(`--policies needs 4 letters from E/M/H, got ${spec}`);
+  if (!/^[RH]{4}$/.test(spec)) {
+    throw new Error(`--policies needs 4 letters from R/H, got ${spec}`);
   }
   return [...spec].map((ch) => {
-    if (ch === 'E') return new EasyPolicy();
     if (ch === 'H') {
       return new HardPolicy(memory === undefined ? {} : { memory: { seed: memory } });
     }
-    const medium = new MediumPolicy();
-    return memory === undefined ? medium : medium.withMemory(memory);
+    const heuristic = new HeuristicPolicy();
+    return memory === undefined ? heuristic : heuristic.withMemory(memory);
   });
 }
 
@@ -77,7 +77,7 @@ function strFlag(args: string[], name: string): string | undefined {
 
 /** One log-schema policy kind per seat, derived from the --policies letters. */
 function policyKinds(spec: string): PolicyKind[] {
-  return [...spec].map((ch) => (ch === 'E' ? 'easy' : ch === 'H' ? 'hard' : 'medium'));
+  return [...spec].map((ch) => (ch === 'H' ? 'hard' : 'heuristic'));
 }
 
 /**
@@ -133,7 +133,7 @@ const spec = args[args.lastIndexOf('--policies') + 1];
 const logPath = strFlag(args, '--log');
 
 if (games !== undefined) {
-  const chosen = args.includes('--policies') ? (spec ?? '') : 'MEME';
+  const chosen = args.includes('--policies') ? (spec ?? '') : 'HRHR';
   const policies = parsePolicies(chosen, memory);
   const wins =
     logPath === undefined
@@ -143,6 +143,6 @@ if (games !== undefined) {
   if (logPath !== undefined) console.log(`logged ${games} games to ${logPath}`);
   console.log(`side 0 wins ${wins[0]}, side 1 wins ${wins[1]} (side 0 rate ${rate}%)`);
 } else {
-  const policies = parsePolicies(args.includes('--policies') ? (spec ?? '') : 'MMMM', memory);
+  const policies = parsePolicies(args.includes('--policies') ? (spec ?? '') : 'RRRR', memory);
   printStats(simulateHands(hands ?? 5000, policies, seed));
 }

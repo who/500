@@ -1,5 +1,5 @@
 /**
- * The learn-side strength copy must agree with the bots MediumPolicy formula
+ * The learn-side strength copy must agree with the bots HeuristicPolicy formula
  * (fh-sja.5): the fitter and the world sampler both bucket on this number, and
  * it must reproduce the oracle _suit_strength weights byte-for-byte.
  */

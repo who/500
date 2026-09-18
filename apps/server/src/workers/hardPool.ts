@@ -2,14 +2,14 @@
  * Hard-bot worker pool (PRD 4.3 "time budget" / 4.4 "no event-loop work") —
  * a fixed set of worker_threads running HardPolicy decisions off the main
  * thread. The bot driver's async decide seam posts {serialized state, seat,
- * seed} here for Hard seats; Easy/Medium (and the headless sim) keep the
+ * seed} here for Hard seats; the in-thread fallback (and the headless sim) keep the
  * synchronous in-thread path.
  *
  * Sizing: max(1, cpus - 1) capped at 4 (packet decision). Jobs queue FIFO,
  * so simultaneous Hard decisions from many rooms share the pool without
  * starvation. Recovery: a worker that dies mid-decision is respawned and the
  * decision retried once on the fresh worker; a second death rejects it, and
- * the driver falls back to a Medium decision with an error log. A worker
+ * the driver falls back to a heuristic decision with an error log. A worker
  * that *answers* with an error (a deterministic policy failure) rejects
  * immediately — retrying a deterministic failure would just fail again.
  *
@@ -35,7 +35,7 @@ export const HARD_POOL_MAX_WORKERS = 4;
 /**
  * Per-decision rollout deadline for a Hard seat (fh-x25: was 1000ms).
  * The budget is a cutoff, not a target — a play rollout that runs out of
- * time keeps only the worlds it finished and falls back to the Medium
+ * time keeps only the worlds it finished and falls back to the heuristic
  * choice, logged by the worker. 1600ms lets a full 20-world rollout land on
  * the crowded turns where 1000ms was cutting it short, so the seat plays its
  * own judgement more often. It costs wait: with three Hard seats a full
@@ -84,7 +84,7 @@ export interface HardWorkerRequest {
    */
   readonly calibrationJson?: string;
   /**
-   * Per-seat policy kinds (`human` / `easy` / `medium` / `hard`) for building
+   * Per-seat policy kinds (`human` / `hard`) for building
    * CallObservations. Unknown seats are treated as `hard` — never guessed
    * human. Optional so older callers stay valid.
    */

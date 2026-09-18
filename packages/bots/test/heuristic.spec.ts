@@ -1,11 +1,11 @@
 /**
- * Medium bot spec — the issue's acceptance criteria:
+ * heuristic bot spec — the issue's acceptance criteria:
  *   AC-1: suitStrength / lowness match pinned oracle values on fixed hands.
- *   AC-2: TS Medium reproduces the recorded Python HeuristicPolicy decisions
- *         on the 100-context fixture exactly (fixtures/medium-decisions.jsonl,
- *         regenerated only by `uv run python gen_medium_fixture.py` at the
+ *   AC-2: TS heuristic reproduces the recorded Python HeuristicPolicy decisions
+ *         on the 100-context fixture exactly (fixtures/heuristic-decisions.jsonl,
+ *         regenerated only by `uv run python gen_heuristic_fixture.py` at the
  *         repo root).
- *   AC-3: 4 Medium bots complete 500 seeded hands with zero illegal actions
+ *   AC-3: 4 heuristic bots complete 500 seeded hands with zero illegal actions
  *         and at least one nulla contract. The criterion's "at least one
  *         slam" cannot happen in a faithful port: the slam gate (est >= 8.0)
  *         is unreachable under random deals — trace_500.py documents a max
@@ -16,7 +16,7 @@
  *         driven end-to-end through the engine by a threshold-lowered test
  *         subclass. Recorded as a plan-gap on fh-f2a.2.
  *
- * The GameState -> Policy driver is copied from easy.spec.ts; the sim
+ * The GameState -> Policy driver lives in the shared sim harness; the sim
  * harness leaf promotes it to shared code.
  */
 
@@ -46,7 +46,7 @@ import {
   toActSeat,
 } from '@five-hundred/engine';
 import type { Policy } from '../src/index.js';
-import { DEFAULT_PARAMS, MediumPolicy, ORACLE_BID_HEADROOM, mergeParams } from '../src/index.js';
+import { DEFAULT_PARAMS, HeuristicPolicy, ORACLE_BID_HEADROOM, mergeParams } from '../src/index.js';
 
 // ---------------------------------------------------------------------------
 // GameState -> Policy driver (mirrors the oracle's play_hand call sites)
@@ -158,23 +158,23 @@ function runHeadless(
   return { hands, contractKinds, slams };
 }
 
-/** Medium never draws from the Rng; a throwing stub proves it. */
+/** heuristic never draws from the Rng; a throwing stub proves it. */
 const noRng: Rng = {
   random: () => {
-    throw new Error('MediumPolicy must not draw randomness');
+    throw new Error('HeuristicPolicy must not draw randomness');
   },
   int: () => {
-    throw new Error('MediumPolicy must not draw randomness');
+    throw new Error('HeuristicPolicy must not draw randomness');
   },
   shuffle: () => {
-    throw new Error('MediumPolicy must not draw randomness');
+    throw new Error('HeuristicPolicy must not draw randomness');
   },
 };
 
 const HEARTS10 = bid(NUM, 10, 3);
-const medium = new MediumPolicy();
+const heuristic = new HeuristicPolicy();
 /** Oracle-headroom instance: replays the fixture's choose_bid contexts. */
-const oracleMedium = new MediumPolicy(
+const oracleMedium = new HeuristicPolicy(
   mergeParams(DEFAULT_PARAMS, { bidding: { headroom: ORACLE_BID_HEADROOM } }),
 );
 const NO_SIGNALS = { seat: 0, indications: [], scores: [0, 0] } as const;
@@ -200,41 +200,41 @@ const HAND_D = [0, 1, 2, 11, 12, 22, 23, 33, 34, JOKER];
 
 describe('AC-1: pinned suit strength and lowness', () => {
   it('suitStrength matches the oracle per strain (identical float ops)', () => {
-    expect(medium.suitStrength(HAND_A, 0)).toBe(3.1500000000000004);
-    expect(medium.suitStrength(HAND_A, 1)).toBe(3.3);
-    expect(medium.suitStrength(HAND_A, 2)).toBe(5.45);
-    expect(medium.suitStrength(HAND_A, 3)).toBe(5.35);
-    expect(medium.suitStrength(HAND_A, 4)).toBe(4.0);
-    expect(medium.suitStrength(HAND_B, 2)).toBe(2.4000000000000004);
-    expect(medium.suitStrength(HAND_B, 3)).toBe(2.6500000000000004);
-    expect(medium.suitStrength(HAND_B, 4)).toBe(2.5);
-    expect(medium.suitStrength(HAND_C, 0)).toBe(1.0499999999999998);
-    expect(medium.suitStrength(HAND_C, 4)).toBe(0.0);
-    expect(medium.suitStrength(HAND_D, 0)).toBe(2.0500000000000003);
-    expect(medium.suitStrength(HAND_D, 4)).toBe(1.0);
+    expect(heuristic.suitStrength(HAND_A, 0)).toBe(3.1500000000000004);
+    expect(heuristic.suitStrength(HAND_A, 1)).toBe(3.3);
+    expect(heuristic.suitStrength(HAND_A, 2)).toBe(5.45);
+    expect(heuristic.suitStrength(HAND_A, 3)).toBe(5.35);
+    expect(heuristic.suitStrength(HAND_A, 4)).toBe(4.0);
+    expect(heuristic.suitStrength(HAND_B, 2)).toBe(2.4000000000000004);
+    expect(heuristic.suitStrength(HAND_B, 3)).toBe(2.6500000000000004);
+    expect(heuristic.suitStrength(HAND_B, 4)).toBe(2.5);
+    expect(heuristic.suitStrength(HAND_C, 0)).toBe(1.0499999999999998);
+    expect(heuristic.suitStrength(HAND_C, 4)).toBe(0.0);
+    expect(heuristic.suitStrength(HAND_D, 0)).toBe(2.0500000000000003);
+    expect(heuristic.suitStrength(HAND_D, 4)).toBe(1.0);
   });
 
   it('lowness matches the oracle', () => {
-    expect(medium.lowness(HAND_A)).toBe(3.8);
-    expect(medium.lowness(HAND_B)).toBe(5.6);
-    expect(medium.lowness(HAND_C)).toBe(10.1);
-    expect(medium.lowness(HAND_D)).toBe(9.3);
+    expect(heuristic.lowness(HAND_A)).toBe(3.8);
+    expect(heuristic.lowness(HAND_B)).toBe(5.6);
+    expect(heuristic.lowness(HAND_C)).toBe(10.1);
+    expect(heuristic.lowness(HAND_D)).toBe(9.3);
   });
 
   it('derives the pinned bids: 7D on A, PASS on B, NULLA on C, PASS on D', () => {
     // A: best strain D at 5.45 (both red jacks are bowers for diamonds too,
     // and hearts' honors count for less than two side aces).
-    expect(medium.chooseBid(HAND_A, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NUM, 7, 2));
-    expect(medium.chooseBid(HAND_B, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
-    expect(medium.chooseBid(HAND_C, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
+    expect(heuristic.chooseBid(HAND_A, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NUM, 7, 2));
+    expect(heuristic.chooseBid(HAND_B, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(HAND_C, -1, true, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
     // D is even lower on average but the joker vetoes nulla.
-    expect(medium.chooseBid(HAND_D, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(HAND_D, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
   });
 
   it('only bids nulla while the nulla rung is still above ladderPos', () => {
     const nullaIdx = 5; // LADDER: 7S..7NT then NULLA
-    expect(medium.chooseBid(HAND_C, nullaIdx - 1, false, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
-    expect(medium.chooseBid(HAND_C, nullaIdx, false, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(HAND_C, nullaIdx - 1, false, NO_SIGNALS, noRng)).toEqual(bid(NULLA));
+    expect(heuristic.chooseBid(HAND_C, nullaIdx, false, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
   });
 });
 
@@ -261,25 +261,25 @@ describe('partner indication support (fh-zpg)', () => {
   const partnerHearts = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 3) }], scores: [0, 0] } as const;
 
   it('passes the support hand when nobody has indicated', () => {
-    expect(medium.chooseBid(SUPPORT_HAND, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(SUPPORT_HAND, -1, true, NO_SIGNALS, noRng)).toEqual(bid('PASS'));
   });
 
   it('bids 7H on the same hand after partner indicates hearts', () => {
-    expect(medium.chooseBid(SUPPORT_HAND, -1, true, partnerHearts, noRng)).toEqual(
+    expect(heuristic.chooseBid(SUPPORT_HAND, -1, true, partnerHearts, noRng)).toEqual(
       bid(NUM, 7, 3),
     );
   });
 
   it('ignores the identical indication from an opponent', () => {
     const opponentHearts = { seat: 0, indications: [{ seat: 1, bid: bid(IND, 6, 3) }], scores: [0, 0] } as const;
-    expect(medium.chooseBid(SUPPORT_HAND, -1, true, opponentHearts, noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(SUPPORT_HAND, -1, true, opponentHearts, noRng)).toEqual(bid('PASS'));
   });
 
   it('does not abandon a clearly stronger own suit for the signal', () => {
     // HAND_A bids 7D on raw strength 5.45; partner's spade indication lifts
     // spades only to 3.15 + 2.0 = 5.15, so the own diamond plan holds.
     const partnerSpades = { seat: 0, indications: [{ seat: 2, bid: bid(IND, 6, 0) }], scores: [0, 0] } as const;
-    expect(medium.chooseBid(HAND_A, -1, true, partnerSpades, noRng)).toEqual(bid(NUM, 7, 2));
+    expect(heuristic.chooseBid(HAND_A, -1, true, partnerSpades, noRng)).toEqual(bid(NUM, 7, 2));
   });
 });
 
@@ -323,35 +323,35 @@ describe('endgame aggression (fh-e52)', () => {
     ({ seat, indications: [], scores }) as const;
 
   it('passes the stretch hand at level scores', () => {
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 0]), noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 0]), noRng)).toEqual(bid('PASS'));
   });
 
   it('bids 7H on the same hand when the opponents can win off this auction', () => {
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(
       bid(NUM, 7, 3),
     );
   });
 
   it('activates exactly when opp score + cheapest contract reaches 500', () => {
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 350]), noRng)).toEqual(bid('PASS'));
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 360]), noRng)).toEqual(
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 350]), noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(0, [0, 360]), noRng)).toEqual(
       bid(NUM, 7, 3),
     );
   });
 
   it('orients the threat by the seat side, not raw score order', () => {
     // Same 400 on side 0: an opponent seat stretches, a side-0 seat does not.
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(1, [400, 0]), noRng)).toEqual(
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(1, [400, 0]), noRng)).toEqual(
       bid(NUM, 7, 3),
     );
-    expect(medium.chooseBid(STRETCH_HAND, -1, false, at(0, [400, 0]), noRng)).toEqual(
+    expect(heuristic.chooseBid(STRETCH_HAND, -1, false, at(0, [400, 0]), noRng)).toEqual(
       bid('PASS'),
     );
   });
 
   it('stretches further once defender tricks alone can end the game', () => {
-    expect(medium.chooseBid(WEAK_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(bid('PASS'));
-    expect(medium.chooseBid(WEAK_HAND, -1, false, at(0, [0, 460]), noRng)).toEqual(
+    expect(heuristic.chooseBid(WEAK_HAND, -1, false, at(0, [0, 400]), noRng)).toEqual(bid('PASS'));
+    expect(heuristic.chooseBid(WEAK_HAND, -1, false, at(0, [0, 460]), noRng)).toEqual(
       bid(NUM, 7, 3),
     );
   });
@@ -385,7 +385,7 @@ interface FixtureRecord {
 }
 
 const FIXTURE: FixtureRecord[] = readFileSync(
-  new URL('./fixtures/medium-decisions.jsonl', import.meta.url),
+  new URL('./fixtures/heuristic-decisions.jsonl', import.meta.url),
   'utf8',
 )
   .trim()
@@ -432,27 +432,27 @@ describe('AC-2: 100-context oracle decision parity', () => {
         }
         case 'choose_keeps':
           expect(
-            medium.chooseKeeps(rec.cards as Card[], toBid(rec.contract as FixtureBid), noRng),
+            heuristic.chooseKeeps(rec.cards as Card[], toBid(rec.contract as FixtureBid), noRng),
           ).toEqual(rec.result);
           break;
         case 'consider_slam':
           expect(
-            medium.considerSlam(rec.hand15 as Card[], toBid(rec.contract as FixtureBid), noRng),
+            heuristic.considerSlam(rec.hand15 as Card[], toBid(rec.contract as FixtureBid), noRng),
           ).toBe(rec.result);
           break;
         case 'give_best_card':
           expect(
-            medium.giveBestCard(rec.hand as Card[], toBid(rec.contract as FixtureBid)),
+            heuristic.giveBestCard(rec.hand as Card[], toBid(rec.contract as FixtureBid)),
           ).toBe(rec.result);
           break;
         case 'choose_joker_suit':
           expect(
-            medium.chooseJokerSuit(rec.hand as Card[], toBid(rec.contract as FixtureBid), noRng),
+            heuristic.chooseJokerSuit(rec.hand as Card[], toBid(rec.contract as FixtureBid), noRng),
           ).toBe(rec.result);
           break;
         case 'choose_play':
           expect(
-            medium.choosePlay(
+            heuristic.choosePlay(
               0,
               rec.hand as Card[],
               rec.legal as Card[],
@@ -473,16 +473,16 @@ describe('AC-2: 100-context oracle decision parity', () => {
 });
 
 // ---------------------------------------------------------------------------
-// AC-3: headless Medium table
+// AC-3: headless heuristic table
 // ---------------------------------------------------------------------------
 
-describe('AC-3: headless Medium table', () => {
-  it('4 Medium bots complete 500 seeded hands, zero illegal actions, >= 1 nulla', () => {
-    const table = [new MediumPolicy(), new MediumPolicy(), new MediumPolicy(), new MediumPolicy()];
+describe('AC-3: headless heuristic table', () => {
+  it('4 heuristic bots complete 500 seeded hands, zero illegal actions, >= 1 nulla', () => {
+    const table = [new HeuristicPolicy(), new HeuristicPolicy(), new HeuristicPolicy(), new HeuristicPolicy()];
     const run = runHeadless(table, 1, 500, 20260721);
     expect(run.hands).toBe(500);
     expect(run.contractKinds.filter((k) => k === NULLA).length).toBeGreaterThanOrEqual(1);
-    // Faithful Medium never reaches the est >= 8.0 slam gate on random
+    // Faithful heuristic never reaches the est >= 8.0 slam gate on random
     // deals (see header); the flow is covered by the two tests below.
     expect(run.slams).toBe(0);
   });
@@ -496,16 +496,16 @@ describe('AC-3: headless Medium table', () => {
       makeCard(0, 14),
       makeCard(1, 14),
     ];
-    expect(medium.suitStrength(monster, 3)).toBe(8.499999999999998); // oracle repr
-    expect(medium.considerSlam(monster, HEARTS10, noRng)).toBe(true);
+    expect(heuristic.suitStrength(monster, 3)).toBe(8.499999999999998); // oracle repr
+    expect(heuristic.considerSlam(monster, HEARTS10, noRng)).toBe(true);
     // Not on a nulla-type contract, and not below the threshold.
-    expect(medium.considerSlam(monster, bid(NULLA), noRng)).toBe(false);
+    expect(heuristic.considerSlam(monster, bid(NULLA), noRng)).toBe(false);
   });
 
   it('drives the full slam flow legally end-to-end (lowered test threshold)', () => {
-    // Medium machinery, easier gate: proves declare -> partner card ->
+    // heuristic machinery, easier gate: proves declare -> partner card ->
     // 16-card keep -> solo play stays legal through the real engine.
-    class SlamProneMedium extends MediumPolicy {
+    class SlamProneMedium extends HeuristicPolicy {
       override considerSlam(hand15: readonly Card[], contract: Bid): boolean {
         if (contract.kind !== NUM) return false;
         return this.suitStrength(hand15, contract.strain) >= 5.5;
@@ -532,7 +532,7 @@ describe('chooseKeeps branches', () => {
     // Hearts trump; sides: S x3 (top A), C x3 (top Q), D x4 (top K).
     // Dump order C then S; the ace of spades survives the floor.
     const cards = [2, 5, 10, 11, 14, 19, 22, 26, 28, 31, 34, 40, 42, 43, JOKER];
-    expect(medium.chooseKeeps(cards, HEARTS10, noRng)).toEqual([
+    expect(heuristic.chooseKeeps(cards, HEARTS10, noRng)).toEqual([
       10, 22, 26, 28, 31, 34, 40, 42, 43, JOKER,
     ]);
   });
@@ -541,21 +541,21 @@ describe('chooseKeeps branches', () => {
     // 11 hearts + joker + JD + two side ACES: no side card is under the ace
     // floor, so the fallback sheds the aces then the lowest trumps.
     const cards = [10, 21, 29, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, JOKER];
-    expect(medium.chooseKeeps(cards, HEARTS10, noRng)).toEqual([
+    expect(heuristic.chooseKeeps(cards, HEARTS10, noRng)).toEqual([
       29, 36, 37, 38, 39, 40, 41, 42, 43, JOKER,
     ]);
   });
 
   it('lose-all: keeps the ten weakest, rank-sorted, joker strongest', () => {
     const cards = [0, 1, 2, 6, 8, 11, 14, 16, 20, 23, 24, 26, 29, 33, 43];
-    expect(medium.chooseKeeps(cards, bid(NULLA), noRng)).toEqual([
+    expect(heuristic.chooseKeeps(cards, bid(NULLA), noRng)).toEqual([
       0, 11, 33, 1, 23, 2, 24, 14, 26, 16,
     ]);
   });
 
   it('keeps 10 from a 16-card post-slam pickup', () => {
     const cards = Array.from({ length: 16 }, (_, i) => (i * 2) as Card);
-    const keeps = medium.chooseKeeps(cards, HEARTS10, noRng);
+    const keeps = heuristic.chooseKeeps(cards, HEARTS10, noRng);
     expect(keeps).toHaveLength(10);
     expect(new Set(keeps).size).toBe(10);
     for (const c of keeps) expect(cards).toContain(c);
@@ -569,7 +569,7 @@ describe('chooseKeeps branches', () => {
       makeCard(1, 7),
     ]);
     const spades = bid(NUM, 8, 0);
-    const keeps = medium.chooseKeeps(cards, spades, noRng);
+    const keeps = heuristic.chooseKeeps(cards, spades, noRng);
     expect(keeps).toHaveLength(10);
     // All four weak clubs and the lowest spade go.
     expect(keeps.every((c) => c <= 10)).toBe(true);
@@ -583,7 +583,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 12) }]; // QS holds the trick
     const legal = [makeCard(0, 5), makeCard(0, 10), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
+      heuristic.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 10));
   });
 
@@ -591,7 +591,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 5) }];
     const legal = [makeCard(0, 13), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
+      heuristic.choosePlay(0, legal, legal, plays, null, ledSpades, bid(NULLA), DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 14));
   });
 
@@ -599,7 +599,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 10) }];
     const legal = [makeCard(0, 5), makeCard(0, 11), makeCard(0, 14)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
+      heuristic.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 11));
   });
 
@@ -607,7 +607,7 @@ describe('choosePlay branches', () => {
     const plays = [{ seat: 1, card: makeCard(0, 14) }];
     const legal = [makeCard(0, 5), makeCard(0, 11)];
     expect(
-      medium.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
+      heuristic.choosePlay(0, legal, legal, plays, 3, ledSpades, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(makeCard(0, 5));
   });
 });
@@ -628,7 +628,7 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
   const FIVE_CLUBS = makeCard(1, 5);
   const HAND = [JOKER_CARD, RIGHT_BOWER, ACE_SPADES, KING_SPADES, FIVE_CLUBS];
 
-  /** A completed trick; only `plays` matters to Medium's card counting. */
+  /** A completed trick; only `plays` matters to heuristic's card counting. */
   const trick = (cards: readonly Card[]) => ({
     leader: 1,
     ledSuit: HEARTS,
@@ -649,10 +649,10 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
 
   it('leads boss trump on consecutive leads while opponents may hold trump', () => {
     expect(
-      medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
     ).toBe(JOKER_CARD);
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         HAND,
         HAND,
@@ -670,13 +670,13 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
   // same joker + right bower here and still must not lead trump.
   it("declarer's partner does NOT draw trump, even holding the boss trumps", () => {
     expect(
-      medium.choosePlay(2, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(2, HAND, HAND, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
     ).toBe(KING_SPADES);
   });
 
   it('switches to cashing side winners once trump is exhausted', () => {
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         HAND,
         HAND,
@@ -699,7 +699,7 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
     ];
     const hand = [makeCard(3, 4), makeCard(3, 5), makeCard(3, 6), ACE_SPADES];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         hand,
@@ -728,20 +728,20 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
       FIVE_CLUBS,
     ];
     expect(
-      medium.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
     ).toBe(RIGHT_BOWER);
   });
 
   it('does not bleed a lone low trump into a war it cannot win', () => {
     const hand = [makeCard(3, 4), ACE_SPADES, FIVE_CLUBS];
     expect(
-      medium.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], HEARTS, null, HEARTS10, { declarer: 0, tricks: [] }, noRng),
     ).toBe(ACE_SPADES);
   });
 
   it('as a defender the old lead is unchanged', () => {
     expect(
-      medium.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, DEFENDER_CTX, noRng),
+      heuristic.choosePlay(0, HAND, HAND, [], HEARTS, null, HEARTS10, DEFENDER_CTX, noRng),
     ).toBe(KING_SPADES);
   });
 
@@ -749,7 +749,7 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
   // just an accident of the power sort.
   it('a defender holding trump and side cards leads a side card', () => {
     const hand = [JOKER_CARD, RIGHT_BOWER, LEFT_BOWER, makeCard(3, 14), FIVE_CLUBS];
-    const chosen = medium.choosePlay(
+    const chosen = heuristic.choosePlay(
       0,
       hand,
       hand,
@@ -765,7 +765,7 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
 
   it('a defender void in side suits is allowed the forced trump lead', () => {
     const hand = [JOKER_CARD, RIGHT_BOWER, makeCard(3, 4)];
-    const chosen = medium.choosePlay(
+    const chosen = heuristic.choosePlay(
       0,
       hand,
       hand,
@@ -782,7 +782,7 @@ describe('declarer-side trump drawing (fh-n2n)', () => {
 
   it("the declarer's partner void in side suits may also lead trump", () => {
     const hand = [makeCard(3, 4), makeCard(3, 5)];
-    const chosen = medium.choosePlay(
+    const chosen = heuristic.choosePlay(
       2,
       hand,
       hand,
@@ -812,7 +812,7 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
   const SIX_DIAMONDS = makeCard(2, 6);
   const SEVEN_DIAMONDS = makeCard(2, 7);
 
-  /** A completed trick; only `plays` matters to Medium's card counting. */
+  /** A completed trick; only `plays` matters to heuristic's card counting. */
   const trick = (cards: readonly Card[]) => ({
     leader: 1,
     ledSuit: 0,
@@ -825,14 +825,14 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
   it('leads the joker first while holding it (ultimate cashing lead)', () => {
     const hand = [JOKER, ACE_SPADES, ACE_CLUBS, FIVE_DIAMONDS];
     expect(
-      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
     ).toBe(JOKER);
   });
 
   it('cashes the top side boss once the joker has been seen', () => {
     const hand = [ACE_SPADES, KING_SPADES, ACE_CLUBS, FIVE_DIAMONDS];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         hand,
@@ -851,13 +851,13 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
     // Boss path would cash an ace; joker-aware detection rejects it and the
     // lead-from-strength path opens the top of the 3-card diamond suit.
     expect(
-      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 0, tricks: [] }, noRng),
     ).toBe(SEVEN_DIAMONDS);
   });
 
   it('never opens with its lowest card as NT declarer', () => {
     const hand = [FIVE_DIAMONDS, SIX_DIAMONDS, SEVEN_DIAMONDS, ACE_SPADES, ACE_CLUBS];
-    const card = medium.choosePlay(
+    const card = heuristic.choosePlay(
       0,
       hand,
       hand,
@@ -881,7 +881,7 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
   it('an NT defender cashes the top boss too (fh-4ww)', () => {
     const hand = [makeCard(0, 5), ACE_CLUBS];
     expect(
-      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: jokerSeen }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: jokerSeen }, noRng),
     ).toBe(ACE_CLUBS);
   });
 
@@ -890,7 +890,7 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
     const hand = [FIVE_SPADES, FIVE_DIAMONDS, SIX_DIAMONDS, SEVEN_DIAMONDS];
     // Joker unseen, so no boss: lead high from the longest suit instead.
     expect(
-      medium.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, { declarer: 1, tricks: [] }, noRng),
     ).toBe(SEVEN_DIAMONDS);
   });
 
@@ -900,7 +900,7 @@ describe('no-trump lead cashes from the top (fh-2wt, fh-4ww)', () => {
     const TRUMP_CONTRACT = bid(NUM, 8, 3); // hearts
     const hand = [makeCard(0, 5), makeCard(0, 14), makeCard(3, 14)];
     expect(
-      medium.choosePlay(0, hand, hand, [], 3, null, TRUMP_CONTRACT, { declarer: 1, tricks: [] }, noRng),
+      heuristic.choosePlay(0, hand, hand, [], 3, null, TRUMP_CONTRACT, { declarer: 1, tricks: [] }, noRng),
     ).toBe(makeCard(0, 5));
   });
 });
@@ -933,7 +933,7 @@ describe('partner guardrail (fh-61z)', () => {
     ];
     const hand = [makeCard(3, 5), makeCard(1, 4), makeCard(1, 6)];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         hand,
@@ -959,7 +959,7 @@ describe('partner guardrail (fh-61z)', () => {
     const hand = [KING_SPADES, makeCard(0, 5), makeCard(1, 6)];
     const legal = [KING_SPADES, makeCard(0, 5)];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         legal,
@@ -983,7 +983,7 @@ describe('partner guardrail (fh-61z)', () => {
     const hand = [ACE_SPADES, makeCard(0, 5), makeCard(1, 6)];
     const legal = [ACE_SPADES, makeCard(0, 5)];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         legal,
@@ -1008,7 +1008,7 @@ describe('partner guardrail (fh-61z)', () => {
     const hand = [ACE_SPADES, makeCard(0, 5), makeCard(1, 6)];
     const legal = [ACE_SPADES, makeCard(0, 5)];
     expect(
-      medium.choosePlay(
+      heuristic.choosePlay(
         0,
         hand,
         legal,
@@ -1024,7 +1024,7 @@ describe('partner guardrail (fh-61z)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// fh-8jf.3: the memory filter behind the history heuristics. Medium's
+// fh-8jf.3: the memory filter behind the history heuristics. heuristic's
 // trump-draw (fh-n2n/fh-61z), NT-boss (fh-2wt) and partner-guardrail (fh-61z)
 // rules all count cards off one seen-set; a policy given a memory builds that
 // set through the forgetting curve, so a card it has forgotten is played
@@ -1041,7 +1041,7 @@ describe('memory filter wiring (fh-8jf.3)', () => {
     hardMemory: { permanentSalience: 99, baseHorizon: 0, salienceHorizon: 0, jitter: 0 },
   });
   /** Same curve, no memory: the shape every Hard rollout simulator seat gets. */
-  const perfect = new MediumPolicy(FORGETFUL);
+  const perfect = new HeuristicPolicy(FORGETFUL);
   const forgetful = perfect.withMemory(0x5eed);
 
   const NT_CONTRACT = bid(NUM, 8, 4); // strain 4 = no-trump
@@ -1112,7 +1112,7 @@ describe('memory filter wiring (fh-8jf.3)', () => {
     const recent = [clubFill, heartFill, bigTrick];
     const early = [bigTrick, clubFill, heartFill];
     const hand = [KING_SPADES, makeCard(2, 5), makeCard(2, 6), SEVEN_DIAMONDS];
-    const lead = (policy: MediumPolicy, tricks: readonly Trick[]): Card =>
+    const lead = (policy: HeuristicPolicy, tricks: readonly Trick[]): Card =>
       policy.choosePlay(0, hand, hand, [], null, null, NT_CONTRACT, {
         declarer: 0,
         tricks,
@@ -1129,11 +1129,11 @@ describe('memory filter wiring (fh-8jf.3)', () => {
   it('AC-2/AC-3: memory is per-policy and per-seat, and every call is deterministic', () => {
     expect(perfect.remembers).toBe(false); // how hard/play.ts builds its simulator seats
     expect(forgetful.remembers).toBe(true);
-    expect(new MediumPolicy().remembers).toBe(false);
+    expect(new HeuristicPolicy().remembers).toBe(false);
 
     // The default curve, a real seed: repeated identical calls are identical,
     // and the card is always one of the legal ones.
-    const remembering = new MediumPolicy().withMemory(1234);
+    const remembering = new HeuristicPolicy().withMemory(1234);
     const history = [
       trick(0, [ACE_SPADES, makeCard(0, 4), makeCard(0, 6), makeCard(0, 8)]),
       clubFill,
@@ -1166,7 +1166,7 @@ describe('memory filter wiring (fh-8jf.3)', () => {
 describe('chooseJokerSuit', () => {
   it('names the shortest held suit, first suit on ties', () => {
     const hand = [makeCard(0, 5), makeCard(0, 9), makeCard(1, 12), makeCard(2, 7)];
-    expect(medium.chooseJokerSuit(hand, bid(NUM, 8, 4), noRng)).toBe(3); // void hearts
-    expect(medium.chooseJokerSuit([makeCard(3, 4)], bid(NULLA), noRng)).toBe(0); // S,C,D all 0
+    expect(heuristic.chooseJokerSuit(hand, bid(NUM, 8, 4), noRng)).toBe(3); // void hearts
+    expect(heuristic.chooseJokerSuit([makeCard(3, 4)], bid(NULLA), noRng)).toBe(0); // S,C,D all 0
   });
 });

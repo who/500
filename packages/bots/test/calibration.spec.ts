@@ -41,20 +41,20 @@ import {
   sampleWorld,
 } from '../src/index.js';
 import { DEFAULT_PARAMS, mergeParams, type BotParams } from '../src/params.js';
-import { MediumPolicy } from '../src/medium.js';
+import { HeuristicPolicy } from '../src/heuristic.js';
 import { playGameRecording } from '../src/sim.js';
 
 // --- self-play corpus ------------------------------------------------------
 
-const KINDS = ['medium', 'medium', 'medium', 'medium'] as const;
+const KINDS = ['heuristic', 'heuristic', 'heuristic', 'heuristic'] as const;
 function players(): PlayerMeta[] {
   return KINDS.map((kind, seat) => ({ seat, kind, paramsSchemaVersion: 1, overlayHash: null }));
 }
 function mediumPolicies(params: BotParams = DEFAULT_PARAMS): Policy[] {
-  return KINDS.map(() => new MediumPolicy(params));
+  return KINDS.map(() => new HeuristicPolicy(params));
 }
 
-/** Play `n` seeded Medium self-play games into a corpus of GameRecords. */
+/** Play `n` seeded heuristic self-play games into a corpus of GameRecords. */
 function selfPlayCorpus(n: number, baseSeed: number): GameRecord[] {
   const rng = makeRng(baseSeed);
   const out: GameRecord[] = [];
@@ -396,10 +396,10 @@ describe('fh-azx.5: Hard sampler uses the loaded calibration artifact', () => {
         { seat: 3, bid: bid(PASS) },
       ],
     };
-    const obs = observationsFromAuction(history, 0, ['hard', 'human', 'medium', 'easy'], [1, 3]);
+    const obs = observationsFromAuction(history, 0, ['hard', 'human', 'heuristic', 'heuristic'], [1, 3]);
     expect(obs).toEqual([
       { seat: 1, policyKind: 'human', callKind: NUM, strain: 0 },
-      { seat: 3, policyKind: 'easy', callKind: PASS, strain: -1 },
+      { seat: 3, policyKind: 'heuristic', callKind: PASS, strain: -1 },
     ]);
     expect(policyKindForSeat(undefined, 2)).toBe('hard');
     expect(policyKindForSeat(['human'], 1)).toBe('hard');
@@ -444,7 +444,7 @@ describe('AC-4: calibrated params do not regress vs the uncalibrated incumbent',
     for (let g = 0; g < GAMES; g++) {
       const calSide = g % 2;
       const policies: Policy[] = [0, 1, 2, 3].map((seat) =>
-        new MediumPolicy(seat % 2 === calSide ? calibrated : incumbent),
+        new HeuristicPolicy(seat % 2 === calSide ? calibrated : incumbent),
       );
       const winner = gameWinner(policies, 5000 + g);
       outcomes.push(winner === (1 - calSide)); // did the incumbent side win?

@@ -2,17 +2,17 @@
  * Hard-bot rollout card play (PRD 4.3 play) — choosePlay by determinized
  * rollout: derive the viewing seat's constraints from the live GameState
  * (fh-7hw.1), sample complete worlds of the hidden hands, and score every
- * legal card by applying it and playing the hand out with Medium policies on
+ * legal card by applying it and playing the hand out with Heuristic policies on
  * all four seats, averaging the viewer-side points delta. Worlds are shared
  * across the candidate cards (the same variance reduction the keeps leaf
  * uses); ties break first-in-legal-order, so identical (state, seed, worlds)
  * always pick the identical card.
  *
- * The arg-max does not get the last word: a card only beats Medium's
+ * The arg-max does not get the last word: a card only beats Heuristic's
  * heuristic pick if its paired advantage clears both an absolute floor and a
  * multiple of that advantage's own standard error (see pickCard). Where the
  * search really separates the cards the gate is invisible; where it is
- * guessing, Medium's tactical rules decide instead of the noise.
+ * guessing, Heuristic's tactical rules decide instead of the noise.
  *
  * Two modes on one code path:
  *   fixed   `worlds: n` (default the 20-world floor) — no clock is ever
@@ -21,7 +21,7 @@
  *           or the PLAY_WORLDS_CAP, checking the clock between worlds. If the
  *           deadline passes before PLAY_WORLDS_FLOOR worlds finished, the
  *           average is too noisy to trust and the decision falls back to
- *           Medium's choice; onDecision reports it so the caller can log
+ *           Heuristic's choice; onDecision reports it so the caller can log
  *           (packet requirement — this module itself stays I/O-free).
  *
  * One-legal-card turns return instantly with no sampling and no clock
@@ -32,7 +32,7 @@
 
 import type { Action, Card, GameState, Rng } from '@five-hundred/engine';
 import { JOKER, isLoseAll, legalPlaysFor, playToAct } from '@five-hundred/engine';
-import { MediumPolicy } from '../medium.js';
+import { HeuristicPolicy } from '../heuristic.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
@@ -58,7 +58,7 @@ export interface HardPlayDecision {
   /** Worlds fully evaluated (0 when the single-legal-card shortcut fired). */
   readonly worldsDone: number;
   readonly elapsedMs: number;
-  /** True when the budget missed the floor and Medium chose instead. */
+  /** True when the budget missed the floor and Heuristic chose instead. */
   readonly fellBack: boolean;
 }
 
@@ -67,7 +67,7 @@ export interface HardPlayOptions {
   readonly worlds?: number;
   /** Wall-clock budget: adapt the world count to this many milliseconds. */
   readonly deadlineMs?: number;
-  /** Budget-mode floor before the Medium fallback. */
+  /** Budget-mode floor before the Heuristic fallback. */
   readonly minWorlds?: number;
   /** Budget-mode cap. */
   readonly maxWorlds?: number;
@@ -97,13 +97,13 @@ export interface HardMemoryOptions {
   readonly seed: number;
 }
 
-const MEDIUM = new MediumPolicy();
-const POLICIES: readonly Policy[] = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
+const HEURISTIC = new HeuristicPolicy();
+const POLICIES: readonly Policy[] = [HEURISTIC, HEURISTIC, HEURISTIC, HEURISTIC];
 
-/** Four Medium seats sharing the given params (the default-fast-path reuses POLICIES). */
+/** Four Heuristic seats sharing the given params (the default-fast-path reuses POLICIES). */
 function playPolicies(params: BotParams): readonly Policy[] {
   if (params === DEFAULT_PARAMS) return POLICIES;
-  const m = new MediumPolicy(params);
+  const m = new HeuristicPolicy(params);
   return [m, m, m, m];
 }
 
@@ -144,7 +144,7 @@ export function determinize(state: GameState, world: SampledWorld): GameState {
   return { ...state, hands, play: { ...play, hands } };
 }
 
-/** Play `card` in the determinized state and Medium the hand to its score. */
+/** Play `card` in the determinized state and play the hand out to its score. */
 function playout(
   base: GameState,
   action: Action,
@@ -182,11 +182,11 @@ export function choosePlayByRollout(
 
   const params = options.params ?? DEFAULT_PARAMS;
   const memory = options.memory;
-  const base = params === DEFAULT_PARAMS ? MEDIUM : new MediumPolicy(params);
-  // The reference/fallback Medium decides on the REAL history, so it gets the
+  const base = params === DEFAULT_PARAMS ? HEURISTIC : new HeuristicPolicy(params);
+  // The reference/fallback Heuristic decides on the REAL history, so it gets the
   // same memory the constraints below are derived through; the simulator
   // seats in `policies` deliberately do not (see playPolicies).
-  const medium = memory === undefined ? base : base.withMemory(memory.seed);
+  const heuristic = memory === undefined ? base : base.withMemory(memory.seed);
   const policies = playPolicies(params);
   const trickWeight = params.hardPlay.trickWeight;
   const deadline = options.deadlineMs;
@@ -205,24 +205,24 @@ export function choosePlayByRollout(
   const actionFor = (card: Card): Action => {
     if (card === JOKER && play.trump === null && play.ledSuit === null) {
       const rest = (play.hands[seat] ?? []).filter((c) => c !== JOKER);
-      return { type: 'playCard', seat, card, jokerSuit: medium.chooseJokerSuit(rest) };
+      return { type: 'playCard', seat, card, jokerSuit: heuristic.chooseJokerSuit(rest) };
     }
     return { type: 'playCard', seat, card };
   };
   const actions = legal.map(actionFor);
 
-  // Medium's card depends only on the (unmutated) decision state, so it is
+  // Heuristic's card depends only on the (unmutated) decision state, so it is
   // fixed before any sampling — which lets every world score its paired
   // difference against it as it goes (see pickCard).
   //
-  // This one Medium call is a REAL decision on the REAL history (the tiebreak
+  // This one Heuristic call is a REAL decision on the REAL history (the tiebreak
   // reference and the budget-miss fallback), unlike the simulator seats in
   // `policies`, which play out sampled worlds and must keep full information.
   // It therefore carries the same memory as the constraint derivation below
   // (fh-8jf.2, over the fh-8jf.3 seam): both hang off `options.memory.seed`
   // and mix in the same hand and seat, so the fallback card and the sampled
   // worlds can never disagree about which cards are gone.
-  const mediumCard = medium.choosePlay(
+  const heuristicCard = heuristic.choosePlay(
     seat,
     play.hands[seat] ?? [],
     legal,
@@ -232,7 +232,7 @@ export function choosePlayByRollout(
     contract,
     { declarer: play.declarer, tricks: play.tricks, handNumber: state.handNumber },
   );
-  const mediumIdx = legal.indexOf(mediumCard);
+  const mediumIdx = legal.indexOf(heuristicCard);
 
   // Forgotten cards return to the unseen pool here, so the sampled worlds may
   // deal an already-played low card back into a hidden hand — the rollout then
@@ -272,17 +272,17 @@ export function choosePlayByRollout(
   const elapsedMs = deadline !== undefined ? now() - start : 0;
   if (deadline !== undefined && worldsDone < floor) {
     // Too few worlds to trust the averages: the budget was missed, so take
-    // Medium's heuristic choice instead (packet fallback, reported for logs).
+    // the heuristic's choice instead (packet fallback, reported for logs).
     options.onDecision?.({ seat, worldsDone, elapsedMs, fellBack: true });
-    return mediumCard;
+    return heuristicCard;
   }
   options.onDecision?.({ seat, worldsDone, elapsedMs, fellBack: false });
   return pickCard(
     legal,
     { totals, diffSq, worldsDone, mediumIdx },
     {
-      eps: params.hardPlay.mediumTiebreakEps,
-      z: params.hardPlay.mediumTiebreakZ,
+      eps: params.hardPlay.heuristicTiebreakEps,
+      z: params.hardPlay.heuristicTiebreakZ,
     },
   );
 }
@@ -290,7 +290,7 @@ export function choosePlayByRollout(
 /**
  * What the shared-world sampling loop learned about each legal card: the
  * summed playout score, and the summed SQUARE of each world's paired
- * difference against Medium's card. The paired sum itself is not carried —
+ * difference against Heuristic's card. The paired sum itself is not carried —
  * summing `score_i - score_m` world by world is exactly `totals[i] -
  * totals[mediumIdx]` — but the squares cannot be recovered after the fact, so
  * they are accumulated inline.
@@ -299,11 +299,11 @@ export interface RolloutTally {
   readonly totals: readonly number[];
   readonly diffSq: readonly number[];
   readonly worldsDone: number;
-  /** Index of Medium's card in `legal`, or -1 if it is somehow not legal. */
+  /** Index of Heuristic's card in `legal`, or -1 if it is somehow not legal. */
   readonly mediumIdx: number;
 }
 
-/** How hard the rollout must beat Medium's card before it is allowed to. */
+/** How hard the rollout must beat Heuristic's card before it is allowed to. */
 export interface TiebreakGate {
   /** Absolute floor, in points, under which a lead is never enough. */
   readonly eps: number;
@@ -312,7 +312,7 @@ export interface TiebreakGate {
 }
 
 /**
- * Arg-max over averaged rollout scores, but defer to Medium's card when the
+ * Arg-max over averaged rollout scores, but defer to Heuristic's card when the
  * rollout cannot clearly separate its pick from it (fh-vkr, fh-hg4, fh-4ww).
  *
  * The rollout evaluates every candidate on the SAME sampled worlds (common
@@ -320,10 +320,10 @@ export interface TiebreakGate {
  * quantity to test: absolute EVs swing by hundreds of points world to world,
  * but most of that swing is the deal, and it cancels in the pair. When the
  * search is genuinely indifferent (cash-now vs cash-later, draw-trump vs
- * lead-side under a weak Medium simulator), that difference is noise around
+ * lead-side under a weak Heuristic simulator), that difference is noise around
  * zero — and a bare arg-max then keeps whichever card noise happened to
  * favour, which for the lowest-index legal card means the lowest card / a low
- * trump. Deferring to Medium instead injects its cash-from-top (fh-2wt),
+ * trump. Deferring to Heuristic instead injects its cash-from-top (fh-2wt),
  * trump-draw (fh-n2n), and don't-lead-trump (fh-1em) discipline into Hard
  * exactly where Hard's own search is blind.
  *
@@ -335,7 +335,7 @@ export interface TiebreakGate {
  * errors of its OWN paired difference as well as the absolute floor `eps`.
  * Where the rollout truly separates the cards the standard error collapses
  * and the gate is just `eps`; where it is guessing, the standard error is
- * large and Medium's card wins. Zero variance (every world agreed) leaves the
+ * large and Heuristic's card wins. Zero variance (every world agreed) leaves the
  * bare `eps` floor, so a unanimous real edge is never overridden.
  */
 export function pickCard(legal: readonly Card[], tally: RolloutTally, gate: TiebreakGate): Card {

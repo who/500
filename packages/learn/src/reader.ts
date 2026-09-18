@@ -12,11 +12,13 @@
 
 import { readFileSync } from 'node:fs';
 import {
+  POLICY_KINDS,
   SCHEMA_VERSION,
   SUPPORTED_SCHEMA_VERSIONS,
   type GameMarker,
   type GameRecord,
   type HandRecord,
+  type PolicyKind,
 } from './schema.js';
 
 export class GameRecordError extends Error {
@@ -149,7 +151,7 @@ export function validateGameRecord(obj: unknown, where = 'record'): GameRecord {
     if (!isObject(p) || !Number.isInteger(p.seat)) {
       throw new GameRecordError(`${where}: bad player entry`);
     }
-    if (p.kind !== 'human' && p.kind !== 'easy' && p.kind !== 'medium' && p.kind !== 'hard') {
+    if (!POLICY_KINDS.includes(p.kind as PolicyKind)) {
       throw new GameRecordError(`${where}: bad player kind ${String(p.kind)}`);
     }
   }

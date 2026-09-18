@@ -1,16 +1,17 @@
 /**
- * Tier-stability guard (fh-sja.6 AC-2). The self-play tuner ships ONLY a Hard
- * overlay, and only over the `hardBidding.*` group — leaves no other tier
- * reads. These tests pin that promise two ways:
+ * Rollout-model stability guard (fh-sja.6 AC-2, rewritten for the Hard-only
+ * product of fh-4k3). The self-play tuner ships ONLY a Hard overlay, and only
+ * over the `hardBidding.*` group — leaves nothing else reads. These tests pin
+ * that promise two ways:
  *
  *   1. Structurally: HARD_LEAVES (the tuner's Hard search vector) is confined
  *      to the hardBidding group, and merging a maxed-out Hard overlay leaves
  *      every OTHER param group byte-identical to the defaults.
- *   2. Behaviorally: full-game action transcripts for four Easy seats and for
- *      four Medium seats are byte-for-byte identical whether they run under the
- *      defaults or under a Hard overlay — because Easy/Medium never consult
- *      hardBidding. This is the guarantee that surfacing a learned overlay for
- *      Hard cannot perturb the shipped Easy/Medium bots.
+ *   2. Behaviorally: full-game action transcripts for four HeuristicPolicy
+ *      seats are byte-for-byte identical whether they run under the defaults
+ *      or under a Hard overlay — because the heuristic never consults
+ *      hardBidding. That is what keeps a promoted overlay from moving Hard's
+ *      own rollout opponent and in-thread fallback out from under it.
  *
  * All runs are seeded and deterministic.
  */
@@ -19,9 +20,8 @@ import { describe, expect, it } from 'vitest';
 import { PASS, applyAction, bid, makeRng, newGame, type Action, type GameState } from '@five-hundred/engine';
 import { fitCalibration } from '@five-hundred/learn';
 import {
-  EasyPolicy,
   HardPolicy,
-  MediumPolicy,
+  HeuristicPolicy,
   botAction,
   type BotParams,
   type Policy,
@@ -31,8 +31,8 @@ import { HARD_LEAVES } from '../src/tune.js';
 
 /**
  * A Hard overlay that pushes every tuner-searched leaf to its extreme bound —
- * the most hostile input the shipped tuner could ever emit. If Easy/Medium are
- * insensitive to THIS, they are insensitive to any promoted overlay.
+ * the most hostile input the shipped tuner could ever emit. If the heuristic
+ * is insensitive to THIS, it is insensitive to any promoted overlay.
  */
 function maxedHardOverlay(): BotParams {
   const hardBidding: Record<string, number> = { ...DEFAULT_PARAMS.hardBidding };
@@ -66,7 +66,7 @@ function transcript(policies: readonly Policy[], seed: number): string[] {
   return out;
 }
 
-describe('tier-stability guard (fh-sja.6 AC-2)', () => {
+describe('rollout-model stability guard (fh-sja.6 AC-2)', () => {
   it('confines the Hard tuner vector to the hardBidding group', () => {
     for (const leaf of HARD_LEAVES) {
       expect(leaf.group).toBe('hardBidding');
@@ -90,50 +90,36 @@ describe('tier-stability guard (fh-sja.6 AC-2)', () => {
     expect(overlaid.hardBidding).not.toEqual(DEFAULT_PARAMS.hardBidding);
   });
 
-  it('keeps four Medium seats byte-stable under a Hard overlay', () => {
+  it('keeps four heuristic seats byte-stable under a Hard overlay', () => {
     const overlay = maxedHardOverlay();
     const seeds = [1, 7, 42, 1000, 65535];
     for (const seed of seeds) {
-      const withDefaults = transcript(Array.from({ length: 4 }, () => new MediumPolicy(DEFAULT_PARAMS)), seed);
-      const withOverlay = transcript(Array.from({ length: 4 }, () => new MediumPolicy(overlay)), seed);
+      const withDefaults = transcript(Array.from({ length: 4 }, () => new HeuristicPolicy(DEFAULT_PARAMS)), seed);
+      const withOverlay = transcript(Array.from({ length: 4 }, () => new HeuristicPolicy(overlay)), seed);
       expect(withOverlay).toEqual(withDefaults);
       expect(withDefaults.length).toBeGreaterThan(0);
     }
   });
 
-  it('keeps four Easy seats byte-stable regardless of params (they never read them)', () => {
-    // Easy is constructed exactly as the server constructs it (policyFor): no
-    // params seam at all. The overlay cannot reach it; the transcript pins it.
-    const seeds = [3, 11, 99, 2024];
-    for (const seed of seeds) {
-      const a = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
-      const b = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
-      expect(a).toEqual(b);
-      expect(a.length).toBeGreaterThan(0);
-    }
-  });
-
-  it('keeps Easy and Medium byte-stable when a Hard overlay and artifact are present', () => {
+  it('keeps the heuristic byte-stable when a Hard overlay and artifact are present', () => {
     const overlay = maxedHardOverlay();
     const artifact = fitCalibration([], { minSamples: 20 });
-    // Hard is the only consumer; constructing it here must not leak into
-    // Easy/Medium, which never take a CalibrationArtifact.
+    // Hard is the only consumer of either; constructing it here must not leak
+    // into the heuristic, which takes no CalibrationArtifact at all.
     const hard = new HardPolicy({ params: overlay, calibration: artifact });
     expect(hard).toBeInstanceOf(HardPolicy);
     const seeds = [1, 7, 42];
     for (const seed of seeds) {
-      const mediumDefault = transcript(
-        Array.from({ length: 4 }, () => new MediumPolicy(DEFAULT_PARAMS)),
+      const withDefaults = transcript(
+        Array.from({ length: 4 }, () => new HeuristicPolicy(DEFAULT_PARAMS)),
         seed,
       );
-      const mediumOverlay = transcript(
-        Array.from({ length: 4 }, () => new MediumPolicy(overlay)),
+      const withOverlay = transcript(
+        Array.from({ length: 4 }, () => new HeuristicPolicy(overlay)),
         seed,
       );
-      expect(mediumOverlay).toEqual(mediumDefault);
-      const easyA = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
-      const easyB = transcript(Array.from({ length: 4 }, () => new EasyPolicy()), seed);
-      expect(easyB).toEqual(easyA);
+      expect(withOverlay).toEqual(withDefaults);
+      expect(withDefaults.length).toBeGreaterThan(0);
     }
   });
 });

@@ -11,7 +11,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { legalActions, toActSeat, type Action, type GameState } from '@five-hundred/engine';
 import type { BotSeatConfig, Envelope } from '@five-hundred/protocol';
-import { EasyPolicy, MediumPolicy } from '@five-hundred/bots';
+import { HeuristicPolicy } from '@five-hundred/bots';
 import {
   BOT_DELAY_MAX_MS,
   BOT_DELAY_MIN_MS,
@@ -60,9 +60,18 @@ interface Fixture {
   session: GameSession;
 }
 
-/** Room with one human (easy bot beside them, medium elsewhere), game started. */
+/**
+ * Room with one human and Hard bots in the other three seats, game started.
+ * Every seat is Hard since fh-4k3, and these specs are about the driver's own
+ * scheduling, so the worker pool is switched off: each seat decides in-thread
+ * through its heuristic fallback, which is what fake timers can drive.
+ */
 function setup(opts: GameSessionOptions, humanSeat = 0): Fixture {
-  const store = new RoomStore({ startGame: (room) => createGameSession(room, SEED, opts) });
+  const noPool: GameSessionOptions = {
+    ...opts,
+    bots: opts.bots === null ? null : { ...opts.bots, hardPool: null },
+  };
+  const store = new RoomStore({ startGame: (room) => createGameSession(room, SEED, noPool) });
   const human = fakeClient();
   store.createRoom(human, 'Ann');
   store.sit(human, humanSeat);
@@ -71,7 +80,7 @@ function setup(opts: GameSessionOptions, humanSeat = 0): Fixture {
   const botSeats = [0, 1, 2, 3].filter((s) => s !== humanSeat);
   store.configureBots(
     human,
-    botSeats.map((seat, i): BotSeatConfig => ({ seat, difficulty: i === 0 ? 'easy' : 'medium' })),
+    botSeats.map((seat): BotSeatConfig => ({ seat, difficulty: 'hard' })),
   );
   store.startGame(human);
   const session = room.game;
@@ -182,15 +191,12 @@ describe('bot turn driver', () => {
   it('gives every card-counting seat the fallible memory the shipped bots use', () => {
     // fh-8jf.4: the driver's synchronous seats play off the forgetting curve,
     // hung off the game seed so a seat's memory is stable within a hand and
-    // independent of its partner's. Easy has no memory of played cards to
-    // fuzz — it only ever looks at the trick in front of it.
-    const medium = policyFor('medium', SEED);
-    expect(medium).toBeInstanceOf(MediumPolicy);
-    expect((medium as MediumPolicy).remembers).toBe(true);
-    // Hard's real decisions run in the worker (which carries its own memory);
-    // this in-thread policy is its degraded fallback and forgets alike.
-    expect((policyFor('hard', SEED) as MediumPolicy).remembers).toBe(true);
-    expect(policyFor('easy', SEED)).toBeInstanceOf(EasyPolicy);
+    // independent of its partner's. Hard's real decisions run in the worker
+    // (which carries its own memory); this in-thread policy is its degraded
+    // fallback and forgets alike.
+    const fallback = policyFor(SEED);
+    expect(fallback).toBeInstanceOf(HeuristicPolicy);
+    expect((fallback as HeuristicPolicy).remembers).toBe(true);
   });
 
   it('crashes the room when a bot action is rejected by validation', async () => {

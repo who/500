@@ -121,7 +121,7 @@ export function summarizeHand(state: GameState, priorDealsDrawn = 0): GameLogHan
 /** A seat's log-schema policy kind: 'human', or the bot's difficulty tier. */
 function seatKind(room: Room, seat: number): PolicyKind {
   const s = room.seats[seat];
-  return s !== undefined && s.kind === 'human' ? 'human' : (s?.difficulty ?? 'medium');
+  return s !== undefined && s.kind === 'human' ? 'human' : (s?.difficulty ?? 'hard');
 }
 
 /**

@@ -64,7 +64,7 @@ function roomViewFixture(): RoomView {
       seat,
       occupant: 'empty' as const,
       name: null,
-      difficulty: 'medium' as const,
+      difficulty: 'hard' as const,
       connected: true,
     })),
     started: false,

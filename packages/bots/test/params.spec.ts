@@ -50,7 +50,7 @@ describe('DEFAULT_PARAMS (AC-1 anchor)', () => {
     expect(DEFAULT_PARAMS.schemaVersion).toBe(PARAMS_SCHEMA_VERSION);
   });
 
-  it('reproduces the re-exported Medium constants byte-for-byte', () => {
+  it('reproduces the re-exported heuristic constants byte-for-byte', () => {
     expect(DEFAULT_PARAMS.bidding.headroom).toBe(BID_HEADROOM);
     expect(DEFAULT_PARAMS.bidding.indicateEst).toBe(INDICATE_EST);
     expect(DEFAULT_PARAMS.bidding.partnerIndicationBonus).toBe(PARTNER_INDICATION_BONUS);

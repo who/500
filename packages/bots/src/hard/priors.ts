@@ -20,6 +20,7 @@ import {
   type CalibrationArtifact,
   type PolicyKind,
   type PriorSummary,
+  POLICY_KINDS,
   bestStrength,
   priorFor,
   priorLogDensity,
@@ -128,7 +129,7 @@ export function policyKindForSeat(
   seat: number,
 ): PolicyKind {
   const k = policyKinds?.[seat];
-  if (k === 'human' || k === 'easy' || k === 'medium' || k === 'hard') return k;
+  if (POLICY_KINDS.includes(k as PolicyKind)) return k as PolicyKind;
   return 'hard';
 }
 

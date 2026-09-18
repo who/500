@@ -98,7 +98,7 @@ export interface ConstraintMemory {
   /**
    * Base seed the forgetting rolls hang off — normally the game seed. Mixed
    * with the hand number and the viewing seat by {@link memorySeed}, exactly
-   * as MediumPolicy.withMemory does, so a Hard seat and the Medium reference
+   * as HeuristicPolicy.withMemory does, so a Hard seat and the Heuristic reference
    * it consults never disagree about which cards are gone.
    */
   readonly seed: number;

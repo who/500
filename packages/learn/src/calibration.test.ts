@@ -94,7 +94,7 @@ function game(kinds: PolicyKind[], hands: HandRecord[]): GameRecord {
   };
 }
 
-const KINDS: PolicyKind[] = ['medium', 'medium', 'medium', 'medium'];
+const KINDS: PolicyKind[] = ['heuristic', 'heuristic', 'heuristic', 'heuristic'];
 
 describe('make model (AC-1 in spirit: recovers the injected make-rate)', () => {
   it('recovers a 70% make-rate for a well-populated cell within tolerance', () => {
@@ -132,7 +132,7 @@ describe('make model (AC-1 in spirit: recovers the injected make-rate)', () => {
 describe('behavior priors separate policy kinds', () => {
   it('captures humans bidding weaker than bots in the same strain', () => {
     const games: GameRecord[] = [];
-    // Seat 0 = human bidding weak hands; seat 1 = medium bidding strong hands.
+    // Seat 0 = human bidding weak hands; seat 1 = heuristic bidding strong hands.
     for (let i = 0; i < 60; i++) {
       const calls: AuctionCall[] = [
         { seat: 0, bid: bid(NUM, 7, 0) },
@@ -141,11 +141,11 @@ describe('behavior priors separate policy kinds', () => {
       const h = hand(1, STRONG_SPADES, true, calls);
       // Override seat 0's dealt hand to the weak one for the prior sample.
       (h.deal.hands as number[][])[0] = WEAK_SPADES;
-      games.push(game(['human', 'medium', 'human', 'medium'], [h]));
+      games.push(game(['human', 'heuristic', 'human', 'heuristic'], [h]));
     }
     const art = fitCalibration(games, { minSamples: 10 });
     const human = priorFor(art, 'human', NUM, 0);
-    const bot = priorFor(art, 'medium', NUM, 0);
+    const bot = priorFor(art, 'heuristic', NUM, 0);
     expect(human).not.toBeNull();
     expect(bot).not.toBeNull();
     expect((human as { mean: number }).mean).toBeLessThan((bot as { mean: number }).mean);
@@ -169,7 +169,7 @@ describe('thin-data fallback (AC-3)', () => {
     const art = fitCalibration([game(KINDS, [hand(1, WEAK_SPADES, true, calls)])], {
       minSamples: 30,
     });
-    expect(priorFor(art, 'medium', PASS, 0)).toBeNull();
+    expect(priorFor(art, 'heuristic', PASS, 0)).toBeNull();
   });
 
   it('derives an identity overlay (headroom unchanged) from a thin corpus', () => {

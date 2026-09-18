@@ -119,16 +119,16 @@ describe('token reattach and pause (scripted app)', () => {
 
   it('convertSeatToBot validation: host-only, disconnected human seats, never the host seat', async () => {
     const fx = await setupGame(t);
-    fx.bob.send({ t: 'convertSeatToBot', seat: 0, difficulty: 'easy' });
+    fx.bob.send({ t: 'convertSeatToBot', seat: 0, difficulty: 'hard' });
     expect(await fx.bob.nextError()).toBe('notHost');
 
-    fx.ann.send({ t: 'convertSeatToBot', seat: 0, difficulty: 'easy' });
+    fx.ann.send({ t: 'convertSeatToBot', seat: 0, difficulty: 'hard' });
     expect(await fx.ann.nextError()).toBe('badCommand'); // own (host) seat
 
-    fx.ann.send({ t: 'convertSeatToBot', seat: 2, difficulty: 'easy' });
+    fx.ann.send({ t: 'convertSeatToBot', seat: 2, difficulty: 'hard' });
     expect(await fx.ann.nextError()).toBe('badCommand'); // still connected
 
-    fx.ann.send({ t: 'convertSeatToBot', seat: 1, difficulty: 'easy' });
+    fx.ann.send({ t: 'convertSeatToBot', seat: 1, difficulty: 'hard' });
     expect(await fx.ann.nextError()).toBe('badCommand'); // already a bot
   }, 20000);
 });
@@ -243,12 +243,12 @@ describe('seat-to-bot conversion with a live driver (AC-3)', () => {
       return s !== undefined && s.kind === 'human' && !s.connected;
     });
 
-    ann.send({ t: 'convertSeatToBot', seat: 2, difficulty: 'easy' });
+    ann.send({ t: 'convertSeatToBot', seat: 2, difficulty: 'hard' });
     // Everyone learns the seat is now a bot (and the game is unpaused)...
     for (;;) {
       const rs = await ann.nextRoomState();
       if (rs.room.seats[2]?.occupant === 'bot') {
-        expect(rs.room.seats[2]?.difficulty).toBe('easy');
+        expect(rs.room.seats[2]?.difficulty).toBe('hard');
         expect(rs.room.paused).toBe(false);
         break;
       }

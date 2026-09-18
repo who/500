@@ -1,6 +1,6 @@
 /**
  * BotParams — the single, versioned home for every tunable strategy constant
- * the bots use (fh-sja.1). Gathering the Medium suit-strength weights, the
+ * the bots use (fh-sja.1). Gathering the heuristic suit-strength weights, the
  * bid/indicate/nulla/slam thresholds, the endgame-aggression knobs, and the
  * Hard rollout gates into one typed object is the foundation the learning
  * epic (fh-sja) builds on: the arena's A-vs-B matches (fh-sja.3) and the
@@ -34,9 +34,10 @@ import defaultParamsJson from '../params/default.json' with { type: 'json' };
 /**
  * Bumped whenever the BotParams shape changes incompatibly (a key is removed
  * or its meaning changes). An overlay must carry the matching version or it is
- * rejected at load.
+ * rejected at load. Version 2 renamed the two hardPlay tiebreak leaves off
+ * the retired Medium tier name.
  */
-export const PARAMS_SCHEMA_VERSION = 1;
+export const PARAMS_SCHEMA_VERSION = 2;
 
 /** Oracle _suit_strength weights (five_hundred.py 249-271). */
 export interface SuitStrengthParams {
@@ -104,11 +105,11 @@ export interface HardBiddingParams {
   readonly bidMargin: number;
   /** EV edge of the slam variant over non-slam required to declare. */
   readonly slamMargin: number;
-  /** NULLA candidate lowness gate (looser than Medium's own). */
+  /** NULLA candidate lowness gate (looser than Heuristic's own). */
   readonly nullaCandLowness: number;
   /** NULLA candidate max rank (12 = queen). */
   readonly nullaCandMaxRank: number;
-  /** DNULLA candidate lowness gate (Medium's full gate). */
+  /** DNULLA candidate lowness gate (Heuristic's full gate). */
   readonly dnullaCandLowness: number;
   /** DNULLA candidate max rank (11 = jack). */
   readonly dnullaCandMaxRank: number;
@@ -145,15 +146,15 @@ export interface HardPlayParams {
   readonly trickWeight: number;
   /**
    * Absolute floor, in points, for the margin by which the rollout's best card
-   * must beat Medium's heuristic card before Hard is allowed to prefer it
-   * (fh-vkr/fh-hg4). Inside the floor, play Medium's card: it catches the
+   * must beat the heuristic's card before Hard is allowed to prefer it
+   * (fh-vkr/fh-hg4). Inside the floor, play the heuristic's card: it catches the
    * decisions the search rates dead level and hands them to a tactically sound
    * choice. Kept below trickWeight so a pick that truly wins more tricks is
    * never overridden on the floor alone.
    */
-  readonly mediumTiebreakEps: number;
+  readonly heuristicTiebreakEps: number;
   /**
-   * Standard errors of the paired (best - Medium) rollout difference that the
+   * Standard errors of the paired (best - heuristic) rollout difference that the
    * same margin must ALSO clear (fh-4ww). The absolute floor could not size
    * itself to the state: at a noisy decision the paired mean's own spread is
    * tens of points, so noise cleared any floor small enough to be safe
@@ -161,7 +162,7 @@ export interface HardPlayParams {
    * measured standard error makes it tight where the search separates the
    * cards and wide where it is guessing. 0 restores the pure-`eps` behaviour.
    */
-  readonly mediumTiebreakZ: number;
+  readonly heuristicTiebreakZ: number;
 }
 
 /**
@@ -170,9 +171,9 @@ export interface HardPlayParams {
  * happens. Salience is the memorability of a card in [0, ~1.6]; a horizon is
  * measured in tricks.
  *
- * The shipped values were calibrated in fh-8jf.4 and are what BOTH tiers play
- * off on the server; the measured behaviour they buy (13.8% of played cards
- * dropped, nothing salient ever lost, Hard still beating Medium at the 60%
+ * The shipped values were calibrated in fh-8jf.4 and are what the Hard seats
+ * and their heuristic fallback both play off on the server; the measured behaviour they buy (13.8% of played cards
+ * dropped, nothing salient ever lost, Hard still beating the heuristic at the 60%
  * gate) is pinned in test/memoryCalibration.spec.ts, and loosening them is a
  * working difficulty dial — see that spec's LOOSE_MEMORY overlay.
  */

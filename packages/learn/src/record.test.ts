@@ -31,7 +31,7 @@ import { join } from 'node:path';
 
 const PLAYERS: PlayerMeta[] = [0, 1, 2, 3].map((seat) => ({
   seat,
-  kind: 'medium',
+  kind: 'heuristic',
   paramsSchemaVersion: null,
   overlayHash: null,
 }));

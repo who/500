@@ -150,16 +150,16 @@ describe('room lifecycle happy path (AC-1)', () => {
     // Seats default to Hard (fh-gpk); the tool-only configureBots path can
     // still retier one, and the seat it leaves alone stays Hard.
     expect(annSit2.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'hard' });
-    ann.send({ t: 'configureBots', bots: [{ seat: 1, difficulty: 'easy' }] });
+    ann.send({ t: 'configureBots', bots: [{ seat: 1, difficulty: 'hard' }] });
     const [annCfg, bobCfg] = [await ann.nextRoomState(), await bob.nextRoomState()];
     expect(annCfg).toEqual(bobCfg);
-    expect(annCfg.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'easy' });
+    expect(annCfg.room.seats[1]).toMatchObject({ occupant: 'empty', difficulty: 'hard' });
 
     ann.send({ t: 'startGame' });
     const [annStart, bobStart] = [await ann.nextRoomState(), await bob.nextRoomState()];
     expect(annStart).toEqual(bobStart);
     expect(annStart.room.started).toBe(true);
-    expect(annStart.room.seats[1]).toMatchObject({ occupant: 'bot', difficulty: 'easy' });
+    expect(annStart.room.seats[1]).toMatchObject({ occupant: 'bot', difficulty: 'hard' });
     expect(annStart.room.seats[3]).toMatchObject({ occupant: 'bot', difficulty: 'hard' });
 
     // Both clients saw the same strictly increasing per-room seq sequence
@@ -216,7 +216,7 @@ describe('rejections (AC-2)', () => {
     bob.send({ t: 'joinRoom', roomCode: room.roomCode, name: 'Bob' });
     await bob.nextRoomState();
 
-    bob.send({ t: 'configureBots', bots: [{ seat: 3, difficulty: 'easy' }] });
+    bob.send({ t: 'configureBots', bots: [{ seat: 3, difficulty: 'hard' }] });
     expect(await bob.nextError()).toBe('notHost');
     bob.send({ t: 'startGame' });
     expect(await bob.nextError()).toBe('notHost');

@@ -9,7 +9,6 @@
  *   pnpm learn:tune -- --generations 20 --population 32 --eval-games 40
  *   pnpm learn:tune -- --game-budget 200000          # overnight, budget-capped
  *   pnpm learn:tune -- --state run.tuner-state.json  # resume a killed run
- *   pnpm learn:tune -- --tier medium --allow-medium  # Medium (NOT shipped)
  *
  * Fitness is the candidate's mirrored win-rate vs the incumbent over
  * `--eval-games` seeds (seat bias cancelled by replaying each seed swapped).
@@ -22,11 +21,9 @@
  * beats the incumbent AND does not regress vs the anchor under a fresh SPRT
  * confirmation match — otherwise the run is report-only (AC-2).
  *
- * Tiers: Hard is the shipped target and writes params/local.json (git-ignored,
- * picked up by loadParams). Medium is tunable behind `--tier medium
- * --allow-medium` for experiments, but its overlay is written to a separate,
- * NON-auto-loaded path with a loud warning — the tier-stability guardrail keeps
- * a Medium tuning artifact off the shipped path (fh-sja epic non-goal).
+ * Hard is the only bot the product ships and the only thing this tuner
+ * searches; the overlay goes to params/local.json (git-ignored, picked up by
+ * loadParams).
  */
 
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -53,7 +50,7 @@ import {
 import { makeHardMatchRunner } from './arena-runner.js';
 
 // ---------------------------------------------------------------------------
-// Tunable parameter vectors (which BotParams leaves each tier searches)
+// Tunable parameter vector (which BotParams leaves the tuner searches)
 // ---------------------------------------------------------------------------
 
 /** One tunable BotParams leaf: its group/key location and its search bounds. */
@@ -68,14 +65,15 @@ export interface TunableLeaf {
 
 /**
  * Hard's strategy knobs, restricted to the `hardBidding.*` group ON PURPOSE:
- * these leaves are read only by the Hard rollout bidder (hard/bidding.ts) and
- * by no other tier. Tuning them therefore CANNOT alter Easy or Medium play even
- * if the resulting overlay is loaded — the tier-stability guardrail that makes
- * AC-3 hold structurally rather than by convention. The shared thresholds
- * (`bidding.*`, `slam.*`, `suitStrength.*`) that Medium also consults are
- * deliberately excluded here; they belong to the Medium tier's own vector.
- * World counts (rolloutWorlds/keepWorlds/...) are compute budget, not strategy,
- * and are pinned by the runner, so they are excluded too.
+ * these leaves are read only by the Hard rollout bidder (hard/bidding.ts).
+ * Tuning them therefore CANNOT alter the heuristic play-out Hard rolls out
+ * against even if the resulting overlay is loaded — the stability guardrail
+ * that makes AC-3 hold structurally rather than by convention. The shared
+ * thresholds (`bidding.*`, `slam.*`, `suitStrength.*`) the heuristic also
+ * consults are deliberately excluded here, so a promoted overlay can never
+ * move the rollout model out from under the search. World counts
+ * (rolloutWorlds/keepWorlds/...) are compute budget, not strategy, and are
+ * pinned by the runner, so they are excluded too.
  */
 export const HARD_LEAVES: readonly TunableLeaf[] = [
   { group: 'hardBidding', key: 'bidMargin', min: -10, max: 40, std: 12 },
@@ -84,28 +82,12 @@ export const HARD_LEAVES: readonly TunableLeaf[] = [
   { group: 'hardBidding', key: 'dnullaCandLowness', min: 8.0, max: 9.2, std: 0.4 },
 ];
 
-/** Medium's suit-strength weights plus its bid thresholds (experimental). */
-export const MEDIUM_LEAVES: readonly TunableLeaf[] = [
-  { group: 'suitStrength', key: 'joker', min: 0.5, max: 1.5, std: 0.2 },
-  { group: 'suitStrength', key: 'bower', min: 0.4, max: 1.2, std: 0.2 },
-  { group: 'suitStrength', key: 'trumpHonor', min: 0.2, max: 0.9, std: 0.15 },
-  { group: 'suitStrength', key: 'trumpLow', min: 0.1, max: 0.7, std: 0.15 },
-  { group: 'suitStrength', key: 'sideAce', min: 0.4, max: 1.0, std: 0.15 },
-  { group: 'suitStrength', key: 'sideKing', min: 0.0, max: 0.6, std: 0.15 },
-  { group: 'suitStrength', key: 'ntAce', min: 0.5, max: 1.1, std: 0.15 },
-  { group: 'suitStrength', key: 'ntKing', min: 0.1, max: 0.8, std: 0.15 },
-  { group: 'suitStrength', key: 'ntQueen', min: 0.0, max: 0.5, std: 0.15 },
-  { group: 'bidding', key: 'headroom', min: 1, max: 7, std: 1.2 },
-  { group: 'bidding', key: 'indicateEst', min: 2.5, max: 6.5, std: 1.0 },
-  { group: 'slam', key: 'est', min: 6, max: 10, std: 1.0 },
-];
-
 /** Read a leaf's shipped value from a base BotParams. */
 function leafValue(base: BotParams, leaf: TunableLeaf): number {
   return (base[leaf.group] as unknown as Record<string, number>)[leaf.key] as number;
 }
 
-/** Build the CEM dimensions for a tier, centered on the incumbent's values. */
+/** Build the CEM dimensions, centered on the incumbent's values. */
 export function dimensionsFor(leaves: readonly TunableLeaf[], base: BotParams): Dimension[] {
   return leaves.map((leaf) => ({
     name: `${leaf.group}.${leaf.key}`,
@@ -251,18 +233,13 @@ function pct(x: number): string {
  * invokes it — so tests can import the module's helpers without launching a run.
  */
 export async function runTune(args: string[]): Promise<void> {
+  // Hard is the only bot the product ships, so it is the only tunable target.
   const tier = strFlag(args, '--tier') ?? 'hard';
-  if (tier !== 'hard' && tier !== 'medium') {
-    throw new Error(`--tier must be hard|medium, got ${tier}`);
-  }
-  if (tier === 'medium' && !args.includes('--allow-medium')) {
-    throw new Error(
-      'Refusing to tune Medium without --allow-medium: Medium is a stability-' +
-        'guarded tier and its overlay is NOT shipped (fh-sja epic non-goal).',
-    );
+  if (tier !== 'hard') {
+    throw new Error(`--tier must be hard, got ${tier}`);
   }
 
-  const leaves = tier === 'hard' ? HARD_LEAVES : MEDIUM_LEAVES;
+  const leaves = HARD_LEAVES;
 
   // Incumbent = current effective params (defaults + any active overlay);
   // anchor = the frozen shipped defaults the ratchet never regresses against.
@@ -283,9 +260,7 @@ export async function runTune(args: string[]): Promise<void> {
   const playWorlds = numFlag(args, '--play-worlds', 3);
   const confirmGames = numFlag(args, '--confirm-games', 200);
 
-  const outPath =
-    strFlag(args, '--out') ??
-    (tier === 'hard' ? 'packages/bots/params/local.json' : 'packages/bots/params/medium-tuned.json');
+  const outPath = strFlag(args, '--out') ?? 'packages/bots/params/local.json';
   const statePath = strFlag(args, '--state') ?? `${outPath}.tuner-state.json`;
   const fresh = args.includes('--fresh');
 
@@ -391,12 +366,6 @@ export async function runTune(args: string[]): Promise<void> {
     const stamped = { ...overlay, version: overlayVersion(overlay) };
     writeFileSync(outPath, JSON.stringify(stamped, null, 2));
     console.log(`\n✅ PROMOTED — wrote candidate overlay ${stamped.version} to ${outPath}`);
-    if (tier === 'medium') {
-      console.log(
-        '⚠️  Medium overlay is EXPERIMENTAL and NOT auto-loaded/shipped ' +
-          '(tier-stability guardrail). Ship via fh-sja.6 only after review.',
-      );
-    }
   } else {
     console.log('\n❌ NOT PROMOTED — candidate did not clear the SPRT gate; report-only, no overlay written.');
   }

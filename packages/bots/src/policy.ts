@@ -11,7 +11,7 @@
  *
  * One divergence from the Python signature: choosePlay also receives the
  * acting seat, because trick plays carry seats and partner-aware guardrails
- * (Easy) and heuristics (Medium) need to know which play is the partner's.
+ * and the heuristic play-out alike need to know which play is the partner's.
  */
 
 import type { Bid, Card, GameState, Indication, Rng, Trick, TrickPlay } from '@five-hundred/engine';

@@ -10,7 +10,7 @@
  * mulberry32 rng from the request's seed, so a decision is reproducible from
  * (state, seat, seed, budget) alone — the worker keeps no state between
  * requests. A rollout that misses its budget is logged here (stderr) as the
- * packet requires, alongside the Medium fallback the play module applies.
+ * packet requires, alongside the heuristic fallback the play module applies.
  */
 
 import { parentPort } from 'node:worker_threads';
@@ -22,7 +22,12 @@ import {
   validateParams,
   type BotParams,
 } from '@five-hundred/bots';
-import { parseCalibration, type CalibrationArtifact, type PolicyKind } from '@five-hundred/learn';
+import {
+  POLICY_KINDS,
+  parseCalibration,
+  type CalibrationArtifact,
+  type PolicyKind,
+} from '@five-hundred/learn';
 import type { HardWorkerRequest, HardWorkerResponse } from './hardPool.js';
 
 const port = parentPort;
@@ -74,7 +79,7 @@ function requestPolicyKinds(request: HardWorkerRequest): PolicyKind[] {
   const out: PolicyKind[] = [];
   for (let i = 0; i < 4; i++) {
     const k = raw?.[i];
-    out.push(k === 'human' || k === 'easy' || k === 'medium' || k === 'hard' ? k : 'hard');
+    out.push(POLICY_KINDS.includes(k as PolicyKind) ? (k as PolicyKind) : 'hard');
   }
   return out;
 }
@@ -113,7 +118,7 @@ port.on('message', (request: HardWorkerRequest) => {
             console.error(
               `[hard] seat ${request.seat}: rollout finished only ${d.worldsDone} worlds ` +
                 `in ${Math.round(d.elapsedMs)}ms (budget ${request.budgetMs}ms); ` +
-                `using the Medium choice`,
+                `using the heuristic choice`,
             );
           }
         },

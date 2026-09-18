@@ -49,7 +49,7 @@ breaking change bumps the constant and the readers that must migrate.
 | field                 | type                                       | notes                                              |
 | --------------------- | ------------------------------------------ | -------------------------------------------------- |
 | `seat`                | `number`                                   | 0..3                                               |
-| `kind`                | `'human' \| 'easy' \| 'medium' \| 'hard'`  | how the seat was played (bot tiers = difficulty)   |
+| `kind`                | `'human' \| 'hard' \| 'heuristic'`         | how the seat was played (`easy`/`medium` still parse, for pre-fh-4k3 corpora) |
 | `paramsSchemaVersion` | `number \| null`                           | BotParams version once fh-sja.1 lands; else `null` |
 | `overlayHash`         | `string \| null`                           | learned-overlay hash once fh-sja.1 lands; else `null` |
 
@@ -139,7 +139,7 @@ The artifact is a versioned plain-JSON object (`v = CALIBRATION_SCHEMA_VERSION`,
 records its own strength `weights` and `bucketWidth`). `validateCalibration` /
 `parseCalibration` are the loud-fallback gate, mirroring the BotParams overlay
 loader. Strength itself is `suitStrength(hand, strain, weights?)` — a faithful
-copy of the bots `MediumPolicy.suitStrength` (learn may not depend back on bots).
+copy of the bots `HeuristicPolicy.suitStrength` (learn may not depend back on bots).
 
 `runSprt(outcomes, cfg?)` is a Wald sequential probability-ratio test over a
 win/loss stream (shared with the arena, fh-sja.3): it decides H0 (`p ≤ p0`) vs

@@ -38,7 +38,7 @@ import {
 import type { HardMemoryParams, ObservedConstraints, SampledWorld } from '../src/index.js';
 import {
   DEFAULT_PARAMS,
-  MediumPolicy,
+  HeuristicPolicy,
   botAction,
   countsAsSuit,
   deriveConstraints,
@@ -137,16 +137,16 @@ function violation(cons: ObservedConstraints, world: SampledWorld): string | nul
 }
 
 /**
- * AC-1 fixture: Medium bots drive a fresh game into mid-play (6 completed
+ * AC-1 fixture: heuristic bots drive a fresh game into mid-play (6 completed
  * tricks); the first seed whose trick history reveals at least one void for
  * some active viewer is used. Seeded and deterministic.
  */
 function midPlayFixture(): { cons: ObservedConstraints } {
   const policies = [
-    new MediumPolicy(),
-    new MediumPolicy(),
-    new MediumPolicy(),
-    new MediumPolicy(),
+    new HeuristicPolicy(),
+    new HeuristicPolicy(),
+    new HeuristicPolicy(),
+    new HeuristicPolicy(),
   ];
   for (let seed = 1; seed <= 60; seed++) {
     const rng = makeRng(seed);
@@ -439,10 +439,10 @@ function deepSpadesGame(): GameState {
   return playCards(st, [S(13), C(12)]);
 }
 
-/** Medium bots drive game `seed` to six completed tricks. */
+/** heuristic bots drive game `seed` to six completed tricks. */
 function midPlayState(seed: number): GameState {
-  const medium = new MediumPolicy();
-  const policies = [medium, medium, medium, medium];
+  const heuristic = new HeuristicPolicy();
+  const policies = [heuristic, heuristic, heuristic, heuristic];
   const rng = makeRng(seed);
   let st = newGame(seed);
   for (let guard = 0; !(st.play !== null && st.play.tricks.length >= 6); guard++) {
@@ -576,8 +576,8 @@ describe('deriveConstraints with imperfect memory (fh-8jf.2)', () => {
     // The crash above only shows up deep in a hand, where the seats hold a few
     // cards, the voids have piled up and forgetting has fattened the pool.
     // Walk the whole play phase rather than one snapshot of it.
-    const medium = new MediumPolicy();
-    const policies = [medium, medium, medium, medium];
+    const heuristic = new HeuristicPolicy();
+    const policies = [heuristic, heuristic, heuristic, heuristic];
     for (let game = 1; game <= 4; game++) {
       const rng = makeRng(game);
       let st = newGame(game);

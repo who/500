@@ -1,9 +1,9 @@
 /**
  * Hard-bot rollout keep/discard evaluation (PRD 4.3 exchange) — chooseKeeps
  * by determinized rollout: generate candidate keep-sets heuristically
- * (Medium's chooseKeeps plus a swap neighborhood around the keep/discard
+ * (Heuristic's chooseKeeps plus a swap neighborhood around the keep/discard
  * boundary), evaluate every candidate over the SAME N sampled worlds with
- * Medium play-outs on all four seats, and pick the argmax. A port and
+ * Heuristic play-outs on all four seats, and pick the argmax. A port and
  * extension of the oracle's evaluate_keeps / _play_fixed (five_hundred.py
  * 597-646): where the oracle scores make-rate on numbered bids only, this
  * evaluator scores expected declarer-side points delta (capturing defender
@@ -11,18 +11,18 @@
  * play-out to every contract class by re-entering the engine's own exchange
  * and play loop instead of a bespoke trick loop:
  *
- *   NUM      scripted auction, slam declined, keeps scripted, Medium play.
+ *   NUM      scripted auction, slam declined, keeps scripted, Heuristic play.
  *   slam-16  detected by holding 16 cards: the partner's surrendered card is
  *            scripted back through giveCard so the declarer holds the exact
  *            16, then keeps 10 solo.
  *   NULLA    partner sits out; the candidate list adds nothing beyond the
  *            lose-all base and its swaps.
  *   DNULLA   the declarer's 5 discards travel to the sampled partner, whose
- *            Medium chooseKeeps runs INSIDE the play-out — so a candidate is
+ *            Heuristic chooseKeeps runs INSIDE the play-out — so a candidate is
  *            scored on what its pass-through does to the partner (packet
  *            edge case).
  *
- * Shared worlds across candidates are deliberate variance reduction: Medium
+ * Shared worlds across candidates are deliberate variance reduction: Heuristic
  * policies are deterministic, so two candidates differing in one card are
  * compared on identical layouts. Ties break first-in-order (strict argmax)
  * for determinism; identical (cards, contract, seed) always yield identical
@@ -52,7 +52,7 @@ import {
   partnerOf,
   trumpOf,
 } from '@five-hundred/engine';
-import { MediumPolicy } from '../medium.js';
+import { HeuristicPolicy } from '../heuristic.js';
 import { DEFAULT_PARAMS, type BotParams } from '../params.js';
 import type { Policy } from '../policy.js';
 import { driveHand } from '../sim.js';
@@ -100,18 +100,18 @@ export interface HardKeepsOptions {
 
 const ascending = (a: Card, b: Card): number => a - b;
 
-const MEDIUM = new MediumPolicy();
-const POLICIES: readonly Policy[] = [MEDIUM, MEDIUM, MEDIUM, MEDIUM];
+const HEURISTIC = new HeuristicPolicy();
+const POLICIES: readonly Policy[] = [HEURISTIC, HEURISTIC, HEURISTIC, HEURISTIC];
 
-/** Four Medium seats sharing the given params (the default-fast-path reuses POLICIES). */
+/** Four Heuristic seats sharing the given params (the default-fast-path reuses POLICIES). */
 function keepsPolicies(params: BotParams): readonly Policy[] {
   if (params === DEFAULT_PARAMS) return POLICIES;
-  const m = new MediumPolicy(params);
+  const m = new HeuristicPolicy(params);
   return [m, m, m, m];
 }
 
 /**
- * Candidate keep-sets: Medium's chooseKeeps as the base (for lose-all that
+ * Candidate keep-sets: Heuristic's chooseKeeps as the base (for lose-all that
  * IS the weakest-10 keep the packet requires), then the swap neighborhood —
  * each of the most marginal kept cards exchanged for each near-marginal
  * discard, nearest-the-boundary swaps first, capped at MAX_CANDIDATES.
@@ -125,12 +125,12 @@ export function candidateKeeps(
   params: BotParams = DEFAULT_PARAMS,
 ): Card[][] {
   const sorted = [...cards].sort(ascending);
-  const base = new MediumPolicy(params).chooseKeeps(sorted, contract);
+  const base = new HeuristicPolicy(params).chooseKeeps(sorted, contract);
   const keepSet = new Set(base);
   const discards = sorted.filter((c) => !keepSet.has(c));
   const trump = trumpOf(contract);
   // How strongly a card wants to stay kept: raw rank-lowness under lose-all
-  // (joker strongest, mirroring Medium's keep rule), own-suit-led power
+  // (joker strongest, mirroring Heuristic's keep rule), own-suit-led power
   // otherwise.
   const keepDesire = isLoseAll(contract)
     ? (c: Card): number => -(c === JOKER ? 99 : (cardRank(c) as number))
@@ -197,12 +197,12 @@ export function sampleKeepWorlds(
 }
 
 /**
- * Play one world out with `keeps` as the scripted keep-set and Medium
+ * Play one world out with `keeps` as the scripted keep-set and Heuristic
  * policies everywhere, returning the side-0 points delta — the generalized
  * _play_fixed. The exchange is re-entered through the engine (scripted
  * auction, scripted slam answer / give-card / declarer discard), then
  * driveHand finishes the hand: for DNULLA that includes the sampled
- * partner's Medium keep of the passed-through 15.
+ * partner's Heuristic keep of the passed-through 15.
  */
 export function playoutKeeps(
   cards: readonly Card[],
@@ -216,7 +216,7 @@ export function playoutKeeps(
   let st: GameState;
   if (sorted.length === 16) {
     // Slam: deal 15 of the 16 as hand+middle and route the 16th through the
-    // partner, whose give is scripted (Medium would surrender its own best
+    // partner, whose give is scripted (Heuristic would surrender its own best
     // card, which need not be ours). Which card plays the "given" role is
     // arbitrary — the declarer ends up holding the same 16 either way.
     const give = sorted[sorted.length - 1] as Card;

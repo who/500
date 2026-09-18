@@ -67,8 +67,8 @@ export interface StartGameCommand {
  * for the rest of the game — the seat's old token is invalidated.
  *
  * `difficulty` is optional (fh-gpk): the product always fills seats with Hard
- * bots, so omitting it takes the server's default tier. Tools and tests may
- * still name a tier explicitly.
+ * bots, so omitting it takes the server's only difficulty. A payload may
+ * still name it explicitly, but 'hard' is the one value the guards accept.
  */
 export interface ConvertSeatToBotCommand {
   readonly t: 'convertSeatToBot';

@@ -27,8 +27,14 @@ export const SCHEMA_VERSION = 2;
  */
 export const SUPPORTED_SCHEMA_VERSIONS: readonly number[] = [1, 2];
 
-/** How a seat was played. Bot tiers mirror protocol BotDifficulty. */
-export type PolicyKind = 'human' | 'easy' | 'medium' | 'hard';
+/**
+ * How a seat was played. `hard` is the only bot the product seats; `heuristic`
+ * is the internal rule-based play-out model, which research sims can seat
+ * directly. `easy` and `medium` are retired tier names kept readable so
+ * corpora recorded before fh-4k3 still parse.
+ */
+export const POLICY_KINDS = ['human', 'hard', 'heuristic', 'easy', 'medium'] as const;
+export type PolicyKind = (typeof POLICY_KINDS)[number];
 
 /**
  * Per-seat provenance. `paramsSchemaVersion` and `overlayHash` pin the

@@ -8,6 +8,7 @@ import { act } from 'react';
 import { render, type RenderResult } from '@testing-library/react';
 import type { RedactedView } from '@five-hundred/engine';
 import type {
+  BotDifficulty,
   ClientCommand,
   Envelope,
   RoomSeatView,
@@ -98,7 +99,7 @@ const BOT_NAMES = ['Emma', 'Liam', 'Olivia', 'Noah'];
 
 export function botSeatView(
   seat: number,
-  difficulty: 'easy' | 'medium' | 'hard' = 'hard',
+  difficulty: BotDifficulty = 'hard',
   name: string = BOT_NAMES[seat] ?? 'Robin',
 ): RoomSeatView {
   return { seat, occupant: 'bot', name, difficulty, connected: true };

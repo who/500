@@ -12,7 +12,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "sim": "tsx src/sim-cli.ts",
-    "sim:hard": "tsx src/sim-cli.ts --games 200 --policies HMHM",
+    "sim:hard": "tsx src/sim-cli.ts --games 200 --policies HRHR",
     "tune": "tsx src/tune-cli.ts",
     "calibrate": "tsx src/calibrate-cli.ts",
     "ab-bower": "tsx src/ab-bower-cli.ts",

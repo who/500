@@ -18,8 +18,8 @@ The goal is to let people play **this** 500 over the internet — same
 scoring, same auction, same kitty — against friends or against bots. The
 bots are part of that: they sit empty seats, they can learn from finished
 human games (the play-log calibrator), and they can get harder over time
-when a learned overlay clears the promotion gate. Easy and Medium stay
-frozen so the table has a stable floor; only Hard takes the overlay.
+when a learned overlay clears the promotion gate. Hard is the only bot —
+there is no difficulty picker, and every seat the server fills plays it.
 
 ## End-to-end smoke test
 
@@ -29,7 +29,7 @@ pnpm e2e
 
 One command, no external services: builds every package, boots the built
 server (which serves the built client), and drives a real headless Chromium
-through a full scripted hand — create room, seat one human plus three Easy
+through a full scripted hand — create room, seat one human plus three Hard
 bots, pass through the auction, play legal cards to the hand-end overlay —
 asserting the seeded contract and zero browser console errors.
 
@@ -53,9 +53,10 @@ only. They are not interchangeable:
 - **Play-log calibrator** (`pnpm learn:calibrate`) — fits a Hard overlay and
   `calibration.json` from a GameRecord corpus (local JSONL or the store).
 
-Easy and Medium stay frozen. Neither pipeline searches those tiers, and the
-server applies the overlay exclusively to Hard seats (a tier-stability guard
-test pins both, byte-for-byte).
+Neither pipeline can move the rule-based `HeuristicPolicy` that Hard rolls
+out against and falls back to: the tuner's search vector is confined to
+`hardBidding.*`, which nothing else reads, and an overlay-stability guard
+test pins that byte-for-byte.
 
 ### How it applies
 
@@ -63,7 +64,7 @@ test pins both, byte-for-byte).
   or the store artifacts after a promote): the server loads it at startup, the
   lobby shows a small **`learned vX`** tag, and each room defaults to using it
   for Hard seats. A host can flip the **Adaptive bots** toggle to run the
-  checked-in defaults instead. Easy/Medium play is identical either way.
+  checked-in defaults instead. The heuristic play-out is identical either way.
 - **When no overlay is present**: everything is inert — no tag, no toggle, and
   Hard seats run `default.json` exactly as before. The load is loud-on-failure,
   so a corrupt overlay falls back to defaults with a warning rather than
@@ -156,8 +157,8 @@ Two different searches write overlays, and they touch **different keys**:
 
 | Pipeline | What it changes | What it does *not* change |
 |---|---|---|
-| `learn:calibrate` | `bidding.headroom` only (a bounded nudge, at most ±1) | Hard rollout knobs, memory, Easy/Medium |
-| `learn:tune` (CEM) | `hardBidding.bidMargin`, `slamMargin`, `nullaCandLowness`, `dnullaCandLowness` | Shared Medium thresholds, world counts |
+| `learn:calibrate` | `bidding.headroom` only (a bounded nudge, at most ±1) | Hard rollout knobs, memory |
+| `learn:tune` (CEM) | `hardBidding.bidMargin`, `slamMargin`, `nullaCandLowness`, `dnullaCandLowness` | Shared heuristic thresholds, world counts |
 
 If a night of calibrate prints `bidding.headroom 4 -> 4.17` and then
 `NOT PROMOTED`, the fit ran; the confirmation match just could not prove
@@ -181,7 +182,7 @@ statistical gate.
 
 #### `suitStrength.*` — how many tricks a suit is worth
 
-Used when Medium (and Hard’s first cut) estimates a hand. Units are
+Used when the heuristic (and Hard’s first cut) estimates a hand. Units are
 roughly “expected tricks.” Defaults:
 
 | Key | Default | Meaning |
@@ -208,7 +209,7 @@ roughly “expected tricks.” Defaults:
 | `headroom` | 4.0 | Extra levels above the raw strength estimate. Calibrate nudges this toward a 50% make-rate (max ±1). Higher = more aggressive numbered bids. |
 | `indicateEst` | 4.5 | Minimum estimate to fire a 6-level indication, and the strength that indication promises partner. |
 | `partnerIndicationBonus` | 2.0 | Extra support credited when partner has indicated. |
-| `nullaLowness` | 8.6 | How “low” the hand must look before Medium considers Nulla. |
+| `nullaLowness` | 8.6 | How “low” the hand must look before the heuristic considers Nulla. |
 | `nullaMaxRank` | 11 | Highest card allowed in a Nulla try (11 = jack). |
 
 #### `slam.*` and `endgame.*`
@@ -231,7 +232,7 @@ if the average score beats passing by `bidMargin` points.
 | `rolloutWorlds` | 16 | Hidden hands sampled per bid/slam decision. Compute budget; not tuned. |
 | `bidMargin` | 10 | Extra expected points over “pass” required to bid. Lower = more willing to bid. **Tuned.** |
 | `slamMargin` | 25 | Extra expected points of slamming vs not. Lower = more slams. **Tuned.** |
-| `nullaCandLowness` | 8.0 | Looser Nulla gate than Medium, so Hard will even *consider* Nulla. **Tuned.** |
+| `nullaCandLowness` | 8.0 | Looser Nulla gate than the heuristic’s, so Hard will even *consider* Nulla. **Tuned.** |
 | `nullaCandMaxRank` | 12 | Highest rank still allowed in a Nulla candidate (12 = queen). |
 | `dnullaCandLowness` | 8.6 | Same idea for double Nulla. **Tuned.** |
 | `dnullaCandMaxRank` | 11 | Highest rank for a double-Nulla candidate (11 = jack). |
@@ -253,8 +254,8 @@ if the average score beats passing by `bidMargin` points.
 | `worldsFloor` | 20 | Fewest playouts a card-play average may rest on. |
 | `worldsCap` | 200 | Most playouts in a hard, high-stakes spot. |
 | `trickWeight` | 8 | Extra reward per own-side trick (flipped on Nulla). Small enough that it cannot prefer a set with more tricks over a make. |
-| `mediumTiebreakEps` | 5 | If Hard’s best card beats Medium’s pick by fewer than this many points, play Medium’s card. |
-| `mediumTiebreakZ` | 2 | Same idea, but in standard errors of the rollout noise. Stops Hard from “improving” on a coin flip. |
+| `heuristicTiebreakEps` | 5 | If Hard’s best card beats the heuristic’s pick by fewer than this many points, play the heuristic’s card. |
+| `heuristicTiebreakZ` | 2 | Same idea, but in standard errors of the rollout noise. Stops Hard from “improving” on a coin flip. |
 
 #### `hardMemory.*` — what Hard is allowed to forget
 

@@ -9,10 +9,10 @@
  *         that clears the SPRT confirmation beats the incumbent, and its overlay
  *         round-trips through the real params loader; a non-improving candidate
  *         is report-only (no overlay).
- *   AC-3  A promoted Hard overlay (hardBidding.* only) leaves Easy/Medium play
+ *   AC-3  A promoted Hard overlay (hardBidding.* only) leaves heuristic play
  *         byte-identical — the tier-stability guardrail, checked structurally
  *         and by seeded self-play.
- *   AC-4  Shipped Hard beats Medium at >=60% (the gate that must stay green).
+ *   AC-4  Shipped Hard beats heuristic at >=60% (the gate that must stay green).
  *
  * World counts are held small so the games are fast; the decisive match-ups
  * here (default vs reckless over-bidder) settle long before rollout depth bites.
@@ -33,7 +33,7 @@ import {
 } from '@five-hundred/learn';
 import { DEFAULT_PARAMS, loadParams, mergeParams } from '../src/params.js';
 import { makeHardMatchRunner, recklessBidParams } from '../src/arena-runner.js';
-import { MediumPolicy } from '../src/medium.js';
+import { HeuristicPolicy } from '../src/heuristic.js';
 import { simulateGames } from '../src/sim.js';
 import {
   HARD_LEAVES,
@@ -142,37 +142,37 @@ describe.skipIf(process.env.CI === 'true')('Self-play tuner (real Hard arena)', 
     expect(report.trajectory.length).toBeGreaterThan(0);
   }, 120_000);
 
-  it('AC-3: a Hard overlay leaves Medium play byte-identical (tier-stability guard)', async () => {
+  it('AC-3: a Hard overlay leaves heuristic play byte-identical (tier-stability guard)', async () => {
     // Fabricate an aggressive Hard overlay touching every hardBidding leaf.
     const overlay = vectorToOverlay(HARD_LEAVES, [-5, 5, 7.2, 8.1]);
     const withOverlay = mergeParams(DEFAULT_PARAMS, overlay);
 
-    // Structural guarantee: every group Medium/Easy read is untouched.
+    // Structural guarantee: every group the heuristic reads is untouched.
     expect(withOverlay.suitStrength).toEqual(DEFAULT_PARAMS.suitStrength);
     expect(withOverlay.bidding).toEqual(DEFAULT_PARAMS.bidding);
     expect(withOverlay.slam).toEqual(DEFAULT_PARAMS.slam);
     expect(withOverlay.endgame).toEqual(DEFAULT_PARAMS.endgame);
 
-    // Behavioral guarantee: Medium-vs-Medium self-play is identical whether the
-    // Medium bots are built from the defaults or from the Hard-overlaid params.
+    // Behavioral guarantee: heuristic-vs-heuristic self-play is identical whether the
+    // heuristic bots are built from the defaults or from the Hard-overlaid params.
     const base = () => [
-      new MediumPolicy(DEFAULT_PARAMS),
-      new MediumPolicy(DEFAULT_PARAMS),
-      new MediumPolicy(DEFAULT_PARAMS),
-      new MediumPolicy(DEFAULT_PARAMS),
+      new HeuristicPolicy(DEFAULT_PARAMS),
+      new HeuristicPolicy(DEFAULT_PARAMS),
+      new HeuristicPolicy(DEFAULT_PARAMS),
+      new HeuristicPolicy(DEFAULT_PARAMS),
     ];
     const overlaid = () => [
-      new MediumPolicy(withOverlay),
-      new MediumPolicy(withOverlay),
-      new MediumPolicy(withOverlay),
-      new MediumPolicy(withOverlay),
+      new HeuristicPolicy(withOverlay),
+      new HeuristicPolicy(withOverlay),
+      new HeuristicPolicy(withOverlay),
+      new HeuristicPolicy(withOverlay),
     ];
     expect(simulateGames(80, overlaid(), 9)).toEqual(simulateGames(80, base(), 9));
   }, 60_000);
 
-  it('AC-4: shipped Hard beats Medium at >=60% (gate stays green)', async () => {
+  it('AC-4: shipped Hard beats heuristic at >=60% (gate stays green)', async () => {
     // Real shipped HardPolicy (full world budget) via the sim harness: seats
-    // 0/2 Hard, 1/3 Medium. The gate is comfortably clear (~68% observed).
+    // 0/2 Hard, 1/3 heuristic. The gate is comfortably clear (~68% observed).
     const { HardPolicy } = await import('../src/hard/policy.js');
     // Play in chunks, yielding to the event loop between them so vitest's worker
     // heartbeat is not starved by one long synchronous block.
@@ -182,7 +182,7 @@ describe.skipIf(process.env.CI === 'true')('Self-play tuner (real Hard arena)', 
     for (let c = 0; c < chunks; c++) {
       const wins = simulateGames(
         chunk,
-        [new HardPolicy(), new MediumPolicy(), new HardPolicy(), new MediumPolicy()],
+        [new HardPolicy(), new HeuristicPolicy(), new HardPolicy(), new HeuristicPolicy()],
         21 + c,
       );
       hardWins += wins[0];

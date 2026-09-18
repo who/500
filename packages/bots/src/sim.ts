@@ -6,7 +6,7 @@
  * Where the oracle re-implements deal/auction/play inline, this harness
  * drives full hands and games through the engine's public GameState API
  * (applyAction), promoting the GameState -> Policy driver that previously
- * lived in easy.spec.ts / medium.spec.ts to shared code. Everything here is
+ * lived in the policy specs to shared code. Everything here is
  * pure and synchronous — zero timers, zero I/O beyond printStats — so the
  * same driver runs in tests, the CLI, and later inside Hard-bot rollouts
  * and the server's pacing loop (PRD 4.4: pacing skipped in headless mode).

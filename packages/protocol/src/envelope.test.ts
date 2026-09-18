@@ -9,8 +9,8 @@ const roomStateEvent: RoomStateEvent = {
     hostSeat: 0,
     seats: [
       { seat: 0, occupant: 'human', name: 'Andy', difficulty: null, connected: true },
-      { seat: 1, occupant: 'bot', name: null, difficulty: 'easy', connected: true },
-      { seat: 2, occupant: 'bot', name: null, difficulty: 'medium', connected: true },
+      { seat: 1, occupant: 'bot', name: null, difficulty: 'hard', connected: true },
+      { seat: 2, occupant: 'bot', name: null, difficulty: 'hard', connected: true },
       { seat: 3, occupant: 'bot', name: null, difficulty: 'hard', connected: true },
     ],
     started: true,

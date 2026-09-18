@@ -14,7 +14,7 @@
  * Plus the packet's edge cases and invariants: one-legal-card turns return
  * instantly without sampling or clock reads, fixed-world mode never touches
  * the clock at all (headless determinism), identical (state, seed, worlds)
- * pick the identical card, a busted budget falls back to Medium's choice and
+ * pick the identical card, a busted budget falls back to heuristic's choice and
  * reports it, and the assembled HardPolicy drives full hands through the
  * headless sim harness via the StateAwarePolicy seam.
  */
@@ -42,7 +42,7 @@ import type { BotParams, HardPlayDecision } from '../src/index.js';
 import {
   DEFAULT_PARAMS,
   HardPolicy,
-  MediumPolicy,
+  HeuristicPolicy,
   botAction,
   choosePlayByRollout,
   hasStatePlay,
@@ -57,7 +57,7 @@ interface PlayDecision {
 }
 
 /**
- * Walk seeded Medium-vs-Medium games and capture play-phase decision points
+ * Walk seeded heuristic-vs-heuristic games and capture play-phase decision points
  * (fresh games chain on gameOver so any `want` is reachable).
  */
 function collectDecisions(
@@ -66,8 +66,8 @@ function collectDecisions(
   filter: (legal: readonly Card[]) => boolean,
 ): PlayDecision[] {
   const rng = makeRng(seed);
-  const medium = new MediumPolicy();
-  const policies = [medium, medium, medium, medium];
+  const heuristic = new HeuristicPolicy();
+  const policies = [heuristic, heuristic, heuristic, heuristic];
   const out: PlayDecision[] = [];
   let game = 0;
   let state = newGame(seed);
@@ -164,7 +164,7 @@ describe('choosePlayByRollout', () => {
     expect(pick(undefined)).toBe(pick());
   });
 
-  it('falls back to the Medium choice when the budget cannot fit the floor', () => {
+  it('falls back to the heuristic choice when the budget cannot fit the floor', () => {
     const [decision] = collectDecisions(0xfa11, 1, (legal) => legal.length > 2);
     if (decision === undefined) throw new Error('no multi-card decision found');
     const { state, seat, legal } = decision;
@@ -177,7 +177,7 @@ describe('choosePlayByRollout', () => {
     });
     expect(reports).toHaveLength(1);
     expect(reports[0]).toMatchObject({ seat, worldsDone: 0, fellBack: true });
-    const medium = new MediumPolicy().choosePlay(
+    const heuristic = new HeuristicPolicy().choosePlay(
       seat,
       play.hands[seat] ?? [],
       legal,
@@ -187,7 +187,7 @@ describe('choosePlayByRollout', () => {
       state.contract,
       { declarer: play.declarer, tricks: play.tricks },
     );
-    expect(card).toBe(medium);
+    expect(card).toBe(heuristic);
   });
 
   // fh-8jf.3 AC-2: the rollout plays out SAMPLED worlds, where full
@@ -252,9 +252,9 @@ describe('choosePlayByRollout', () => {
 });
 
 describe('HardPolicy', () => {
-  it('exposes the state-aware play seam (and Medium does not)', () => {
+  it('exposes the state-aware play seam (and heuristic does not)', () => {
     expect(hasStatePlay(new HardPolicy())).toBe(true);
-    expect(hasStatePlay(new MediumPolicy())).toBe(false);
+    expect(hasStatePlay(new HeuristicPolicy())).toBe(false);
   });
 
   it('plays full hands through the headless sim harness with a memory (fh-8jf.2)', () => {
@@ -264,16 +264,16 @@ describe('HardPolicy', () => {
       play: { worlds: 2 },
       memory: { seed: 0x8f2 },
     });
-    const medium = new MediumPolicy();
-    const result = simulateHands(2, [hard, medium, medium, medium], 0x5eed);
+    const heuristic = new HeuristicPolicy();
+    const result = simulateHands(2, [hard, heuristic, heuristic, heuristic], 0x5eed);
     const hands = Object.values(result.contracts).reduce((n, s) => n + s.n, 0);
     expect(hands).toBe(2);
   }, 30_000);
 
   it('plays full hands through the headless sim harness, worker-free', () => {
     const hard = new HardPolicy({ bidWorlds: 2, keepWorlds: 2, play: { worlds: 2 } });
-    const medium = new MediumPolicy();
-    const result = simulateHands(2, [hard, medium, medium, medium], 0x5eed);
+    const heuristic = new HeuristicPolicy();
+    const result = simulateHands(2, [hard, heuristic, heuristic, heuristic], 0x5eed);
     const hands = Object.values(result.contracts).reduce((n, s) => n + s.n, 0);
     expect(hands).toBe(2);
   }, 30_000);
@@ -368,13 +368,13 @@ describe('rollout secondary trick term (fh-w6c)', () => {
 });
 
 // ---------------------------------------------------------------------------
-// Medium-tiebreak selection (fh-vkr / fh-hg4 / fh-4ww): when the rollout cannot
-// clearly separate its pick from Medium's tactically-sound card, defer to
-// Medium. The gate is the absolute floor `eps` OR `z` standard errors of the
-// paired (best - Medium) difference, whichever is larger, so pickCard stays a
+// heuristic-tiebreak selection (fh-vkr / fh-hg4 / fh-4ww): when the rollout cannot
+// clearly separate its pick from heuristic's tactically-sound card, defer to
+// heuristic. The gate is the absolute floor `eps` OR `z` standard errors of the
+// paired (best - heuristic) difference, whichever is larger, so pickCard stays a
 // pure, deterministic function of the tally it is handed.
 // ---------------------------------------------------------------------------
-describe('rollout Medium-tiebreak (fh-vkr, fh-hg4, fh-4ww)', () => {
+describe('rollout heuristic-tiebreak (fh-vkr, fh-hg4, fh-4ww)', () => {
   const GATE = { eps: 5, z: 2 };
 
   /**
@@ -389,30 +389,30 @@ describe('rollout Medium-tiebreak (fh-vkr, fh-hg4, fh-4ww)', () => {
     mediumIdx,
   });
 
-  it("NT: prefers Medium's boss over the arg-max low card on a near-tie", () => {
+  it("NT: prefers heuristic's boss over the arg-max low card on a near-tie", () => {
     // legal ascending: a low card (index 0) and an ace/boss (index 1). The
     // rollout rates them within eps (cash-now vs cash-later is a wash under a
     // weak simulator); bare arg-max would keep the low card.
     const legal = [4, 10]; // 8S(low), AS(boss) — ascending card ints
-    // Without the tiebreak the low card (higher EV) wins; with it, Medium's AS.
+    // Without the tiebreak the low card (higher EV) wins; with it, heuristic's AS.
     expect(pickCard(legal, oneWorld([102, 100], 1), GATE)).toBe(10);
   });
 
-  it("trump: prefers Medium's side card over the arg-max low trump on a near-tie", () => {
-    // A non-declarer whose Medium pick is a side card; the arg-max lands on a
+  it("trump: prefers heuristic's side card over the arg-max low trump on a near-tie", () => {
+    // A non-declarer whose heuristic pick is a side card; the arg-max lands on a
     // low trump within eps. pickCard must return the side card (fh-hg4).
     const legal = [1, 25]; // 5S (a spade/trump), 6D (a side card)
     expect(pickCard(legal, oneWorld([58, 55], 1), GATE)).toBe(25);
   });
 
-  it('never overrides a rollout pick that is clearly better than Medium’s', () => {
-    // Medium's card trails the best by more than eps, and every world agreed
+  it('never overrides a rollout pick that is clearly better than heuristic’s', () => {
+    // heuristic's card trails the best by more than eps, and every world agreed
     // (zero variance) -> trust the rollout.
     const legal = [4, 10];
     expect(pickCard(legal, oneWorld([120, 100], 1), GATE)).toBe(4);
   });
 
-  it('is a no-op when Medium already picks the arg-max card', () => {
+  it('is a no-op when heuristic already picks the arg-max card', () => {
     expect(pickCard([4, 10], oneWorld([100, 130], 1), GATE)).toBe(10);
   });
 
@@ -422,10 +422,10 @@ describe('rollout Medium-tiebreak (fh-vkr, fh-hg4, fh-4ww)', () => {
   });
 
   it('fh-4ww: a lead the worlds disagreed about is not enough, however big', () => {
-    // 100 worlds, the best card ahead of Medium's by a mean of 20 points — far
+    // 100 worlds, the best card ahead of heuristic's by a mean of 20 points — far
     // clear of eps — but with a paired spread so wide the mean is inside 2
     // standard errors. sum(d) = 2000 and sum(d^2) = 4_000_000 give
-    // sd = 200 and se = 20, so 2*se = 40 > 20: Medium's card holds.
+    // sd = 200 and se = 20, so 2*se = 40 > 20: heuristic's card holds.
     const legal = [4, 10];
     const tally: RolloutTally = {
       totals: [2000, 0],
@@ -459,13 +459,13 @@ describe('rollout Medium-tiebreak (fh-vkr, fh-hg4, fh-4ww)', () => {
 //   4S 6S 8S QS | 7C QC AC | KH. It led 8S. The declarer was NOT out of trump:
 //   it held A-Q-7 of clubs with three trumps (K-10-9) still unseen, so the
 //   human's "should have got all trump out first" was right on the cards.
-//   Medium's fh-n2n draw already said AC; Hard's rollout rates the whole hand
+//   heuristic's fh-n2n draw already said AC; Hard's rollout rates the whole hand
 //   dead level and its arg-max shipped a low spade. Now: AC, every seed.
 //
 // Flag 2 — hand 4, trick 2. Contract 7NT, declarer seat 1; DEFENDER seat 2 on
-//   lead holding 6C 8C JC | 7D 8D 10D QD | 6H. It led 7D, and Medium would
+//   lead holding 6C 8C JC | 7D 8D 10D QD | 6H. It led 7D, and heuristic would
 //   have bled 6C — the fh-2wt cash-from-the-top branch was gated to the
-//   declaring side. Widened to every seat, Medium leads QD (top of the longest
+//   declaring side. Widened to every seat, heuristic leads QD (top of the longest
 //   suit, joker still unseen so nothing is boss); Hard follows.
 // ---------------------------------------------------------------------------
 interface FlaggedHand {
@@ -520,11 +520,11 @@ function replayTo(hand: FlaggedHand, trickIndex: number, ply: number): GameState
   throw new Error('the logged hand ended before that decision');
 }
 
-/** Medium's card at a decision state, with the arguments Hard feeds it. */
+/** heuristic's card at a decision state, with the arguments Hard feeds it. */
 function mediumCardAt(state: GameState, seat: number): Card {
   const play = state.play;
   if (play === null || state.contract === null) throw new Error('not in play');
-  return new MediumPolicy().choosePlay(
+  return new HeuristicPolicy().choosePlay(
     seat,
     play.hands[seat] ?? [],
     legalPlaysFor(play, seat),

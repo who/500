@@ -88,7 +88,7 @@ test('a full hand: create room, start with 3 Hard bots, pass, play to the overla
   // contract is pinned to TEST_SEED — a mismatch means the decision stream
   // drifted and e2e/pick-seed.ts should be rerun (see e2e/seed.ts). It is
   // also the proof that the bot seats really decided in the Hard worker
-  // pool: this seed's Medium fallback stream bids 7H from seat 2 instead.
+  // pool: this seed's heuristic fallback stream bids 7H from seat 2 instead.
   await expect(page.getByTestId('hand-end-headline')).toHaveText(/(made|set|failed): [+-]\d+/);
   await expect(page.getByTestId('hand-end-contract')).toContainText(EXPECTED_CONTRACT);
   await expect(page.getByTestId('hand-end-ready-button')).toBeEnabled();
